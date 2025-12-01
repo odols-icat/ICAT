@@ -1,0 +1,3491 @@
+*&---------------------------------------------------------------------*
+*&  Include           LZRM_SIGNAF02
+*&---------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+*
+FORM boton_back.
+
+
+  DATA lv_answ TYPE c.
+
+  IF  ( gs_valid-flag_signa IS INITIAL AND sy-datar EQ abap_true )
+    OR gv_changed EQ abap_true.
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar              = 'Desar'
+        text_question         = 'Desitja guardar els canvis realitzats?'
+        text_button_1         = 'Desar'
+        icon_button_1         = 'ICON_SYSTEM_SAVE'
+        text_button_2         = 'Sortir'
+*       icon_button_2         = 'ICON_CANCEL'
+        display_cancel_button = 'X'
+      IMPORTING
+        answer                = lv_answ
+      EXCEPTIONS
+        text_not_found        = 1
+        OTHERS                = 2.
+
+    CASE lv_answ.
+      WHEN '1'.
+        PERFORM save_docs_signa.
+        MESSAGE text-e06 TYPE 'S'.
+        SET SCREEN 0.
+        LEAVE SCREEN.
+      WHEN '2'.
+        CLEAR: gt_bin_content, gv_changed, gt_components, gt_web_hash.
+        SET SCREEN 0.
+        LEAVE SCREEN.
+      WHEN 'A'.
+    ENDCASE.
+  ELSE.
+
+    CLEAR: gt_bin_content, gv_changed, gt_components, gt_web_hash.
+    SET SCREEN 0.
+    LEAVE SCREEN.
+  ENDIF.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+* Adjuntar los anexos y consultas como paso final, ya que si se hacen al
+* inicio no se muestran .
+*
+FORM boton_signa_gdg.
+
+  DATA: lv_ok            TYPE flag,
+        lv_total_bytes   TYPE i,
+        lv_bin_file      TYPE xstring,
+        lv_xstr_merged   TYPE xstring,
+        lt_old_attach    TYPE tfpattachments,
+        lt_new_attach    TYPE tfpattachments , " solo anexos.
+        ls_new_attach    TYPE sfpattachments,
+        lt_new_attach_ac TYPE tfpattachments,
+        lv_numsignataris TYPE integer2,
+        lv_error         TYPE xfeld,
+        lv_tam_annex     TYPE dec5_2,
+        lv_message       TYPE string,
+        lv_is_pdf        TYPE boolean.
+
+  PERFORM check_mail.
+
+*  Si ha habido cambios en el documento de la graella se guardan en el content server
+  PERFORM save_doc_to_contentserver USING gv_changed gt_bin_content gt_components.
+
+  "SPEC-88732 - Comprovar si el document original es pdf o no
+  PERFORM comprovar_doc_extensio USING zrm_dt_docs_adj-docclass
+                                       zrm_dt_docs_adj-objectid
+                                 CHANGING lv_is_pdf.
+
+* documento principal a pdf
+  PERFORM convert_to_pdf_gdg USING zrm_dt_docs_adj-docclass
+                                   zrm_dt_docs_adj-objectid.
+  CLEAR lv_xstr_merged.
+
+* documento principal a xstring
+  PERFORM doc_srm_to_xstring  USING zrm_dt_docs_adj-docclass
+                                    zrm_dt_docs_adj-objectid
+                           CHANGING lv_xstr_merged.
+
+* Guardar los adjuntos antiguos del doc. principal, para posteriormente
+* volverse anexar.
+  PERFORM old_attach_doc_main USING lv_xstr_merged
+                           CHANGING lt_old_attach  .
+  ">> SPEC-75465, Inici Modificació - ETODR
+  IF gv_annexes_to_pdf IS NOT INITIAL.
+    PERFORM convert_annex_pdf CHANGING gt_ac_gdg
+                                       gt_docs_adj_t.
+  ENDIF.
+  "<< SPEC-75465, Final Modificació - ETODR
+* Se obtiene el tamaño de los anexos.
+  PERFORM medida_anexos CHANGING lv_total_bytes. " Anexos y Consultas
+
+* Si el tamaño de los anexos y consultas < 10MB, se adjunta anexos y consultas
+* directamente en Doc. Principal.
+  IF lv_total_bytes < gv_max_len  AND  lv_total_bytes > 0.
+
+*   Guardar Contenido de los anexos seleccionados para incrustarlos
+*   luego en el doc. principal.
+    PERFORM adj_anexos_to_maindoc  CHANGING lt_new_attach.
+  ENDIF.
+
+* Si al menos un  anexo es mayor a 10 MB se adjunta al doc. principal una hoja con
+* los hashes de todos los anexos.
+  PERFORM add_resum_cripto USING lt_new_attach
+                        CHANGING lv_xstr_merged.
+
+  LOOP AT gt_respons_psig TRANSPORTING NO FIELDS
+    WHERE z_rol_dig = 'S'.
+    lv_numsignataris = lv_numsignataris + 1.
+  ENDLOOP.
+
+  LOOP AT lt_new_attach INTO ls_new_attach
+    WHERE filesize LE gv_max_len.
+
+    lv_tam_annex = lv_tam_annex + ls_new_attach-filesize / 1000000.
+
+  ENDLOOP.
+
+**  Comprobamos el tamaño de los documentos
+  CALL METHOD zcl_gdg=>check_size
+    EXPORTING
+      iv_numsignataris = lv_numsignataris
+      iv_xstring       = lv_xstr_merged
+      iv_tam_annex     = lv_tam_annex
+    IMPORTING
+      ev_erroni        = lv_error
+      ev_text_m        = lv_message
+    EXCEPTIONS
+      no_doc           = 1
+      OTHERS           = 2.
+  IF lv_error = abap_true.
+*   Implement suitable error handling here
+    MESSAGE lv_message TYPE 'I'.
+    EXIT.
+  ENDIF.
+
+
+* Modifica ZGDG_DOCS (zsigna), seteando estado y acciones a realizar
+* con el documento. Agrega firma al final.
+  PERFORM update_gdg_docs_2 CHANGING lv_xstr_merged.
+
+
+* Se establece la relación entre expediente doc. principal y anexo.
+  PERFORM save_docs_signa_gdg. " Add ZRM_DT_DOCS_DOC x cada anexo.
+
+
+* Tratamiento integral de Adjuntos para envios a Web.
+* - Contenido de Tablas
+* - Contenido de Ficheros
+  PERFORM tratar_adjuntos  USING zrm_dt_docs_adj-docclass " doc.principal
+                                 zrm_dt_docs_adj-objectid " doc.principal
+                        CHANGING lt_new_attach_ac.
+
+* ----------------------------------------------------------------------------
+* Envia correos a los firmantes y se ejecuta la gestión de signatura desatesa.
+* ----------------------------------------------------------------------------
+  PERFORM send_notificacio USING gt_docs.
+  PERFORM send_notificacio_cau USING gt_respons_psig.
+* ----------------------------------------------------------------------------
+
+
+* Se crea nueva versión si hay adjuntos
+  IF lt_new_attach IS NOT INITIAL. " OR gv_posicio IS INITIAL. "SPEC-59583
+    PERFORM xstring_to_main_doc_srm    " Nueva Versión Doc Main
+      USING lv_xstr_merged    lt_old_attach  lt_new_attach.
+    "INI SPEC-80408
+    "Si no hi han adjunts, cal convertir aquí a PDFa
+  ELSE.
+    PERFORM convert_pdfa USING lv_xstr_merged lv_is_pdf.
+    "FI SPEC-80408
+  ENDIF.
+
+* Guardar CONTENIDO (ficheros) de documentos RMS en la carpeta
+* Web del expediente.
+  PERFORM save_doc_rms_to_server USING gt_docs
+                                       lt_new_attach_ac. " SPEC-57188
+
+  "SPEC-60538 - Pels document Mod.Aut. cal fer un nominate owner de la primera
+  "tasca BPM corresponent al primer signatari
+  IF gv_mod_aut_bpm = abap_true.
+    PERFORM set_resp_mod_aut_bpm.
+  ENDIF.
+
+* Se informa del envio del documento y se sale de pantalla.
+  MESSAGE 'Document enviat a signatura digital en SAP' TYPE 'I'.
+  SET PARAMETER ID 'ZRM_LOCKED' FIELD abap_true.
+  SET SCREEN 0.
+  LEAVE SCREEN.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+* Guardar contenido de anexos seleccionados para adjuntarse posteriormente
+* al documento principal.
+*
+FORM adj_anexos_to_maindoc  CHANGING pt_new_attach  TYPE tfpattachments.
+
+  DATA: ls_ac_gdg      TYPE ty_ac_gdg,
+        ls_adj         TYPE zrm_dt_docs_adj,
+        lv_xstr_main   TYPE fpcontent,  "  xstring ,
+        lv_xstr_merged TYPE xstring,
+        lv_ok          TYPE flag,
+        ls_attachment  TYPE sfpattachments,
+        lt_attachments TYPE tfpattachments.
+  DATA: lv_con_adj TYPE numc2 , " contador de adjuntos
+        lv_con_con TYPE numc2 , " contador de consultas.
+        lv_tipo    TYPE char1.
+
+*>> Ini  SPEC-57991  - ETMAE
+  DATA: ls_log TYPE zlogs_sign_des,
+        lv_res TYPE flag.
+*<< Fi  SPEC-57991  - ETMAE
+
+  DATA: lo_log_global      TYPE REF TO zcl_log_global. "71096
+
+  LOOP AT gt_ac_gdg  ASSIGNING FIELD-SYMBOL(<fs_ac>)
+          WHERE flag_a EQ abap_true." OR flag_c EQ abap_true. " No incluimos las consultas
+
+    READ TABLE gt_docs_adj_t INTO ls_adj WITH KEY z_num_doc = <fs_ac>-num_doc.
+
+    CHECK sy-subrc IS INITIAL.
+
+    IF <fs_ac>-flag_a = abap_true.
+      ADD 1 TO lv_con_adj .  lv_tipo = 'A'.
+    ENDIF.
+    IF <fs_ac>-flag_c = abap_true.
+      ADD 1 TO lv_con_con .  lv_tipo = 'C'.
+    ENDIF.
+
+    PERFORM doc_srm_to_attach    USING ls_adj-docclass
+                                       ls_adj-objectid
+                              CHANGING ls_attachment.
+
+*>> Ini  SPEC-57991  - ETMAE
+    IF ls_attachment IS INITIAL.
+
+      CLEAR : ls_log .
+      ls_log-accio       = 'Guardar annexos seleccionats'(E19) .
+      ls_log-direccio_ip =  space .
+      ls_log-resultat    =  'KO'.
+      ls_log-document    =  <fs_ac>-z_descripcio.
+      ls_log-docclass    =  ls_adj-docclass .
+      ls_log-object_id   =  ls_adj-objectid .
+      ls_log-version     =  0.
+      ls_log-error_msg   =  'GF:ZRM_SIGNA  Rutina: adj_anexos_to_maindoc'(E20)  .
+      ls_log-error_ext   =  space.
+
+      ">>>SPEC:71096, Inici modificació - ECACM
+
+      CALL METHOD zcl_signatura_desatesa=>afegir_log
+        EXPORTING
+          is_log   = ls_log
+          iv_tasca = zglog_tasca_guardar_annexos
+          ">>>SPEC:71096, Final modificació - ECACM
+        IMPORTING
+          ev_res   = lv_res.
+
+*<< Fi  SPEC-57991  - ETMAE
+    ELSE.
+      APPEND ls_attachment TO lt_attachments.
+      <fs_ac>-is_attach = abap_true.
+    ENDIF.
+
+  ENDLOOP.
+
+  pt_new_attach = lt_attachments.
+
+
+ENDFORM.                    " Adj_Anexos_to_MainDoc.
+*
+*----------------------------------------------------------------------*
+*
+FORM doc_srm_to_xstring  USING pi_docclass  TYPE bapidclass
+                               pi_objectid  TYPE bapiguid
+                      CHANGING po_xstring   TYPE xstring.
+
+  DATA: lt_components  TYPE TABLE OF bapidoccomp,
+        lt_bin_content TYPE TABLE OF bapiconten,
+        lv_xstr        TYPE xstring,
+        lv_in_len      TYPE i,
+        lv_out_len     TYPE i,
+        ls_doccomp     TYPE bapidoccomp.
+*>> Ini  SPEC-57991  - ETMAE
+  DATA: ls_log TYPE zlogs_sign_des,
+        lv_res TYPE flag,
+        lv_msg TYPE text128.
+*<< Fi  SPEC-57991  - ETMAE
+
+  CLEAR po_xstring.
+
+  CALL FUNCTION 'SRM_DOCUMENT_CHECKOUT_VIA_TAB'
+    EXPORTING
+      objectid        = pi_objectid
+      documentclass   = pi_docclass
+    TABLES
+      components      = lt_components
+      bin_content     = lt_bin_content
+    EXCEPTIONS
+      internal_error  = 1
+      parameter_error = 2
+      not_authorized  = 3
+      doc_not_found   = 4
+      OTHERS          = 5.
+
+  IF sy-subrc IS NOT INITIAL.
+
+*>> Ini  SPEC-57991  - ETMAE
+    CLEAR : ls_log.
+    ls_log-accio      = 'Convertir document principal a format Xstring'(E14) .
+    ls_log-direccio_ip = space .
+    ls_log-resultat   = 'KO'.
+    ls_log-document   =  space.
+    ls_log-docclass   =  pi_docclass.
+    ls_log-object_id  =  pi_objectid.
+    ls_log-version    =  0.
+    ls_log-error_msg  =  'GF:ZRM_SIGNA  rutina:doc_srm_to_xstring' .
+    ls_log-error_ext  =  'Després de crida a SRM_DOCUMENT_CHECKOUT_VIA_TAB'(E15).
+
+    ">>>SPEC:71096, Inici modificació - ECACM
+
+    DATA(lv_resul) = 'E'.
+
+    CALL METHOD zcl_signatura_desatesa=>afegir_log
+      EXPORTING
+        is_log      = ls_log
+        iv_resultat = lv_resul
+        iv_tasca    = zglog_tasca_conv_doc_xstring
+        ">>>SPEC:71096, Final modificació - ECACM
+      IMPORTING
+        ev_res      = lv_res.
+
+    lv_msg = `Error : ` && ls_log-accio.
+    MESSAGE lv_msg  TYPE 'E'.
+
+*<< Fi  SPEC-57991  - ETMAE
+
+    EXIT.
+  ENDIF.
+
+  READ TABLE lt_components INTO ls_doccomp INDEX 1.
+  lv_in_len = ls_doccomp-comp_size .
+
+  CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
+    EXPORTING
+      input_length = lv_in_len
+*     FIRST_LINE   = 0
+*     LAST_LINE    = 0
+    IMPORTING
+      buffer       = lv_xstr
+    TABLES
+      binary_tab   = lt_bin_content
+    EXCEPTIONS
+      failed       = 1
+      OTHERS       = 2.
+
+  IF sy-subrc IS INITIAL.
+    po_xstring = lv_xstr.
+  ELSE.
+*>> Ini  SPEC-57991  - ETMAE
+    CLEAR : ls_log.
+    ls_log-accio      = 'Convertir document principal a format Xstring'(E14) .
+    ls_log-direccio_ip = space .
+    ls_log-resultat   = 'KO'.
+    ls_log-document   =  space.
+    ls_log-docclass   =  pi_docclass.
+    ls_log-object_id  =  pi_objectid.
+    ls_log-version    =  0.
+    ls_log-error_msg  =  'GF:ZRM_SIGNA  rutina:doc_srm_to_xstring' .
+    ls_log-error_ext  =  'Després de crida a SCMS_BINARY_TO_XSTRING'(E16).
+
+    ">>>SPEC:71096, Inici modificació - ECACM
+
+    lv_resul = 'E'.
+
+    CALL METHOD zcl_signatura_desatesa=>afegir_log
+      EXPORTING
+        is_log      = ls_log
+        iv_resultat = lv_resul
+        iv_tasca    = zglog_tasca_conv_doc_xstring
+        ">>>SPEC:71096, Final modificació - ECACM
+      IMPORTING
+        ev_res      = lv_res.
+
+    lv_msg = `Error : ` && ls_log-accio.
+    MESSAGE lv_msg  TYPE 'E'.
+
+*<< Fi  SPEC-57991  - ETMAE
+
+  ENDIF.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+FORM doc_srm_to_attach    USING pi_docclass  TYPE bapidclass
+                                pi_objectid  TYPE bapiguid
+                       CHANGING po_adjunto   TYPE sfpattachments.
+
+  DATA: lt_compo       TYPE TABLE OF bapidoccomp,
+        ls_compo       TYPE          bapidoccomp,
+        lt_bin_content TYPE TABLE OF bapiconten,
+        lv_xstr        TYPE xstring,
+        lv_in_len      TYPE i,
+        lv_out_len     TYPE i,
+        ls_attach      TYPE sfpattachments,
+        lt_prop_doc    TYPE TABLE OF bapiproptb,
+        ls_prop        TYPE          bapiproptb,
+        ls_return      TYPE bapiret2.
+
+  CLEAR: po_adjunto, ls_attach.
+
+  CALL FUNCTION 'SRM_DOCUMENT_CHECKOUT_VIA_TAB'
+    EXPORTING
+      objectid        = pi_objectid
+      documentclass   = pi_docclass
+    TABLES
+      components      = lt_compo
+      bin_content     = lt_bin_content
+    EXCEPTIONS
+      internal_error  = 1
+      parameter_error = 2
+      not_authorized  = 3
+      doc_not_found   = 4
+      OTHERS          = 5.
+  IF sy-subrc IS NOT INITIAL.
+    EXIT.
+  ENDIF.
+
+  READ TABLE lt_compo INTO ls_compo INDEX 1.
+  lv_in_len = ls_compo-comp_size .
+
+  CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
+    EXPORTING
+      input_length = lv_in_len
+    IMPORTING
+      buffer       = lv_xstr
+    TABLES
+      binary_tab   = lt_bin_content
+    EXCEPTIONS
+      failed       = 1
+      OTHERS       = 2.
+
+  IF sy-subrc IS INITIAL.
+
+    CALL FUNCTION 'SRM_DOCUMENT_GETPROPERTIES'
+      EXPORTING
+        objectid          = pi_objectid
+        documentclass     = pi_docclass
+      IMPORTING
+        return            = ls_return
+      TABLES
+        properties        = lt_prop_doc
+      EXCEPTIONS
+        internal_error    = 1
+        parameter_error   = 2
+        not_authorized    = 3
+        doc_not_found     = 4
+        variant_not_found = 5
+        version_not_found = 6
+        OTHERS            = 7.
+
+    CLEAR :  ls_prop.
+    READ TABLE lt_prop_doc INTO ls_prop WITH KEY name = 'DESCRIPTION'.
+
+    ls_attach-description    = ls_prop-value.
+    ls_attach-name           = ls_compo-comp_id.
+    ls_attach-filename       = ls_compo-comp_id.
+    ls_attach-mimetype       = ls_compo-mimetype.
+    ls_attach-filesize       = lv_in_len.
+    ls_attach-creationtime   = sy-uzeit.
+    ls_attach-modificationtime = sy-uzeit.
+    ls_attach-data = lv_xstr .
+    po_adjunto = ls_attach.
+  ENDIF.
+
+ENDFORM.                     " Doc_srm_to_xstring2
+*
+*----------------------------------------------------------------------*
+*
+* Creación de nueva versión de doc Principal con el resumén
+* criptografico(si aplica) + firma + adjuntos(si aplica).
+* Solo se puede adjuntar los anexos al final.
+*
+FORM xstring_to_main_doc_srm  USING pi_xstr_merged TYPE xstring
+                                    pt_old_attach  TYPE tfpattachments
+                                    pt_new_attach  TYPE tfpattachments .
+
+  DATA: lo_pdfobj     TYPE REF TO if_fp_pdf_object,
+        lv_pdf        TYPE fpcontent,
+        lx_fpex       TYPE REF TO cx_fp_runtime,
+        "s_attachment  type sfpattachments,
+        lt_all_attach TYPE tfpattachments,
+        lv_dest       TYPE rfcdest.
+
+  DATA: lv_xstr    TYPE xstring,
+        ls_ret2    TYPE bapiret2,
+        lt_binary  TYPE TABLE OF bapicontent255,
+        lv_out_len TYPE  i,
+        lt_compo   TYPE TABLE OF bapidoccomp,
+        lv_versio  TYPE bapisrmdoc-version.
+  FIELD-SYMBOLS <fs_compo> TYPE bapidoccomp .
+
+  lv_xstr = pi_xstr_merged.
+
+  lt_all_attach =  pt_old_attach.
+  APPEND LINES OF pt_new_attach TO lt_all_attach.
+
+* Si el doc. original tenia adjuntos, volverlos a adjuntar ya que al hacer la fusion
+* con el res. cript y la firma se "pierde" el vinculo.
+
+  "INICI - SPEC-80408 - ECMRG
+
+  CALL METHOD zcl_utils_docs=>set_attachments_to_pdf
+    EXPORTING
+      iv_pdf_xstring       = lv_xstr
+      iv_new_version       = abap_on
+      it_attachments       = lt_all_attach
+    IMPORTING
+      ev_pdf_xstring       = lv_pdf
+    EXCEPTIONS
+      error_ads_version    = 1
+      error_ads_connection = 2
+      error_conversion     = 3
+      error_attatchment    = 4
+      OTHERS               = 5.
+  IF sy-subrc <> 0.
+    EXIT.
+  ENDIF.
+
+  lv_xstr = lv_pdf.
+
+  "  SPEC-80408 - ECMRG - S'ha comentat ja que el metode zcl_utils_docs=>set_attachments_to_pdf ja conté la instrucció
+
+*  IF lt_all_attach IS NOT INITIAL.
+*      lv_dest = cl_fp=>get_ads_connection( ).
+*      lo_pdfobj = cl_fp=>get_reference( )->create_pdf_object( connection = lv_dest ).
+*      lo_pdfobj->set_document( pdfdata = lv_xstr ).
+*      TRY.
+*          lo_pdfobj->set_attachments( attachments = lt_all_attach ).
+*          lo_pdfobj->execute( ).
+*          lo_pdfobj->get_document( IMPORTING pdfdata = lv_pdf ).
+*        CATCH cx_fp_runtime INTO lx_fpex.
+*          PERFORM error USING lx_fpex.
+*      ENDTRY.
+*      lv_xstr = lv_pdf.
+*    ENDIF.
+
+  "FI - SPEC-80408 - ECMRG
+
+  CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+    EXPORTING
+      buffer          = lv_xstr
+      append_to_table = abap_true
+    IMPORTING
+      output_length   = lv_out_len
+    TABLES
+      binary_tab      = lt_binary.
+
+* doc principal
+  CALL FUNCTION 'SRM_DOCUMENT_GET_COMP_INFO'
+    EXPORTING
+      objectid        = zrm_dt_docs_adj-objectid " pi_OBJECTID
+      documentclass   = zrm_dt_docs_adj-docclass " pi_DOCCLASS
+    TABLES
+      component_info  = lt_compo
+    EXCEPTIONS
+      internal_error  = 1
+      parameter_error = 2
+      not_authorized  = 3
+      doc_not_found   = 4
+      OTHERS          = 5.
+
+  READ TABLE lt_compo ASSIGNING <fs_compo> INDEX 1.
+  <fs_compo>-comp_size = lv_out_len. " Asignar el tamaño actual.
+
+  CALL FUNCTION 'SRM_DOCUMENT_CHECKIN_CONT_TAB'
+    EXPORTING
+      objectid          = zrm_dt_docs_adj-objectid  "pi_OBJECTID
+      documentclass     = zrm_dt_docs_adj-docclass  "pi_DOCCLASS
+      as_new_version    = abap_true
+      do_commit         = abap_true
+*     DOC_CONTEXT       =
+*     VSCAN_PROFILE     = '/SRM/RCM_CREATE'
+    IMPORTING
+      return            = ls_ret2
+    TABLES
+      components        = lt_compo
+*     ASCII_CONTENT     =
+      bin_content       = lt_binary
+    EXCEPTIONS
+      internal_error    = 1
+      parameter_error   = 2
+      not_authorized    = 3
+      doc_not_found     = 4
+      yet_locked        = 5
+      yet_checked_out   = 6
+      yet_closed        = 7
+      customizing_error = 8
+      OTHERS            = 9.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+* Se adjuntará el resumén criptografico de los anexos seleccionados
+* al documento principal, independientemente de su tamaño.
+*
+FORM add_resum_cripto USING pt_attach TYPE tfpattachments
+                   CHANGING po_xstr_merged TYPE xstring.
+
+  DATA: ls_ac_gdg       TYPE ty_ac_gdg,
+        ls_adj          TYPE zrm_dt_docs_adj,
+        ls_proper       TYPE          bapiproptb,
+        lt_proper       TYPE TABLE OF bapiproptb,
+        ls_resum        TYPE          bapiproptb,
+        lt_resum        TYPE TABLE OF bapiproptb,
+        lv_code64       TYPE string,
+        lv_xstr_main    TYPE xstring,
+        lv_xstr_resumen TYPE xstring,
+        lv_xstr_merged  TYPE xstring,
+        lv_new_version  TYPE flag.
+
+  LOOP AT gt_ac_gdg INTO ls_ac_gdg  WHERE flag_a EQ abap_true AND is_attach EQ abap_false.
+
+    CLEAR: ls_adj,  ls_proper, ls_resum.
+
+    READ TABLE gt_docs_adj_t  INTO ls_adj WITH KEY z_num_doc = ls_ac_gdg-num_doc.
+    CHECK sy-subrc IS INITIAL.
+
+    CALL FUNCTION 'SRM_DOCUMENT_GETPROPERTIES'
+      EXPORTING
+        objectid          = ls_adj-objectid
+        documentclass     = ls_adj-docclass
+      TABLES
+        properties        = lt_proper
+      EXCEPTIONS
+        internal_error    = 1
+        parameter_error   = 2
+        not_authorized    = 3
+        doc_not_found     = 4
+        variant_not_found = 5
+        version_not_found = 6
+        OTHERS            = 7.
+
+    CLEAR: ls_proper, ls_resum.
+
+    READ TABLE lt_proper INTO ls_proper WITH KEY name = 'DESCRIPTION'.
+
+    ls_resum-name = ls_proper-value .
+
+    CLEAR: lv_code64 .
+    CALL FUNCTION 'ZRMS_GENERATE_CODE_HASH'
+      EXPORTING
+        i_objectid      = ls_adj-objectid
+        i_documentclass = ls_adj-docclass
+      IMPORTING
+        e_code64string  = lv_code64.
+
+    ls_resum-value = lv_code64.
+
+    APPEND ls_resum TO lt_resum.
+
+  ENDLOOP.
+
+  CHECK lt_resum IS NOT INITIAL.
+
+  PERFORM itab_resum_to_xstr  USING lt_resum
+                           CHANGING lv_xstr_resumen . " resumén criptografico
+
+  lv_xstr_main = po_xstr_merged.
+
+  PERFORM merge_old_way  USING lv_xstr_main lv_xstr_resumen " WorkAround
+                      CHANGING lv_xstr_merged .
+
+  po_xstr_merged = lv_xstr_merged.
+
+*  clear lo_pdf_merger.  free  lo_pdf_merger.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+FORM itab_resum_to_xstr  USING pt_resum_anexo TYPE bapidocproptab
+                      CHANGING po_bin_file    TYPE xstring .
+
+  DATA: lv_formname     TYPE tdsfname  VALUE 'ZANNEX_RESUM_CRIPTOGRAFIC',
+        lv_fm_name      TYPE rs38l_fnam,
+        ls_ctrl_par     TYPE ssfctrlop  , " Control Parameters
+        ls_out_opt      TYPE ssfcompop ,  " output options
+        ls_job_out      TYPE ssfcrescl,
+        lv_bin_filesize TYPE i,
+        lv_bin_file	    TYPE xstring,
+        lt_pdf          TYPE TABLE OF tline . " dummy?
+
+  CLEAR po_bin_file.
+
+  CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+    EXPORTING
+      formname           = lv_formname
+    IMPORTING
+      fm_name            = lv_fm_name
+    EXCEPTIONS
+      no_form            = 1
+      no_function_module = 2
+      OTHERS             = 3.
+
+  ls_ctrl_par-getotf    = abap_true.
+  ls_ctrl_par-no_dialog = abap_true.
+
+  ls_out_opt-tddest     = 'LOCL'.
+  ls_out_opt-tdnoprint  = abap_true.
+
+
+  CALL FUNCTION lv_fm_name
+    EXPORTING
+      control_parameters = ls_ctrl_par
+      output_options     = ls_out_opt
+      user_settings      = abap_false
+      lt_resum_cripto    = pt_resum_anexo
+    IMPORTING
+      job_output_info    = ls_job_out
+    EXCEPTIONS
+      formatting_error   = 1
+      internal_error     = 2
+      send_error         = 3
+      user_canceled      = 4
+      OTHERS             = 5.
+
+  CALL FUNCTION 'CONVERT_OTF'
+    EXPORTING
+      format                = 'PDF'
+    IMPORTING
+      bin_filesize          = lv_bin_filesize
+      bin_file              = lv_bin_file
+    TABLES
+      otf                   = ls_job_out-otfdata
+      lines                 = lt_pdf
+    EXCEPTIONS
+      err_max_linewidth     = 1
+      err_format            = 2
+      err_conv_not_possible = 3
+      err_bad_otf           = 4
+      OTHERS                = 5.
+
+  IF sy-subrc IS INITIAL.
+    po_bin_file = lv_bin_file	.
+  ENDIF.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+* Modifica ZRM_DT_RESP_DOC y ZRM_DT_DOCS_DOC
+* ZRM_DT_DOCS_DOC - Guarda claves de expediente y documento
+* Se añade entradas por cada anexo o consulta seleccionado.
+* No se añade Doc. Principal ??
+*
+FORM save_docs_signa_gdg.
+
+  DATA: ls_docs_doc   TYPE zrm_dt_docs_doc,
+        lt_docs_doc   TYPE TABLE OF zrm_dt_docs_doc,
+        ls_doc_anex   TYPE zrm_dt_doc_anex,
+        lt_doc_anex   TYPE TABLE OF zrm_dt_doc_anex,
+        ls_resp_doc   TYPE zrm_dt_resp_doc,
+        lt_resp_doc   TYPE TABLE OF zrm_dt_resp_doc,
+        lt_properties TYPE TABLE OF bapiproptb,
+        ls_properties TYPE bapiproptb,
+        lv_docclass   TYPE bapidclass,
+        lv_objectid   TYPE bapiguid,
+        lv_anchor     TYPE z_anchor.
+  DATA: ls_ac_gdg TYPE ty_ac_gdg,
+        ls_adj    TYPE zrm_dt_docs_adj.
+  DATA: lt_comt        TYPE TABLE OF bapidoccomp,
+        ls_comt        TYPE  bapidoccomp,
+        lt_bin         TYPE TABLE OF bapiconten,
+        lv_responsable TYPE zrm_dt_resp_doc-z_responsable,
+        lv_xstr_main   TYPE xstring,
+        lv_xstr_anexo  TYPE xstring,
+        lv_xstr_merged TYPE xstring,
+        lv_ok          TYPE flag.
+
+  CLEAR: lt_docs_doc, ls_docs_doc .
+
+
+*  Guardamos los documentos que no pertenecen al expediente actual para que se
+*  muestren la siguiente vez que volvamos a entrar.
+  LOOP AT gt_ac_gdg  INTO ls_ac_gdg WHERE codi_exp NE gv_codi_exp.
+
+    CLEAR : ls_docs_doc.
+    ls_doc_anex-docclass     = gs_sdok-class.
+    ls_doc_anex-objectid     = gs_sdok-objid.         " Expediente
+    READ TABLE gt_docs_adj_t INTO ls_adj WITH KEY z_num_doc = ls_ac_gdg-num_doc.
+    CHECK sy-subrc IS INITIAL.
+    ls_doc_anex-docclass_doc       = ls_adj-docclass.
+    ls_doc_anex-objectid_doc       = ls_adj-objectid. " Documento
+    ls_doc_anex-z_versio           = gv_versio_sig.
+    ls_doc_anex-z_anchor           = gv_anchor.
+    ls_doc_anex-z_codi_exp         = ls_ac_gdg-codi_exp.
+
+    CLEAR lt_properties.
+    CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+      EXPORTING
+        objectid      = ls_adj-objectid
+        documentclass = ls_adj-docclass
+      TABLES
+        properties    = lt_properties.
+    CHECK lt_properties IS NOT INITIAL.
+
+    CLEAR ls_properties.
+    READ TABLE lt_properties WITH KEY name = 'SRM_DOCUMENT_ID' INTO ls_properties.
+    ls_doc_anex-z_cod_doc = ls_properties-value.
+
+    CLEAR ls_properties.
+    READ TABLE lt_properties WITH KEY name = 'SRM_VERSION_ID' INTO ls_properties.
+
+    ls_doc_anex-z_versio_doc = ls_properties-value.
+    ls_doc_anex-carpeta      = ls_ac_gdg-carpeta.
+
+    APPEND ls_doc_anex TO lt_doc_anex.
+  ENDLOOP.
+
+  LOOP AT gt_ac_gdg  INTO ls_ac_gdg
+          WHERE flag_a EQ abap_true OR flag_c EQ abap_true.
+
+    CLEAR : ls_docs_doc.
+    ls_docs_doc-docclass     = gs_sdok-class.
+    ls_docs_doc-objectid     = gs_sdok-objid.         " Expediente
+    READ TABLE gt_docs_adj_t INTO ls_adj WITH KEY z_num_doc = ls_ac_gdg-num_doc.
+    CHECK sy-subrc IS INITIAL.
+    ls_docs_doc-docclass_doc       = ls_adj-docclass.
+    ls_docs_doc-objectid_doc       = ls_adj-objectid. " Documento
+    ls_docs_doc-z_versio           = gv_versio_sig.
+    ls_docs_doc-z_anchor           = gv_anchor.
+    ls_docs_doc-z_data_enviament   = gv_data_enviament.
+    ls_docs_doc-z_hora_enviament   = gv_hora_enviament.
+    ls_docs_doc-z_usuari_enviament = gv_usuari_enviament.
+
+    CLEAR lt_properties.
+    CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+      EXPORTING
+        objectid      = ls_adj-objectid
+        documentclass = ls_adj-docclass
+      TABLES
+        properties    = lt_properties.
+    CHECK lt_properties IS NOT INITIAL.
+
+    CLEAR ls_properties.
+    READ TABLE lt_properties WITH KEY name = 'SRM_DOCUMENT_ID' INTO ls_properties.
+    ls_docs_doc-z_cod_doc = ls_properties-value.
+
+    CLEAR ls_properties.
+    READ TABLE lt_properties WITH KEY name = 'SRM_VERSION_ID' INTO ls_properties.
+
+    ls_docs_doc-z_versio_doc = ls_properties-value.
+
+    IF ls_ac_gdg-flag_a = abap_true.
+      ls_docs_doc-z_tip_doc = 'A'.
+    ENDIF.
+
+    IF ls_ac_gdg-flag_c = abap_true.
+      ls_docs_doc-z_tip_doc = 'C'.
+    ENDIF.
+
+    APPEND ls_docs_doc TO lt_docs_doc.
+  ENDLOOP.
+
+* Se añade entrada de Documento Principal para hacer matching en ZSIGNA.
+*  IF lt_docs_doc IS NOT INITIAL.
+  PERFORM add_docmain_to_zrm_dt_docs_doc  CHANGING ls_docs_doc.
+  IF ls_docs_doc IS NOT INITIAL.
+    APPEND ls_docs_doc TO lt_docs_doc.
+  ENDIF.
+*  ENDIF.
+
+  LOOP AT gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_resp>).
+    ls_resp_doc-docclass       = gs_sdok-class.
+    ls_resp_doc-objectid       = gs_sdok-objid.  " Expediente
+    ls_resp_doc-z_anchor       = gv_anchor.
+
+    lv_responsable = <fs_resp>-z_responsable.
+    PERFORM complete_zeros CHANGING lv_responsable.
+    ls_resp_doc-z_responsable      = lv_responsable.
+    ls_resp_doc-z_tipus_carrec     = <fs_resp>-z_tipus_carrec.
+    ls_resp_doc-z_codi_exp         = <fs_resp>-z_codi_exp.
+    ls_resp_doc-z_carrec           = <fs_resp>-z_carrec.
+    ls_resp_doc-z_parallel         = <fs_resp>-z_parallel.
+    ls_resp_doc-z_ordre            = <fs_resp>-ordre.
+    ls_resp_doc-z_rol_dig          = <fs_resp>-z_rol_dig.
+    ls_resp_doc-z_versio           = gv_versio_sig.
+
+    IF ls_resp_doc-z_responsable IS NOT INITIAL.
+      CLEAR wa_pa0002.
+      SELECT SINGLE *
+        INTO CORRESPONDING FIELDS OF wa_pa0002
+        FROM pa0002
+       WHERE pernr = lv_responsable.
+      IF sy-subrc = 0.
+        <fs_resp>-z_nif_signatari = wa_pa0002-perid.
+        CLEAR wa_pa0002.
+      ELSE.
+      ENDIF.
+    ELSE.
+    ENDIF.
+    ls_resp_doc-z_nif_signatari    = <fs_resp>-z_nif_signatari.
+    ls_resp_doc-z_correu_signatari = <fs_resp>-z_correu_signatari.
+    ls_resp_doc-z_posicio_hash = <fs_resp>-z_posicio_hash. "SPEC-59583
+    ls_resp_doc-zmitja_sig = <fs_resp>-zmitja_sig. "SPEC-59583
+    APPEND ls_resp_doc TO lt_resp_doc.
+  ENDLOOP.
+
+  IF lt_resp_doc IS INITIAL.
+    MESSAGE text-e03 TYPE 'S' DISPLAY LIKE 'E'.
+  ELSE.
+    DELETE FROM zrm_dt_resp_doc WHERE docclass EQ gs_sdok-class AND
+                                      objectid EQ gs_sdok-objid AND
+                                      z_anchor EQ gv_anchor     AND
+                                      z_versio EQ gv_versio_sig.
+    MODIFY zrm_dt_resp_doc FROM TABLE lt_resp_doc.
+
+    DELETE FROM zrm_dt_docs_doc WHERE docclass EQ gs_sdok-class AND
+                                      objectid EQ gs_sdok-objid AND
+                                      z_anchor EQ gv_anchor     AND
+                                      z_versio EQ gv_versio_sig.
+
+
+    ">>>ECJSA SPEC-SPEC-54124
+    "Per si les dates no tenen valor..., sols si estem enviant
+    PERFORM completar_docs_doc  USING sy-ucomm
+                                CHANGING lt_docs_doc.
+    "<<<ECJSA SPEC-SPEC-54124
+
+    MODIFY zrm_dt_docs_doc FROM TABLE lt_docs_doc.
+
+
+    DELETE FROM zrm_dt_doc_anex
+     WHERE docclass EQ gs_sdok-class AND
+           objectid EQ gs_sdok-objid AND
+           z_anchor EQ gv_anchor     AND
+           z_versio EQ gv_versio_sig.
+
+
+    MODIFY zrm_dt_doc_anex FROM TABLE lt_doc_anex.
+  ENDIF.
+
+ENDFORM.                     " save_docs_signa_GDG.
+*
+*----------------------------------------------------------------------*
+*
+FORM boton_subsanacio_gdg.
+
+  DATA: lv_aux3     TYPE char50,
+        lv_subrc    TYPE sy-subrc,
+        lv_error_rc TYPE sy-subrc,
+        lv_env_des  TYPE flag ,                     "  SPEC-52934
+        lv_version  TYPE zdocs_signa_des-version ,  "  SPEC-52934
+        lt_sides    TYPE TABLE OF zdocs_signa_des . "  SPEC-52934
+
+  DATA: s_zgdg_docs  TYPE zgdg_docs,
+        lv_callstack TYPE abap_callstack,
+        lr_gdg       TYPE REF TO   zcl_gdg.
+
+  lv_aux3 = gv_versio_sig.
+
+  "Actualitzem la taula de documents
+  UPDATE zgdg_docs
+*     SET status        = 'RF'
+     SET status        = gc_cancel
+         accions       = ''
+         motiu_rebutj  = 'Subsanat'
+         data_rebutj   = sy-datum
+         hora_rebutj   = sy-uzeit
+   WHERE docclass    = zrm_dt_docs_adj-docclass   " Class  Document
+     AND objectid    = zrm_dt_docs_adj-objectid   " Object Document
+     AND aux3        = lv_aux3.
+
+  "Passem el resultat
+  lv_subrc = sy-subrc.
+
+  ">>>SPEC:SPEC-56163, Inici modificació  - <ECDRB>
+  IF sy-subrc IS NOT INITIAL.
+
+    CREATE OBJECT lr_gdg
+      EXPORTING
+        zgdg_tipus         = 'U'
+      EXCEPTIONS
+        z_accion_cancelada = 1.
+
+    CALL FUNCTION 'SYSTEM_CALLSTACK'
+      IMPORTING
+        callstack = lv_callstack.
+
+
+    MOVE-CORRESPONDING zrm_dt_docs_adj TO s_zgdg_docs.
+    CALL METHOD lr_gdg->guardar_log_zgdg_docs
+      EXPORTING
+        is_zgdg_docs      = s_zgdg_docs
+        is_abap_callstack = lv_callstack.
+
+  ENDIF.
+  "<<<SPEC:SPEC-56163, Final modificació - <ECDRB>
+
+* ini SPEC-52934 - Signatura Desatesa
+
+  lv_version = gv_versio_sig. " 29/07/2109
+
+  CALL METHOD zcl_signatura_desatesa=>enviat_a_desatesa
+    EXPORTING
+      iv_objectid = zrm_dt_docs_adj-objectid
+      iv_docclass = zrm_dt_docs_adj-docclass
+      iv_version  = lv_version
+    RECEIVING
+      rv_enviat   = lv_env_des.
+
+  IF lv_env_des = abap_true.
+
+    SELECT *
+      INTO TABLE lt_sides
+      FROM zdocs_signa_des
+     WHERE docclass = zrm_dt_docs_adj-docclass
+       AND objectid = zrm_dt_docs_adj-objectid
+       AND version  = lv_version  .
+
+    CALL METHOD zcl_signatura_desatesa=>esmena_massiva
+      EXPORTING
+        it_docs_signa_des = lt_sides
+        iv_desde_desatesa = abap_false.
+  ENDIF.
+
+
+* fin SPEC-52934
+
+  "Si ha anat tot be, seguim actualitzant els responsables del document
+  IF lv_subrc = 0.
+
+    "Actualitzem la taula de responsables dels document
+    UPDATE zrm_dt_resp_doc
+       SET z_subsanat          = abap_on
+           z_data_subsanacio   = sy-datum
+           z_hora_subsanacio   = sy-uzeit
+           z_usuari_subsanacio = sy-uname
+     WHERE docclass      = gs_sdok-class     " Class  Expedient
+       AND objectid      = gs_sdok-objid     " Object Expedient
+       AND z_anchor      = gv_anchor
+       AND z_versio      = gv_versio_sig.
+
+    "Passem el resultat
+    lv_subrc = sy-subrc.
+
+    "Si ha anat tot be, desbloquegem el document
+    IF lv_subrc EQ 0.
+
+      "3.Desbloquegem perquè ja hem acabat amb aquest document
+      CLEAR lv_error_rc.
+      PERFORM bloquejar_document USING    'U' "unlock mode
+                                          zrm_dt_docs_adj-docclass
+                                          zrm_dt_docs_adj-objectid
+                                 CHANGING lv_error_rc.
+      IF lv_error_rc <> 0.
+        "Sempre es desbloqueja be... no controlem l'error
+      ENDIF.
+
+      "Comuniquem la subsanació als interesats
+      PERFORM comunicar_notificats.
+
+
+      MESSAGE 'Document subsanat' TYPE 'S'.
+      SET PARAMETER ID 'ZRM_LOCKED' FIELD abap_true.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+    ELSE.
+
+      "Si la segona actualització ha anat malament, desdem la primera
+      ROLLBACK WORK.
+    ENDIF.
+
+  ENDIF.
+
+  "Si alguna cosa ha sortit malament, missatge...
+  IF lv_subrc <> 0.
+    MESSAGE 'No s''ha pogut subsanar el document' TYPE 'S'.
+  ENDIF.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+FORM status_300.
+
+  DATA: lv_lines TYPE i,
+        fcode    TYPE TABLE OF sy-ucomm.
+
+  DATA: l_total_count(2) TYPE n,
+        l_count_sign(2)  TYPE n.
+  REFRESH fcode.
+
+  "SPEC-60538 Exloure botó Afegir Documents pel document de Modificació
+  "Autortizada BPM
+  IF gv_mod_aut_bpm = abap_true.
+    APPEND 'ADD2'  TO fcode.
+  ENDIF.
+
+
+  IF gs_valid-flag_signa IS NOT INITIAL.
+    gs_operacio-vis  = abap_true.
+    APPEND 'SAVE' TO fcode.
+    "Excluimos el botón de añadir documento en modo visualizar y cuando ya esta
+    "firmado el documento
+    APPEND 'ADD2'  TO fcode.
+    APPEND 'UBI_SIGN' TO fcode.
+*** INI ETOVB SPEC-74165
+  ELSE.
+    APPEND 'SAVE' TO fcode.
+*** FIN ETOVB SPEC-74165
+  ENDIF.
+
+
+  SET PF-STATUS 'PF200' EXCLUDING fcode.
+
+* >>> ECIDR S'agrega títol per informar el sistema de signatura
+*  SET TITLEBAR 'PSIG'.
+  SET TITLEBAR 'GDGS'.
+* <<< ECIDR S'agrega títol per informar el sistema de signatura
+
+  CASE 'X'.
+    WHEN gs_operacio-vis.
+      LOOP AT SCREEN.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDLOOP.
+
+    WHEN gs_operacio-ger.
+      LOOP AT SCREEN.
+        IF screen-name   <> 'GS_VALID-FLAG_GERENCIA' AND
+           screen-name   <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF' AND
+           screen-group1 <> 'MOD' AND
+           screen-name   <> 'GS_DOCS_PSIG-MARCA'.
+          screen-input  = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+      DESCRIBE TABLE gt_docs_sign LINES lv_lines.
+      IF lv_lines = 0.
+        LOOP AT SCREEN.
+          IF screen-name CS 'GS_AC_GDG-'.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+
+    WHEN gs_operacio-con.
+      LOOP AT SCREEN.
+        IF screen-name   <> 'GS_VALID-FLAG_CONTRACTACIO' AND
+           screen-name   <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF' AND
+           screen-group1 <> 'MOD' AND
+           screen-name   <> 'GS_AC_GDG-MARCA'.
+          screen-input  = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+    WHEN gs_operacio-env.
+      LOOP AT SCREEN.
+        IF screen-name <> 'CMD_SIGNA_GDG' AND
+           screen-name <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF'.
+          screen-input  = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+  ENDCASE.
+
+* S'inhabilita el botó d'Enviament a Signatura si ja s'ha enviat.
+  LOOP AT SCREEN.
+    IF screen-name = 'CMD_SIGNA_GDG' AND gs_valid-flag_signa = 'X'.
+      screen-input  = 0.
+      MODIFY SCREEN.
+    ENDIF.
+    "INI SPEC-86568
+    IF ( screen-name = 'GV_DIES_EXPIRACIO_VIAFIRMA' OR screen-name = 'DIES_EXPIRACIO' ) AND gs_valid-flag_signa = 'X'.
+      screen-invisible = 1.
+      MODIFY SCREEN.
+    ENDIF.
+    "FI SPEC-86568
+    IF screen-name CS 'GS_RESPONS-' AND gs_valid-flag_signa = 'X'.
+      screen-input = 0.
+      MODIFY SCREEN.
+    ENDIF.
+    IF ( screen-name = 'INS_LIN' OR screen-name = 'DEL_LIN' )
+     AND gs_valid-flag_signa = 'X'.
+      screen-input  = 0.
+      MODIFY SCREEN.
+    ENDIF.
+
+  ENDLOOP.
+
+
+  CLEAR: l_count_sign, l_total_count.
+
+  LOOP AT gt_respons_t TRANSPORTING NO FIELDS
+       WHERE z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+    ADD 1 TO l_total_count.
+  ENDLOOP.
+
+  LOOP AT gt_respons_t TRANSPORTING NO FIELDS
+       WHERE z_carrec      = 'YC'
+         AND z_signat      = abap_on
+         AND z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+    ADD 1 TO l_count_sign.
+  ENDLOOP.
+  IF gs_valid-flag_signa = abap_on.
+    LOOP AT SCREEN.
+      IF screen-name = 'CMD_SUBSANACIO'.
+        IF gv_mod_aut_bpm = abap_true."SPEC-60538 Ocultar botó refusar pels
+          "documents Modificació Autoritzada BPM
+          screen-invisible  = 1.
+          screen-input      = 0.
+        ELSE.
+          screen-input  = 0.
+          IF gs_valid-flag_signa = 'X'.
+            screen-input  = 1.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDLOOP.
+  ELSE.
+*   Es fa invisible el botó de subsanació si no es tracta amb el NOUPSIG
+    LOOP AT SCREEN.
+      IF screen-name = 'CMD_SUBSANACIO'.
+        screen-invisible  = 1.
+        screen-input      = 0.
+        MODIFY SCREEN.
+      ENDIF.
+      IF screen-name CS 'GS_RESPONS-'.
+        screen-input = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  DESCRIBE TABLE gt_ac_gdg LINES ztc_ac-lines.
+
+  ">>>SPEC:56971, Inici modificació  - ECTRP
+  "En el cas de que DOCCLASS = "GEST_DOC ==> S'ocultaran els camps
+  "Codi Expedient": GV_CODI_EXP i "Descripció Abreujada": GV_DESCR_ABR,
+  "y els seus texts respectius.
+  IF gs_sdok-class = ztpdo_c_docclass_no_exp.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'SIG'.
+        screen-invisible  = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+  "<<<SPEC:56971, Final modificació  - ECTRP
+
+  ">>>SPEC:52934, Inici modificació  - ECJSA
+  "Si el document accepta signatura desatesa, s'ha de tractar la pantalla:
+  "No es poden seleccionar anexos, ha de ser paral·lela, no posionable,
+  "el número de signataris, carrec i role ha d'estar
+  "<<<SPEC:52934, Final modificació - ECJSA
+
+  ">> SPEC-75465, Inici Modificació - ETODR
+  PERFORM check_change_annexes_to_pdf USING gt_respons_psig.
+  "<< SPEC-75465, Final Modificació - ETODR
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+FORM get_signataris.
+
+  DATA: ld_field   TYPE vrm_id,
+        it_listbox TYPE vrm_values,
+        wa_listbox LIKE LINE OF it_listbox.
+
+
+  CLEAR it_listbox.
+
+*** INI SPEC-63296
+  SEARCH gv_anchor FOR 'GESTDOC'.
+  IF sy-subrc EQ 0.
+    SELECT *
+      FROM zrm_signa_docu
+      INTO TABLE @gt_signataris
+     WHERE bukrs EQ @gv_bukrs
+      AND  z_anchor EQ 'GESTDOC'.
+  ELSE.
+*** FIN SPEC-63296
+    SELECT *
+      FROM zrm_signa_docu
+      INTO TABLE @gt_signataris
+     WHERE bukrs EQ @gv_bukrs
+       AND z_anchor EQ @gv_anchor.
+***INI SPEC-63296
+  ENDIF.
+*** FIN SPEC-63296
+  LOOP AT gt_signataris ASSIGNING FIELD-SYMBOL(<fs_g_signa>).
+
+    wa_listbox-key = <fs_g_signa>-z_grupo.
+    wa_listbox-text  = <fs_g_signa>-z_descripcio.
+    APPEND wa_listbox TO  it_listbox.
+
+  ENDLOOP.
+
+  DELETE ADJACENT DUPLICATES FROM it_listbox.
+
+  ld_field = 'GV_SIGNATARIS'.
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = ld_field
+      values = it_listbox.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+FORM error USING p_exception TYPE REF TO cx_fp_runtime.     "#EC CALLED
+
+  DATA lv_type   TYPE string.
+  DATA lx_system TYPE REF TO cx_fp_runtime_internal.
+
+  lv_type = substring_after(
+                val = cl_abap_classdescr=>get_class_name( p_exception )
+                sub = 'RUNTIME_' ).
+* Create an exception object to display the message in order to allow
+* the user to request the display in a pop-up window.
+  CREATE OBJECT lx_system
+    EXPORTING
+      textid = cx_fp_runtime_internal=>generic
+      errmsg = |{ lv_type } ERROR: { p_exception->get_text( ) }|.
+  MESSAGE lx_system TYPE 'E'.
+
+ENDFORM.                    "error
+*
+*----------------------------------------------------------------------*
+*
+* A diferencia del método ZCL_GDG-ADD_SIGN_PAGE esta rutina
+* no crea nueva versión de documento.
+* el Parámetro po_xstr_merged es de entrada y salida.
+*
+FORM agregar_firma   CHANGING  po_xstr_merged TYPE xstring. "SPEC-59583
+
+  DATA: lv_new_version   TYPE flag,
+        lv_xstr_main     TYPE xstring,
+        lv_xstr_plan     TYPE xstring,
+        lv_xstr_merged   TYPE xstring,
+        ls_zparam        TYPE zsap_dt_param_hc,
+        lv_plan_docclass TYPE bapidclass,
+        lv_plan_objectid TYPE bapiguid.
+
+  SELECT SINGLE *
+    INTO ls_zparam
+    FROM zsap_dt_param_hc
+   WHERE repid = 'GDG'
+     AND field_info = 'PLANTILLA_SIGNATURES'.
+
+  lv_plan_docclass  = ls_zparam-value.
+  lv_plan_objectid  = ls_zparam-value2.
+
+  PERFORM doc_srm_to_xstring  USING lv_plan_docclass
+                                    lv_plan_objectid
+                           CHANGING lv_xstr_plan.
+
+  lv_xstr_main = po_xstr_merged.
+
+  PERFORM merge_old_way  USING lv_xstr_main lv_xstr_plan " WorkAround
+                      CHANGING lv_xstr_merged .
+
+  po_xstr_merged = lv_xstr_merged.
+
+
+ENDFORM.                    " Agregar_Firma
+
+*----------------------------------------------------------------------*
+*
+FORM convert_to_pdf_gdg  USING pi_docclass  TYPE bapidclass
+                               pi_objectid  TYPE bapiguid.
+
+  DATA: lt_compo TYPE TABLE OF bapidoccomp,
+        ls_compo TYPE bapidoccomp,
+        lv_rc    TYPE abap_bool.
+*>> Ini  SPEC-57991  - ETMAE
+  DATA: lv_msg TYPE text128,
+        ls_log TYPE zlogs_sign_des,
+        lv_res TYPE flag.
+*<< Fi  SPEC-57991  - ETMAE
+
+  DATA: check_tasca   TYPE zbpm_tasca_id,
+        zbpm_exp      TYPE REF TO zcl_bpm_exp,
+        zbpm_exp_lot  TYPE REF TO zcl_bpm_exp,
+        lt_expedients TYPE TABLE OF zrm_dt_exp_cont,
+        ls_expedients TYPE zrm_dt_exp_cont,
+*<<<SPEC:66792, Final modificació - ECMLS
+        lv_iso_ok     TYPE abap_bool,
+        ls_msg        TYPE bapiret2.
+
+  ls_msg-id = zcl_gdg=>gc_msg_id.
+*>>>SPEC:66792, Inici modificació - ECMLS
+
+  CALL FUNCTION 'SRM_DOCUMENT_CHECKOUT_VIA_TAB'
+    EXPORTING
+      objectid        = pi_objectid
+      documentclass   = pi_docclass
+    TABLES
+      components      = lt_compo
+    EXCEPTIONS
+      internal_error  = 1
+      parameter_error = 2
+      not_authorized  = 3
+      doc_not_found   = 4
+      OTHERS          = 5.
+
+  CHECK lt_compo IS NOT INITIAL.
+
+  CLEAR ls_compo.
+  READ TABLE lt_compo INTO ls_compo  INDEX 1.
+
+  IF ls_compo-mimetype = 'application/pdf'.
+
+  ELSEIF ls_compo-comp_id CS '.xls' OR ls_compo-comp_id CS '.doc' .
+    CALL METHOD zcl_utils_docs=>office_2_pdf_cs
+      EXPORTING
+        z_docid       = pi_objectid
+        z_classid     = pi_docclass
+        z_new_version = abap_true
+      RECEIVING
+        rc            = lv_rc.
+
+    IF lv_rc <> abap_true.
+*>> Ini  SPEC-57991  - ETMAE
+
+      CLEAR : ls_log, lv_msg .
+
+      lv_msg = text-e10 .  " No s''ha pogut transformar el document en PDF...
+      ls_log-accio       = 'Transformar Document a format PDF'(E12) .
+      ls_log-direccio_ip = space .
+      ls_log-resultat   =  lv_msg .
+      ls_log-document   =  ls_compo-comp_id . " Nombre fichero
+      ls_log-docclass   =  pi_docclass .
+      ls_log-object_id  =  pi_objectid .
+      ls_log-version    =  0 .
+      ls_log-error_msg  =  'GF: ZRM_SIGNA  Rutina: convert_to_pdf_gdg'.
+      ls_log-error_ext  =  space .
+
+      DATA(lv_resultat) = 'E'.
+
+      CALL METHOD zcl_signatura_desatesa=>afegir_log
+        EXPORTING
+          is_log      = ls_log
+          iv_resultat = lv_resultat
+          iv_tasca    = zglog_tasca_err_trans_pdf
+          ">>>SPEC:71096, Final modificació - ECACM
+        IMPORTING
+          ev_res      = lv_res.
+
+      MESSAGE lv_msg  TYPE 'E'.
+
+*<< Fi  SPEC-57991  - ETMAE
+
+
+    ELSE.
+*<<<SPEC:66792, Inici modificació - ECMLS
+      zcl_gdg=>check_iso(
+        EXPORTING
+          z_docid    = pi_objectid
+          z_classid  = pi_docclass
+          iv_conv    = abap_true
+        RECEIVING
+          rc         = lv_iso_ok
+        EXCEPTIONS
+          no_data    = 1
+          no_validat = 2
+          iso_ko     = 3
+          OTHERS     = 4
+      ).
+
+      IF sy-subrc <> 0.
+        IF sy-subrc EQ 3.
+          ls_msg-number = zcl_gdg=>gc_check_iso_ko. "El document no compleix amb la ISO
+        ELSE.
+          ls_msg-number = zcl_gdg=>gc_check_iso_err. "No s'ha pogut realitzar la validació o...
+        ENDIF.
+
+        CALL FUNCTION 'BAPI_MESSAGE_GETDETAIL'
+          EXPORTING
+            id         = ls_msg-id
+            number     = ls_msg-number
+            language   = sy-langu
+            textformat = 'CH'
+          IMPORTING
+            message    = ls_msg-message.
+
+        IF sy-subrc EQ 0.
+          CLEAR : ls_log, lv_msg .
+
+          lv_msg = ls_msg-message.
+          ls_log-accio       = text-e13.
+          ls_log-direccio_ip = space .
+          ls_log-resultat   =  lv_msg .
+          ls_log-document   =  ls_compo-comp_id . " Nombre fichero
+          ls_log-docclass   =  pi_docclass .
+          ls_log-object_id  =  pi_objectid .
+          ls_log-version    =  0 .
+          ls_log-error_msg  =  'GF: ZRM_SIGNA  Rutina: convert_to_pdf_gdg'.
+          ls_log-error_ext  =  space .
+
+          lv_resultat = 'E'.
+
+          CALL METHOD zcl_signatura_desatesa=>afegir_log
+            EXPORTING
+              is_log      = ls_log
+              iv_resultat = lv_resultat
+              iv_tasca    = zglog_tasca_env_web
+              ">>>SPEC:71096, Final modificació - ECACM
+            IMPORTING
+              ev_res      = lv_res.
+
+          MESSAGE lv_msg  TYPE 'E'.
+        ENDIF.
+      ENDIF.
+*>>>SPEC:66792, Final modificació - ECMLS
+    ENDIF.
+  ENDIF.
+
+ENDFORM.           " convert_to_pdf_GDG
+*
+*----------------------------------------------------------------------*
+*
+FORM complete_zeros CHANGING po_expresion.
+
+  CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+    EXPORTING
+      input  = po_expresion
+    IMPORTING
+      output = po_expresion.
+
+ENDFORM.           " convert_to_pdf_GDG
+*
+*----------------------------------------------------------------------*
+*
+*
+*----------------------------------------------------------------------*
+*
+* Si los anexos y consultas son inferiores a 10 MB se adjunta directamente
+* en el documento principal.
+* - Carga Variable global GV_TE_ANNEXOS.
+*
+FORM medida_anexos CHANGING po_total_bytes TYPE i .
+
+  DATA: ls_ac_gdg TYPE ty_ac_gdg,
+        ls_adj    TYPE zrm_dt_docs_adj.
+  DATA: lt_comt        TYPE TABLE OF bapidoccomp,
+        ls_comt        TYPE          bapidoccomp,
+        lt_bin         TYPE TABLE OF bapiconten,
+        lv_total_bytes TYPE i.
+
+  CLEAR:  po_total_bytes .
+
+  LOOP AT gt_ac_gdg  INTO ls_ac_gdg
+          WHERE flag_a EQ abap_true.
+
+    READ TABLE gt_docs_adj_t  INTO ls_adj
+      WITH KEY z_num_doc = ls_ac_gdg-num_doc.
+
+    CHECK sy-subrc IS INITIAL.
+
+    REFRESH: lt_comt, lt_bin.
+
+    CALL FUNCTION 'SRM_DOCUMENT_CHECKOUT_VIA_TAB'
+      EXPORTING
+        objectid        = ls_adj-objectid
+        documentclass   = ls_adj-docclass
+      TABLES
+        components      = lt_comt
+        bin_content     = lt_bin
+      EXCEPTIONS
+        internal_error  = 1
+        parameter_error = 2
+        not_authorized  = 3
+        doc_not_found   = 4
+        OTHERS          = 5.
+
+    READ TABLE lt_comt INTO ls_comt INDEX 1.
+    CHECK sy-subrc IS INITIAL.
+    lv_total_bytes = lv_total_bytes + ls_comt-comp_size.
+
+  ENDLOOP.
+
+  CLEAR gv_te_annexos.
+  IF lv_total_bytes > 0.
+    gv_te_annexos = abap_true.
+  ENDIF.
+
+  po_total_bytes = lv_total_bytes.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+* Parámetro. po_xstr_merged es de entrada y salida.
+* - Añade hoja de firma.
+* - Añade una entrada del documento PRINCIPAL por cada Responsable
+*   en la tabla ZGDG_DOCS(zsigna)
+* - Carga gt_docs[] que se utiliza en el envio de notificación.
+*
+FORM update_gdg_docs_2  CHANGING po_xstr_merged TYPE xstring.
+
+  DATA: ls_docs        TYPE zgdg_docs,
+        lt_docs        TYPE TABLE OF zgdg_docs,
+        lv_pernr       TYPE pernr_d,
+        lv_user        TYPE syuname,
+        lv_error       TYPE c,
+        lv_rc          TYPE abap_bool,
+        lv_xstr_firma  TYPE xstring,
+        lv_xstr_merged TYPE xstring.
+
+*>> Ini  SPEC-57991  - ETMAE
+  DATA: ls_log   TYPE zlogs_sign_des,
+        lv_res   TYPE flag,
+        lv_text  TYPE text128,
+        lv_nro_e TYPE numc3,
+        lv_msgv1 TYPE text128,
+        lv_msgv2 TYPE text128.
+*<< Fi  SPEC-57991  - ETMAE
+
+
+  LOOP AT gt_ac_gdg TRANSPORTING NO FIELDS
+    WHERE flag_a EQ abap_true OR  flag_c EQ abap_true.
+    gv_te_annexos = abap_true.
+    EXIT.
+
+  ENDLOOP.
+
+  SELECT MAX( pos )
+    FROM zgdg_docs
+    INTO @DATA(lv_pos)
+   WHERE docclass = @zrm_dt_docs_adj-docclass
+     AND objectid = @zrm_dt_docs_adj-objectid
+     AND status   <> @gc_cancel .  " SPEC-49453
+
+  LOOP AT gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_resp>).
+
+    ls_docs-docclass       = zrm_dt_docs_adj-docclass.  "
+    ls_docs-objectid       = zrm_dt_docs_adj-objectid.  " Doc. Principal
+    ls_docs-data_envio     = sy-datum.
+    ls_docs-hora_envio     = sy-uzeit.
+    ls_docs-aux1           = gv_codi_exp.
+    ls_docs-poski          = gv_descr_abr.
+    ls_docs-aux2           = gv_anchor.
+    ls_docs-aux3           = gv_versio_sig.
+    ls_docs-gdg_anchor     = gv_anchor.
+    ls_docs-signa_parallel = <fs_resp>-z_parallel.
+    ls_docs-version        = gv_versio_sig.
+    ls_docs-z_posicio      = abap_true. "SPEC-59583 sempre serà X
+    ls_docs-z_posicio_hash = <fs_resp>-z_posicio_hash. "SPEC-59583
+
+    "INI SPEC-60538
+    "Emplear els camps periode_rv i tasca_bpm_id pels documents Mod.Aut. (CT004)
+    IF gv_mod_aut_bpm = abap_true.
+      ls_docs-periode_rv = gs_zbpm_dades_rv-periode.
+      ls_docs-tasca_bpm_id = <fs_resp>-tasca_bpm_id.
+    ENDIF.
+    "FIN SPEC-60538
+
+
+    IF <fs_resp>-z_parallel EQ abap_true.
+      ls_docs-pos = <fs_resp>-ordre.
+    ELSE.
+      ls_docs-pos = <fs_resp>-ordre.
+    ENDIF.
+    lv_pernr      = <fs_resp>-z_responsable.
+    CLEAR lv_user.
+
+    CALL FUNCTION 'HR_GET_USER_FROM_EMPLOYEE'
+      EXPORTING
+        pernr = lv_pernr
+        begda = sy-datum
+        endda = sy-datum
+      IMPORTING
+        user  = lv_user.
+
+    IF lv_user IS INITIAL.
+      lv_error = '1'.
+      EXIT.
+    ENDIF.
+
+    ls_docs-usuari = lv_user.
+    ls_docs-tipus_proces = 'DOCPSIG'.
+    ls_docs-status  = 'P'.
+    CASE <fs_resp>-z_rol_dig.
+      WHEN 'S'.
+        ls_docs-accions = 'F'.
+      WHEN 'V'.
+        ls_docs-accions = 'V'.
+      WHEN OTHERS.
+    ENDCASE.
+    ls_docs-annexos = gv_te_annexos.
+
+    APPEND ls_docs TO lt_docs.
+
+  ENDLOOP.
+
+  IF lt_docs IS INITIAL.
+    lv_error = '2'.
+  ENDIF.
+
+*>> Ini  SPEC-57991  - ETMAE
+  IF lv_error IS NOT INITIAL.
+
+    CASE lv_error.
+      WHEN '1'.
+        lv_nro_e = '010'.
+        lv_msgv1 =  <fs_resp>-z_responsable .
+        lv_msgv2 =  <fs_resp>-nom .
+      WHEN OTHERS.
+        lv_nro_e = '011'.
+        CLEAR : lv_msgv1, lv_msgv2.
+    ENDCASE.
+
+    CALL FUNCTION 'MESSAGE_TEXT_BUILD'
+      EXPORTING
+        msgid               = 'ZCCTRMS'
+        msgnr               = lv_nro_e
+        msgv1               = lv_msgv1
+        msgv2               = lv_msgv2
+      IMPORTING
+        message_text_output = lv_text.
+
+    CLEAR : ls_log.
+    ls_log-accio      = 'Actualitzar taula zgdg_docs'(E30) .
+    ls_log-direccio_ip = space .
+    ls_log-resultat   = 'KO'.
+    ls_log-document   =  space.
+    ls_log-docclass   =  zrm_dt_docs_adj-docclass .
+    ls_log-object_id  =  zrm_dt_docs_adj-objectid .
+    ls_log-version    =  0.
+    ls_log-error_msg  =  'GF: ZRM_SIGNA  Rutina: update_gdg_docs_2'(E31) .
+    ls_log-error_ext  =  lv_text .
+
+    ">>>SPEC:71096, Inici modificació - ECACM
+
+    DATA(lv_resul) = 'E'.
+
+    CALL METHOD zcl_signatura_desatesa=>afegir_log
+      EXPORTING
+        is_log      = ls_log
+        iv_resultat = lv_resul
+        iv_tasca    = zglog_tasca_act_zgdg_docs
+        ">>>SPEC:71096, Final modificació - ECACM
+      IMPORTING
+        ev_res      = lv_res.
+
+  ENDIF.
+*<< Fi  SPEC-57991  - ETMAE
+
+  CASE lv_error.
+    WHEN space.
+      MODIFY zgdg_docs FROM TABLE lt_docs.
+*>> INI ETLJS SPEC-SPEC-54261 14.06.2019 08:56:22
+*      READ TABLE gt_docs_psig ASSIGNING FIELD-SYMBOL(<fs_d>) INDEX 1.
+*      IF sy-subrc EQ 0.
+      gv_data_enviament   = sy-datum.
+      gv_hora_enviament   = sy-uzeit.
+      gv_usuari_enviament = sy-uname.
+
+      gt_docs[] = lt_docs[].
+
+*      ENDIF.
+*<< FIN ETLJS SPEC-SPEC-54261 14.06.2019 08:56:22
+    WHEN '1'.
+      MESSAGE ID 'ZCCTRMS' TYPE 'I' NUMBER 010 WITH <fs_resp>-z_responsable <fs_resp>-nom DISPLAY LIKE 'E'.
+    WHEN OTHERS.
+      MESSAGE ID 'ZCCTRMS' TYPE 'E' NUMBER 011 DISPLAY LIKE 'E'.
+  ENDCASE.
+
+ENDFORM.                     " update_gdg_docs_2
+*
+*----------------------------------------------------------------------*
+*
+* Si el doc. principal ya tenia un attachment, guardarlo para insertarlo
+* al final.
+*
+FORM old_attach_doc_main    USING pi_xstr_main_doc TYPE xstring
+                         CHANGING pt_old_attach    TYPE tfpattachments .
+
+  DATA: lv_xstr_main   TYPE fpcontent,  "  xstring ,
+        lo_pdfobj      TYPE REF TO if_fp_pdf_object,
+        lv_pdf         TYPE fpcontent,
+        lv_pdf2        TYPE fpcontent,
+        lx_fpex        TYPE REF TO cx_fp_runtime,
+        ls_attachment  TYPE sfpattachments,
+        lt_attachments TYPE tfpattachments,
+        lv_dest        TYPE rfcdest.
+
+*>> Ini  SPEC-57991  - ETMAE
+  DATA: ls_log TYPE zlogs_sign_des,
+        lv_str TYPE string,
+        lv_res TYPE flag.
+*<< Fi  SPEC-57991  - ETMAE
+
+  lv_xstr_main = pi_xstr_main_doc.
+
+  lv_dest = cl_fp=>get_ads_connection( ).
+
+  TRY.
+
+      lo_pdfobj = cl_fp=>get_reference( )->create_pdf_object( connection = lv_dest ).
+
+      lo_pdfobj->set_document( pdfdata = lv_xstr_main ).
+
+      lo_pdfobj->set_task_getattachments( ).
+
+      lo_pdfobj->execute( ).
+
+      lt_attachments = lo_pdfobj->get_attachments( ).
+
+    CATCH cx_fp_runtime_internal
+          cx_fp_runtime_system
+          cx_fp_runtime_usage INTO lx_fpex.
+
+*>> Ini  SPEC-57991  - ETMAE
+      lv_str = lx_fpex->get_errmsg( ).
+
+      ls_log-accio      = 'Guardar adjunts antics de document principal'(E17) .
+      ls_log-direccio_ip = space .
+      ls_log-resultat   = 'KO'.
+      ls_log-document   =  space .
+      ls_log-docclass   =  zrm_dt_docs_adj-docclass .
+      ls_log-object_id  =  zrm_dt_docs_adj-objectid .
+      ls_log-version    =  0 .
+      ls_log-error_msg  =  'GF: ZRM_SIGNA  Rutina: old_attach_doc_main'(E18).
+      ls_log-error_ext  =  lv_str .
+
+      ">>>SPEC:71096, Inici modificació - ECACM
+
+      DATA(lv_resul) = 'E'.
+
+      CALL METHOD zcl_signatura_desatesa=>afegir_log
+        EXPORTING
+          is_log      = ls_log
+          iv_resultat = lv_resul
+          iv_tasca    = zglog_tasca_save_adj_antics
+          ">>>SPEC:71096, Final modificació - ECACM
+        IMPORTING
+          ev_res      = lv_res.
+
+*<< Fi  SPEC-57991  - ETMAE
+
+      PERFORM error USING lx_fpex.
+
+  ENDTRY.
+
+  CLEAR lo_pdfobj.  FREE  lo_pdfobj.
+
+  pt_old_attach = lt_attachments.
+
+ENDFORM.                     " Old_Attach_Doc_Main.
+*
+*----------------------------------------------------------------------*
+*
+FORM merge_old_way   USING pi_xstr_1      TYPE xstring
+                           pi_xstr_2      TYPE xstring
+                  CHANGING po_xstr_merged TYPE xstring.
+
+  DATA: lv_xstr_1     TYPE xstring,
+        lv_xstr_2     TYPE xstring,
+        lt_255_1      TYPE zt_bapicontent255,
+        lt_255_2      TYPE zt_bapicontent255,
+        lv_len_1      TYPE i,
+        lv_len_2      TYPE i,
+        lv_len_tot    TYPE i,
+        lt_pdf        TYPE ztt_pdf_files,
+        ls_pdf        TYPE LINE OF ztt_pdf_files , " 3 campos
+        lt_pdf_merged TYPE zt_bapicontent255, " raw 255
+        lv_buffer     TYPE xstring.
+
+  CLEAR po_xstr_merged.
+
+  lv_xstr_1 = pi_xstr_1 .
+  lv_xstr_2 = pi_xstr_2 .
+
+  CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+    EXPORTING
+      buffer        = lv_xstr_1
+*     APPEND_TO_TABLE       = ' '  " add old content
+    IMPORTING
+      output_length = lv_len_1
+    TABLES
+      binary_tab    = lt_255_1.
+
+  ls_pdf-length  = lv_len_1.
+  ls_pdf-content = lt_255_1.
+  ls_pdf-id      = 1 .
+  APPEND ls_pdf TO lt_pdf.
+
+*  --------------------------------------
+
+  CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+    EXPORTING
+      buffer        = lv_xstr_2
+*     APPEND_TO_TABLE       = ' '  " add old content
+    IMPORTING
+      output_length = lv_len_2
+    TABLES
+      binary_tab    = lt_255_2.
+
+  ls_pdf-length  = lv_len_2.
+  ls_pdf-content = lt_255_2.
+  ls_pdf-id      = 2 .
+  APPEND ls_pdf TO lt_pdf.
+
+
+*  --------------------------------------
+
+  CALL FUNCTION 'ZFM_PDF_MERGE'
+    EXPORTING
+      it_files    = lt_pdf
+    IMPORTING
+      et_pdfmerge = lt_pdf_merged  " tab255
+      ev_length   = lv_len_tot.
+
+*  --------------------------------------
+
+  CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
+    EXPORTING
+      input_length = lv_len_tot
+*     FIRST_LINE   = 0
+*     LAST_LINE    = 0
+    IMPORTING
+      buffer       = lv_buffer
+    TABLES
+      binary_tab   = lt_pdf_merged
+    EXCEPTIONS
+      failed       = 1
+      OTHERS       = 2.
+
+  IF sy-subrc IS INITIAL.
+    po_xstr_merged = lv_buffer.
+  ENDIF.
+
+ENDFORM.                     " Old_Attach_Doc_Main.
+*
+*----------------------------------------------------------------------*
+*
+FORM add_docmain_to_zrm_dt_docs_doc  CHANGING ps_docs_doc TYPE zrm_dt_docs_doc.
+
+  DATA: ls_docs_doc   TYPE zrm_dt_docs_doc,
+        lt_properties TYPE TABLE OF bapiproptb,
+        ls_properties TYPE bapiproptb.
+
+  CLEAR: ps_docs_doc,    ls_docs_doc .
+
+  ls_docs_doc-docclass           = gs_sdok-class.
+  ls_docs_doc-objectid           = gs_sdok-objid.            " Expediente
+
+  ls_docs_doc-docclass_doc       = zrm_dt_docs_adj-docclass.
+  ls_docs_doc-objectid_doc       = zrm_dt_docs_adj-objectid. " Documento Principal
+  ls_docs_doc-z_versio           = gv_versio_sig.
+  ls_docs_doc-z_anchor           = gv_anchor.
+  ls_docs_doc-z_data_enviament   = gv_data_enviament.
+  ls_docs_doc-z_hora_enviament   = gv_hora_enviament.
+  ls_docs_doc-z_usuari_enviament = gv_usuari_enviament.
+
+  CLEAR lt_properties.
+  CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+    EXPORTING
+      objectid      = zrm_dt_docs_adj-objectid
+      documentclass = zrm_dt_docs_adj-docclass
+    TABLES
+      properties    = lt_properties.
+  CHECK lt_properties IS NOT INITIAL.
+
+  CLEAR ls_properties.
+  READ TABLE lt_properties WITH KEY name = 'SRM_DOCUMENT_ID' INTO ls_properties.
+  ls_docs_doc-z_cod_doc = ls_properties-value.
+
+  CLEAR ls_properties.
+  READ TABLE lt_properties WITH KEY name = 'SRM_VERSION_ID' INTO ls_properties.
+
+  ls_docs_doc-z_versio_doc = ls_properties-value.
+
+  CLEAR ls_properties.
+  READ TABLE lt_properties WITH KEY name = 'DESCRIPTION' INTO ls_properties.
+
+  ls_docs_doc-z_nom_document = ls_properties-value.
+
+  ls_docs_doc-z_tip_doc = 'P'.  " Principal
+
+  ps_docs_doc = ls_docs_doc.
+
+
+ENDFORM.                     " Old_Attach_Doc_Main.
+*
+*----------------------------------------------------------------------*
+*
+FORM get_data_anexos.
+
+  DATA: ls_docs_adj  TYPE zrm_dt_docs_adj,  " Documents de signatura
+        ls_docs_sign TYPE ty_docs_sign_psig.
+  DATA: lv_fields         TYPE string,
+        lt_documents      TYPE TABLE OF bapisrmrec_element,
+        lt_properties     TYPE TABLE OF bapipropelement,
+        lt_props          TYPE TABLE OF bapiproptb,
+        lt_identification TYPE TABLE OF bapisrmrec_element_ident,
+        ls_respons_psig   TYPE zrm_dt_resp_doc,
+        ls_return         TYPE bapiret2,
+        lv_data           TYPE dats,
+        lv_versio         TYPE z_versio,
+        lv_societat       TYPE bukrs,
+        lv_parentid       TYPE bapiparentelemid.
+
+  DATA: lv_fecha   TYPE char10,
+        lv_hora    TYPE char8,
+        lv_sys_des TYPE z_sistema_desti VALUE 'GDGS'.
+  DATA: lv_enviat TYPE flag,
+        lv_aux    TYPE datum.
+
+  FIELD-SYMBOLS: <fs_taula> TYPE tabname,
+                 "<fs_expe>  TYPE ty_exp,
+                 <ls_p>     TYPE bapiproptb.
+
+* elementos del expediente
+  CALL FUNCTION 'BAPI_RECORD_GETELEMENTS'
+    EXPORTING
+      objectid               = gs_sdok-objid
+      documentclass          = gs_sdok-class
+    TABLES
+      element                = lt_documents
+      element_identification = lt_identification
+      element_properties     = lt_properties.
+
+  CLEAR: gt_docs_psig, gt_docs_adj_t.
+
+  SELECT *
+    FROM zrm_dt_docs_doc
+    INTO TABLE @DATA(lt_docs)
+    WHERE docclass  = @gs_sdok-class
+     AND  objectid  = @gs_sdok-objid
+     AND  z_anchor  = @gv_anchor
+     AND  z_versio  = @gv_versio_sig.
+
+
+  lv_enviat = abap_true.
+
+  LOOP AT lt_properties ASSIGNING FIELD-SYMBOL(<fs_props>)
+       WHERE name = 'ANCHOR'.
+
+    CLEAR:  ls_docs_sign, ls_docs_adj.
+
+    READ TABLE lt_documents ASSIGNING FIELD-SYMBOL(<fs_docs>)
+      WITH KEY element_id = <fs_props>-element_id type = 'I'.
+    CHECK sy-subrc EQ 0.
+
+    ls_docs_sign-versio = lv_versio.
+    ls_docs_adj-z_num_doc = ls_docs_sign-num_doc = <fs_docs>-element_id.
+    ls_docs_sign-z_descripcio = <fs_docs>-description.
+
+    lv_parentid = <fs_docs>-parent_id.
+    CLEAR ls_docs_sign-carpeta.
+    WHILE sy-subrc EQ 0 OR lv_parentid IS NOT INITIAL.
+      READ TABLE lt_documents ASSIGNING FIELD-SYMBOL(<fs_parent>)
+      WITH KEY element_id = lv_parentid.
+      IF sy-subrc EQ 0.
+        IF ls_docs_sign-carpeta IS INITIAL.
+          ls_docs_sign-carpeta = <fs_parent>-description.
+        ELSE.
+          ls_docs_sign-carpeta = <fs_parent>-description && '/' && ls_docs_sign-carpeta.
+        ENDIF.
+        lv_parentid = <fs_parent>-parent_id.
+      ENDIF.
+    ENDWHILE.
+
+    READ TABLE lt_identification ASSIGNING FIELD-SYMBOL(<fs_ident>)
+      WITH KEY element_id = <fs_props>-element_id name = 'DOC_ID'.
+    CHECK sy-subrc EQ 0.
+    ls_docs_adj-docclass = <fs_ident>-value(8).
+    ls_docs_adj-objectid = <fs_ident>-value+10.
+
+*   db -> zrm_dt_docs_doc
+    READ TABLE lt_docs WITH KEY docclass_doc = ls_docs_adj-docclass
+                                objectid_doc = ls_docs_adj-objectid
+                        INTO DATA(ls_docs).
+
+    IF ls_docs_adj-docclass EQ zrm_dt_docs_adj-docclass AND
+       ls_docs_adj-objectid EQ zrm_dt_docs_adj-objectid.
+      ls_docs_sign-is_main = abap_true.
+      ls_docs_sign-flag    = abap_true.
+      gv_desc_text = <fs_docs>-description.
+    ENDIF.
+
+    REFRESH lt_props.
+    CALL FUNCTION 'BAPI_SRM_DOC_GETPROPERTIES'
+      EXPORTING
+        objectid      = ls_docs_adj-objectid
+        documentclass = ls_docs_adj-docclass
+      TABLES
+        properties    = lt_props.
+
+    IF ls_docs-z_data_enviament NE lv_data.
+      ls_docs_sign-flag = abap_true.
+    ENDIF.
+    READ TABLE lt_props ASSIGNING FIELD-SYMBOL(<fs_prop>) WITH KEY name = 'SRM_DOCUMENT_ID'.
+    IF <fs_prop> IS ASSIGNED.
+      ls_docs_sign-denominacio = <fs_prop>-value.
+    ENDIF.
+
+    CHECK ls_docs_sign-denominacio IS NOT INITIAL.
+
+    APPEND ls_docs_adj   TO gt_docs_adj_t.
+    APPEND ls_docs_sign TO gt_docs_psig.
+
+    CLEAR ls_docs.
+
+
+  ENDLOOP.
+
+
+
+ENDFORM.                     " Old_Attach_Doc_Main.
+*
+*----------------------------------------------------------------------*
+*
+*&---------------------------------------------------------------------*
+*&      Form  BLOQUEJAR_DOCUMENT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_MODE  text
+*      -->P_ZRM_DT_DOCS_ADJ_DOCCLASS  text
+*      -->P_ZRM_DT_DOCS_ADJ_OBJECTID  text
+*      <--P_LV_ERROR_RC  text
+*----------------------------------------------------------------------*
+FORM bloquejar_document  USING    p_mode        TYPE char1
+                                  p_docclass    TYPE bapidclass
+                                  p_objectid    TYPE bapiguid
+                         CHANGING p_error_rc TYPE syst_subrc.
+
+  IF p_mode = 'L'. "Lock mode
+
+    CALL FUNCTION 'ENQUEUE_EZLOCKGDG_DOCS'
+      EXPORTING
+        docclass       = p_docclass
+        objectid       = p_objectid
+      EXCEPTIONS
+        foreign_lock   = 1
+        system_failure = 2
+        OTHERS         = 3.
+
+    p_error_rc = sy-subrc.
+
+  ELSEIF p_mode = 'U'. "UNLock mode
+
+    CALL FUNCTION 'DEQUEUE_EZLOCKGDG_DOCS'
+      EXPORTING
+        docclass = p_docclass "<fs_alv>-docclass
+        objectid = p_objectid. "<fs_alv>-objectid
+
+    p_error_rc = sy-subrc.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  COMUNICAR_NOTIFICATS
+*&---------------------------------------------------------------------*
+*   Si s’esmena totalment un document enviat a signatura,              *
+*   s’hauria de comunicar l’esmena a tots els que se’ls hagi notificat *
+*   que tenien una signatura pendent, hagin signat o no.               *
+*   Si es en paral·lel a tots els responsables, i si es en seqüencial  *
+*   a tots els que hagin signat (data signatura informada)             *
+*   i a la persona que tingui la tasca pendent.                        *
+*----------------------------------------------------------------------*
+FORM comunicar_notificats .
+
+  DATA: lv_codi_exp TYPE z_codi_exp2,
+        lv_proces   TYPE zgdg_proces.
+
+  zcl_utilitats_signa=>obtenir_id_expedient(
+    EXPORTING
+      iv_docclass   = zrm_dt_docs_adj-docclass    " Ubicació d'arxiu d'un document a SRM (model de contingut)
+      iv_objectid   = zrm_dt_docs_adj-objectid    " GUID
+  IMPORTING
+    ev_codi_exp   =   lv_codi_exp  " Codi de l'Expedient
+  EXCEPTIONS
+    doc_not_found = 1
+    OTHERS        = 2
+  ).
+
+  "Si no hem pogut trobar el document, llencem error i no seguim
+  IF sy-subrc = 1.
+    MESSAGE text-e08 TYPE 'I'.
+    RETURN.
+  ENDIF.
+
+  "Obtenim el tipus de procés
+  SELECT SINGLE tipus_proces FROM zgdg_docs INTO (lv_proces)
+    WHERE objectid = zrm_dt_docs_adj-objectid AND
+          docclass = zrm_dt_docs_adj-docclass.
+
+  "Comuniquem la esmena als interessats
+  zcl_utilitats_signa=>comunicar_esmena(
+    EXPORTING
+      iv_codi_exp     =  lv_codi_exp  "  Codi de l'Expedient
+      iv_objectid     =  zrm_dt_docs_adj-objectid "del document
+      iv_docclass     =  zrm_dt_docs_adj-docclass "del document
+      iv_tipus_proces =  lv_proces    " Tipus de procés
+      iv_esmena_total =  'X'
+      iv_desde_desatesa = abap_false
+  ).
+
+
+  "Preparació `preliminar, obtenim el codi de document
+*zrm_dt_docs_adj-docclass   " Class  Document
+*     AND objectid    = zrm_dt_docs_adj-objectid
+
+  "Si s’esmena totalment un document enviat a signatura,
+  "s’hauria de comunicar l’esmena a tots els que se’ls hagi notificat
+  "que tenien una signatura pendent, hagin signat o no.
+  "Si es en paral·lel a tots els responsables,
+  "i si es en seqüencial a tots els que hagin signat (data signatura informada)
+  "i a la persona que tingui la tasca pendent.
+  "---------------------------------------------------------------------------
+  "1.Si s’esmena totalment un document enviat a signatura,
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  COMPROVA_VERSIO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM comprova_versio USING p_versio_sig TYPE z_versio
+                     CHANGING ev_error  TYPE abap_bool.
+
+  DATA: lt_zgdg_docs TYPE TABLE OF zgdg_docs.
+
+  SELECT * FROM zgdg_docs INTO TABLE lt_zgdg_docs
+    WHERE docclass    = zrm_dt_docs_adj-docclass AND
+          objectid    = zrm_dt_docs_adj-objectid AND
+          version     = p_versio_sig             AND
+          gdg_anchor  = gv_anchor.   "Tipus de document
+
+  IF sy-subrc = 0.
+    ev_error = abap_true.
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SET_PARARELL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_GT_RESPONS_PSIG  text
+*----------------------------------------------------------------------*
+FORM set_pararell  CHANGING pt_respons_psig TYPE ty_t_responsables_psig.
+  LOOP AT pt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_respons_psig>).
+    IF gv_parallel EQ abap_true.
+      <fs_respons_psig>-z_parallel = abap_true.
+    ELSE.
+      <fs_respons_psig>-z_parallel = abap_false.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+*>> Ini  SPEC-52934  - ETMAE
+*
+FORM save_doc_rms_to_server USING pt_docs   TYPE zty_gdg_docs
+                                  lt_attach TYPE tfpattachments.
+
+  DATA: ls_doc               TYPE zgdg_docs,
+        lv_fitxer_creat      TYPE flag,
+        lv_codi_exp          TYPE z_codi_exp2,
+        lv_descr_abr         TYPE string,
+        ls_insert            TYPE zdocs_signa_des,
+        lv_afegit            TYPE flag,
+        lv_autoritzat        TYPE flag,
+        lv_s_filename        TYPE string,
+        lv_s_nomdocument     TYPE string,
+        lv_usuari            TYPE uname,
+        lv_pernr             TYPE pernr_d,
+        lv_username1         TYPE syuname,
+        lv_username2         TYPE bname,
+        lv_id_ruta           TYPE text50,
+        lv_ruta_file         TYPE text200,
+        lv_ruta_str          TYPE string,
+        lv_te_auth           TYPE flag,
+        lv_te_marca          TYPE flag,
+        lv_resul             TYPE zresultat,
+        lv_full_path         TYPE string,
+        lv_full_path_2       TYPE string,
+        ls_attach            TYPE sfpattachments,
+        lv_version_signatura TYPE z_version , " numc3
+        lv_extension         TYPE sdok_fnext,
+        lv_rc                TYPE abap_bool,
+        ls_side              TYPE zdocs_signa_des,
+        lv_result            TYPE flag,
+*>> Ini  SPEC-57991  - ETMAE
+        lv_text              TYPE text128,
+        ls_log               TYPE zlogs_sign_des,
+        lv_res               TYPE flag,
+        lv_mensaje           TYPE text128,
+        lv_resultat          TYPE zproc_result.
+*<< Fi  SPEC-57991  - ETMAE
+
+  lv_version_signatura =  gv_versio_sig.  " SPEC-57188
+
+* Si al menos uno de los usuarios esta autorizado copiar archivo en AL11.
+
+  CLEAR gv_crear_pdf .
+
+  LOOP AT gt_respons_psig INTO gs_respons_psig.
+
+    ">>>SPEC:69974, Inici modificació - ECACM
+    IF gs_respons_psig-z_rol_dig EQ 'V'.
+      lv_te_auth   = abap_true.
+      gv_crear_pdf = abap_true.
+      EXIT.
+    ENDIF.
+    ">>>SPEC:69974, Final modificació - ECACM
+
+
+    CLEAR:  lv_pernr, lv_username1, lv_username2, lv_te_auth .
+
+    lv_pernr = gs_respons_psig-z_responsable.
+
+    CALL FUNCTION 'BP_CENTRALPERSON_GET'
+      EXPORTING
+        iv_employee_id      = lv_pernr
+      IMPORTING
+        ev_username         = lv_username1
+      EXCEPTIONS
+        no_central_person   = 1
+        no_business_partner = 2
+        no_id               = 3
+        OTHERS              = 4.
+
+    lv_username2 = lv_username1 .
+
+    lv_te_auth = zcl_signatura_desatesa=>get_usuari_te_autoritzacio(
+                    iv_bname       = lv_username2
+                    iv_t_signatura = zsign_des ).
+
+    IF lv_te_auth = abap_true.
+      gv_crear_pdf = abap_true.
+      EXIT.
+    ENDIF.
+
+  ENDLOOP.
+
+*>> Ini  SPEC-57188  - ETMAE
+
+  READ TABLE pt_docs INTO ls_doc INDEX 1 .
+
+  IF sy-subrc <> 0 OR pt_docs IS INITIAL.
+
+*>> Ini  SPEC-57991  - ETMAE
+
+    CALL FUNCTION 'MESSAGE_TEXT_BUILD'
+      EXPORTING
+        msgid               = 'ZRM_MSG'
+        msgnr               = '018'
+      IMPORTING
+        message_text_output = lv_text.
+
+    CLEAR : ls_log.
+    ls_log-accio      = 'Guardar document en carpeta web'(E40) .
+    ls_log-direccio_ip = space .
+    ls_log-resultat   = 'No hi cap document a processar'(E41).
+    ls_log-document   =  space.
+    ls_log-docclass   =  zrm_dt_docs_adj-docclass.
+    ls_log-object_id  =  zrm_dt_docs_adj-objectid.
+    ls_log-version    =  0.
+    ls_log-error_msg  =  'GF: ZRM_SIGNA  Rutina: save_doc_rms_to_server'(E42).
+    ls_log-error_ext  =  lv_text .
+
+    ">>>SPEC:71096, Inici modificació - ECACM
+
+    lv_resultat = 'E'.
+
+    CALL METHOD zcl_signatura_desatesa=>afegir_log
+      EXPORTING
+        is_log      = ls_log
+        iv_resultat = lv_resultat
+        iv_tasca    = zglog_tasca_save_doc_web
+        ">>>SPEC:71096, Final modificació - ECACM
+      IMPORTING
+        ev_res      = lv_res.
+
+*<< Fi  SPEC-57991  - ETMAE
+
+    MESSAGE i018(zrm_msg). " No s'ha pogut convertir el fitxer per a signar digitalment.
+    EXIT.
+  ENDIF.
+
+  lv_te_marca = abap_true.
+
+
+*>> Ini  SPEC-57991  - ETMAE
+  IF lv_te_auth   = abap_false  OR
+     lv_te_marca  = abap_false .
+
+    CLEAR : ls_log.
+    ls_log-accio       = 'Guardar document en carpeta web'(E40) .
+    ls_log-direccio_ip = space .
+    ls_log-resultat   = 'El document No te autorització o no te marques. No aplica desatesa'(E45).
+    ls_log-document   =  space.
+    ls_log-docclass   =  ls_doc-docclass.
+    ls_log-object_id  =  ls_doc-objectid.
+    ls_log-version    =  0.
+    ls_log-error_msg  =  'GF: ZRM_SIGNA  Rutina: save_doc_rms_to_server'(E42).
+    ls_log-error_ext  =  space .
+
+    ">>>SPEC:71096, Inici modificació - ECACM
+
+    lv_resultat = 'E'.
+
+    CALL METHOD zcl_signatura_desatesa=>afegir_log
+      EXPORTING
+        is_log      = ls_log
+        iv_resultat = lv_resultat
+        iv_tasca    = zglog_tasca_save_doc_web2
+        ">>>SPEC:71096, Final modificació - ECACM
+      IMPORTING
+        ev_res      = lv_res.
+
+  ENDIF.
+*<< Fi  SPEC-57991  - ETMAE
+
+
+  "Sols seguim si tenim autorització i el document està preparat...
+  CHECK lv_te_auth   = abap_true  AND
+        lv_te_marca  = abap_true .
+
+
+  ls_side-docclass = ls_doc-docclass.
+  ls_side-objectid = ls_doc-objectid.
+  ls_side-version  = lv_version_signatura.
+*  ls_side-z_estat  = 'PND'.
+
+  zcl_signatura_desatesa=>check_doc_enviat(
+    EXPORTING
+      is_signatura_desatesa = ls_side
+    IMPORTING
+      ev_resul              = lv_result ).
+
+*>> Ini  SPEC-57991  - ETMAE
+  IF lv_result = abap_false.
+    CLEAR : ls_log.
+    ls_log-accio      = 'Guardar document en carpeta web'(E40).
+    ls_log-direccio_ip = space .
+    ls_log-resultat   = 'No s''ha trobat entrada en taula ZDOCS_SIGNA_DES'(E47).
+    ls_log-document   =  space.
+    ls_log-docclass   =  ls_doc-docclass.
+    ls_log-object_id  =  ls_doc-objectid.
+    ls_log-version    =  0.
+    ls_log-error_msg  =  'GF: ZRM_SIGNA  Rutina: save_doc_rms_to_server'(E42).
+    ls_log-error_ext  =  space .
+
+    ">>>SPEC:71096, Inici modificació - ECACM
+
+    lv_resultat = 'E'.
+
+    CALL METHOD zcl_signatura_desatesa=>afegir_log
+      EXPORTING
+        is_log      = ls_log
+        iv_resultat = lv_resultat
+        iv_tasca    = zglog_tasca_save_doc_web3
+        ">>>SPEC:71096, Final modificació - ECACM
+      IMPORTING
+        ev_res      = lv_res.
+
+  ENDIF.
+*<< Fi  SPEC-57991  - ETMAE
+
+
+  ">>>SPEC:58137, Inici modificació  - ECJSA
+  "---------------------------------------------------------------------------
+  " Quan l'usuari no te autorització per realitzar la signatura desatesa,
+  " ara mateix, no es creaba la carpeta a la web ni s'enviaba el document.
+  " ERROR ! Sols que un usuari del flux de signatura tingui les autoritzacions
+  " i el document estigui preparat, hem d'enviar la carpeta i els documents.
+  "---------------------------------------------------------------------------
+* Si s'ha enviat a signatura desatesa continuem.
+*  CHECK LV_RESULT = ABAP_TRUE.
+  "---------------------------------------------------------------------------
+  "<<<SPEC:58137, Final modificació - ECJSA
+
+  ">>>SPEC:56971, Inici modificació  - ECJGG
+  "---------------------------------------------------------------------------
+  " Quan un document ve de la Gestió documental i no te un vinculat un expedient
+  " els camp codi expedient i descripció abreujada expedient estan en blanc
+  " es perquè no te cap anchor llavors be del GD
+  "---------------------------------------------------------------------------
+  IF ls_doc-aux1 = 'GESTDOC' OR ls_doc-gdg_anchor = 'GESTDOC'.
+    IF gv_codi_exp IS INITIAL.
+      gv_codi_exp = 'GESTDOC'.
+    ENDIF.
+    IF gv_descr_abr IS INITIAL.
+      gv_descr_abr = 'GESTOR DOCUMENTAL'.
+    ENDIF.
+  ENDIF.
+  "<<<SPEC:56971, Final modificació - ECJGG
+
+**<< Fi  SPEC-57188  - ETMAE
+
+  lv_id_ruta = 'zsign_ruta_'  &&  sy-sysid.
+  TRANSLATE lv_id_ruta TO LOWER CASE.
+
+
+* Busco la ruta del vincle
+  SELECT SINGLE value_param
+    INTO lv_ruta_str
+    FROM zparam_url_desa
+   WHERE id_param = lv_id_ruta .
+
+  IF lv_ruta_str IS INITIAL.
+    MESSAGE 'No s''ha trobat la ruta parametritzada'(R01) TYPE 'I'.
+
+*>> Ini  SPEC-57991  - ETMAE
+
+    CLEAR : ls_log.
+    ls_log-accio       =  'Guardar document en carpeta web'(E40).
+    ls_log-direccio_ip =  space .
+    ls_log-resultat    =  text-r01 .
+    ls_log-document    =  space.
+    ls_log-docclass    =  ls_doc-docclass.
+    ls_log-object_id   =  ls_doc-objectid.
+    ls_log-version     =  0.
+    ls_log-error_msg   =  'GF: ZRM_SIGNA  Rutina: save_doc_rms_to_server'(E42).
+    ls_log-error_ext   =  lv_text .
+
+    ">>>SPEC:71096, Inici modificació - ECACM
+
+    lv_resultat = 'E'.
+
+    CALL METHOD zcl_signatura_desatesa=>afegir_log
+      EXPORTING
+        is_log      = ls_log
+        iv_resultat = lv_resultat
+        iv_tasca    = zglog_tasca_save_doc_web4
+        ">>>SPEC:71096, Final modificació - ECACM
+      IMPORTING
+        ev_res      = lv_res.
+
+*<< Fi  SPEC-57991  - ETMAE
+
+    EXIT.
+  ENDIF.
+*
+  lv_full_path = lv_ruta_str && '\' && gv_codi_exp . " SPEC-57188
+  lv_codi_exp  = gv_codi_exp . " conv. a string .
+
+  ">>>SPEC:69974, Inici modificació - ECJMS
+
+  LOOP AT gt_respons_psig INTO gs_respons_psig_2 WHERE z_rol_dig NE 'V'.
+  ENDLOOP.
+  IF sy-subrc NE 0.
+
+    CALL METHOD zcl_signatura_desatesa=>save_doc_rms_to_serv_hash
+      EXPORTING
+        i_doc_class = ls_doc-docclass
+        i_doc_guid  = ls_doc-objectid
+        i_fullpath  = lv_full_path
+        i_hash      = ls_doc-z_posicio_hash
+*  IMPORTING
+*       e_fitxer_creat =
+      .
+
+  ENDIF.
+
+  "<<<SPEC:69974, Final modificació - ECJMS
+
+  CALL METHOD zcl_signatura_desatesa=>moure_pdf_a_servidor_desatesa
+    EXPORTING
+      iv_hash     = gs_respons_psig-z_posicio_hash
+      iv_codi_exp = lv_codi_exp
+    IMPORTING
+      ev_resultat = lv_resul.
+
+  IF lv_resul = 'OK'.
+    lv_fitxer_creat = abap_true.
+  ENDIF.
+
+  "Si s'ha creat el fitxer al destí, creem els annexos
+  IF lv_fitxer_creat = abap_true.
+
+* Envio de Anexos y Consultas
+    LOOP AT lt_attach INTO ls_attach .
+
+      CLEAR : lv_full_path_2 .
+
+      lv_full_path_2 = lv_full_path && '\' &&  ls_attach-filename .
+
+      OPEN DATASET lv_full_path_2  FOR OUTPUT IN BINARY MODE.
+      IF sy-subrc IS NOT INITIAL.
+        MESSAGE 'No s''ha pogut crear el fitxer a la ruta configurada'(D03) TYPE 'I'.
+
+*>> Ini  SPEC-57991  - ETMAE
+
+        CLEAR : ls_log.
+        ls_log-accio       =  'Guardar document en carpeta web'(E40).
+        ls_log-direccio_ip =  space .
+        ls_log-resultat    =  'No s''ha creat document d''annex en carpeta web - OPEN DATASET'(E48).
+        ls_log-document    =  space.
+        ls_log-docclass    =  ls_doc-docclass.
+        ls_log-object_id   =  ls_doc-objectid.
+        ls_log-version     =  0.
+        ls_log-error_msg   =  'GF: ZRM_SIGNA  Rutina: save_doc_rms_to_server'(E42).
+        ls_log-error_ext   =  lv_full_path_2  .
+
+        ">>>SPEC:71096, Inici modificació - ECACM
+
+        lv_resultat = 'E'.
+
+        CALL METHOD zcl_signatura_desatesa=>afegir_log
+          EXPORTING
+            is_log      = ls_log
+            iv_resultat = lv_resultat
+            iv_tasca    = zglog_tasca_save_doc_web5
+            ">>>SPEC:71096, Final modificació - ECACM
+          IMPORTING
+            ev_res      = lv_res.
+
+*<< Fi  SPEC-57991  - ETMAE
+
+        EXIT.
+      ENDIF.
+
+      TRANSFER ls_attach-data TO lv_full_path_2 .
+      IF sy-subrc IS NOT INITIAL.
+        MESSAGE 'No s''ha pogut crear el fitxer a la ruta configurada'(D03) TYPE 'I'.
+
+*>> Ini  SPEC-57991  - ETMAE
+
+        CLEAR : ls_log.
+        ls_log-accio       =  'Guardar document en carpeta web'(E40).
+        ls_log-direccio_ip =  space .
+        ls_log-resultat    =  'No s''ha creat document d''annex en carpeta web - TRANSFER'(E49).
+        ls_log-document    =  space.
+        ls_log-docclass    =  ls_doc-docclass.
+        ls_log-object_id   =  ls_doc-objectid.
+        ls_log-version     =  0.
+        ls_log-error_msg   =  'GF: ZRM_SIGNA  Rutina: save_doc_rms_to_server'(E42).
+        ls_log-error_ext   =  lv_full_path_2  .
+
+        ">>>SPEC:71096, Inici modificació - ECACM
+
+        lv_resultat = 'E'.
+
+        CALL METHOD zcl_signatura_desatesa=>afegir_log
+          EXPORTING
+            is_log      = ls_log
+            iv_resultat = lv_resultat
+            iv_tasca    = zglog_tasca_save_doc_web6
+            ">>>SPEC:71096, Final modificació - ECACM
+          IMPORTING
+            ev_res      = lv_res.
+
+*<< Fi  SPEC-57991  - ETMAE
+
+        EXIT.
+      ENDIF.
+
+      CLOSE DATASET lv_full_path_2.
+
+    ENDLOOP.
+
+  ELSE.
+
+*>> Ini  SPEC-57991  - ETMAE
+
+    CLEAR : ls_log.
+    ls_log-accio       =  'Guardar document en carpeta web'(E40) .
+    ls_log-direccio_ip =  space .
+    ls_log-resultat    =  'No s''ha pogut crear el document principal'(D02).
+    ls_log-document    =  space.
+    ls_log-docclass    =  ls_doc-docclass.
+    ls_log-object_id   =  ls_doc-objectid.
+    ls_log-version     =  0.
+    ls_log-error_msg   =  'GF: ZRM_SIGNA  Rutina: save_doc_rms_to_server'(E42).
+    ls_log-error_ext   =  lv_text .
+
+    ">>>SPEC:71096, Inici modificació - ECACM
+
+    lv_resultat = 'E'.
+
+    CALL METHOD zcl_signatura_desatesa=>afegir_log
+      EXPORTING
+        is_log      = ls_log
+        iv_resultat = lv_resultat
+        iv_tasca    = zglog_tasca_save_doc_web7
+        ">>>SPEC:71096, Final modificació - ECACM
+      IMPORTING
+        ev_res      = lv_res.
+
+
+*<< Fi  SPEC-57991  - ETMAE
+
+    "No s'ha pogut crear el document principal, no adjuntem annexos...
+    MESSAGE 'No s''ha pogut crear el document principal'(D02) TYPE 'I'.
+    EXIT.
+
+  ENDIF.
+
+ENDFORM.
+*  << Fi  SPEC-52934  - ETMAE
+*
+*----------------------------------------------------------------------*
+*
+*>> Ini  SPEC-57188  - ETMAE
+*
+*----------------------------------------------------------------------*
+*
+* Tratamiento integral de Adjuntos :
+* - Contenido de Tablas
+* - Contenido de Ficheros
+*
+FORM tratar_adjuntos  USING  pi_main_docclass  TYPE bapidclass
+                             pi_main_objectid  TYPE bapiguid
+                    CHANGING pt_new_attach_ac  TYPE tfpattachments.
+
+
+  DATA: ls_attachment        TYPE sfpattachments,
+        lt_attachments       TYPE tfpattachments,
+        lv_version_signatura TYPE z_version . " numc3
+
+  DATA: ls_ac_gdg  TYPE ty_ac_gdg,  " Docs. Anexos y Consultas GDG - WA
+        ls_adj     TYPE zrm_dt_docs_adj,
+        lv_tipo    TYPE char1,
+        ls_adjunt  TYPE zannex_desa_s,
+        lt_adjunts TYPE zannexos_desa_tt,
+        ls_log     TYPE zlogs_sign_des,
+        lv_res     TYPE flag.
+
+  lv_version_signatura =  gv_versio_sig.
+
+  LOOP AT gt_ac_gdg  INTO ls_ac_gdg
+     WHERE flag_a EQ abap_true  " Anexos
+        OR flag_c EQ abap_true. " Consultas
+
+    READ TABLE gt_docs_adj_t INTO ls_adj WITH KEY z_num_doc = ls_ac_gdg-num_doc.
+
+    CHECK sy-subrc IS INITIAL.
+
+    CLEAR: ls_adjunt .
+
+    IF ls_ac_gdg-flag_a = abap_true.
+      lv_tipo = 'A'.
+    ENDIF.
+    IF ls_ac_gdg-flag_c = abap_true.
+      lv_tipo = 'C'.
+    ENDIF.
+
+*   convertir anexo o consulta a type sfpattachments.
+*   Si es posible convertir 'al vuelo' a PDF
+    PERFORM doc_srm_to_attach_2    USING ls_adj-docclass
+                                         ls_adj-objectid
+                                CHANGING ls_attachment.
+
+*>> Ini  SPEC-57991  - ETMAE
+    IF ls_attachment IS INITIAL.
+
+      CLEAR : ls_log .
+      ls_log-accio       = 'Tratar annexos seleccionats'(E32).
+      ls_log-direccio_ip =  space .
+      ls_log-resultat    =  'KO'.
+      ls_log-document    =  ls_ac_gdg-z_descripcio.
+      ls_log-docclass    =  ls_adj-docclass .
+      ls_log-object_id   =  ls_adj-objectid .
+      ls_log-version     =  0.
+      ls_log-error_msg   =  'GF:ZRM_SIGNA  rutina: tratar_adjuntos'(E33) .
+      ls_log-error_ext   =  space.
+
+      ">>>SPEC:71096, Inici modificació - ECACM
+
+      DATA(lv_resultat) = 'E'.
+
+      CALL METHOD zcl_signatura_desatesa=>afegir_log
+        EXPORTING
+          is_log      = ls_log
+          iv_resultat = lv_resultat
+          iv_tasca    = zglog_tasca_tractar_annex
+          ">>>SPEC:71096, Final modificació - ECACM
+        IMPORTING
+          ev_res      = lv_res.
+
+*<< Fi  SPEC-57991  - ETMAE
+
+    ELSE .
+
+      APPEND ls_attachment TO  lt_attachments.
+
+      ls_adjunt-z_codi_exp     = gv_codi_exp .
+      ls_adjunt-docclass_main  = pi_main_docclass .
+      ls_adjunt-objectid_main  = pi_main_objectid.
+      ls_adjunt-docclass_annex = ls_adj-docclass .
+      ls_adjunt-objectid_annex = ls_adj-objectid .
+      ls_adjunt-file_name      = ls_attachment-filename.
+      ls_adjunt-tip_annex      = lv_tipo.
+
+      APPEND ls_adjunt TO lt_adjunts.
+
+    ENDIF.
+
+  ENDLOOP.
+
+
+* Se carga el atributo estático de la clase con los anexos.
+* Registros de Tabla
+  CALL METHOD zcl_signatura_desatesa=>set_annexos_desa
+    EXPORTING
+      it_annexos_desa = lt_adjunts.
+
+* Contenido de Ficheros
+  pt_new_attach_ac  = lt_attachments.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+FORM doc_srm_to_attach_2   USING pi_docclass  TYPE bapidclass
+                                 pi_objectid  TYPE bapiguid
+                        CHANGING po_adjunto   TYPE sfpattachments.
+
+  DATA: lt_compo             TYPE TABLE OF bapidoccomp,
+        ls_compo             TYPE          bapidoccomp,
+        lt_bin_content       TYPE TABLE OF bapiconten,
+        lv_xstr              TYPE xstring,
+        lv_xstr_in           TYPE xstring,
+        lv_xstr_out          TYPE xstring,
+        lv_in_len            TYPE i,
+        lv_out_len           TYPE i,
+        ls_attach            TYPE sfpattachments,
+        ls_return            TYPE bapiret2,
+        lv_doc_type	         TYPE saedoktyp,
+        lv_extension         TYPE sdok_fnext,
+        lv_descripcio	       TYPE text128,
+        lv_version_signatura TYPE z_version , " numc3
+        lv_file_name         TYPE file_name,
+        lv_rc                TYPE abap_bool,
+*<<<SPEC:66792, Final modificació - ECMLS
+        lv_iso_ok            TYPE abap_bool,
+        ls_log               TYPE zlogs_sign_des,
+        lv_msg               TYPE text128,
+        lv_res               TYPE flag,
+        ls_msg               TYPE bapiret2.
+
+  ls_msg-id = zcl_gdg=>gc_msg_id.
+*>>>SPEC:66792, Inici modificació - ECMLS
+
+
+  lv_version_signatura =  gv_versio_sig.
+
+  CLEAR: po_adjunto, ls_attach.
+
+  CALL FUNCTION 'SRM_DOCUMENT_CHECKOUT_VIA_TAB'
+    EXPORTING
+      objectid        = pi_objectid
+      documentclass   = pi_docclass
+    TABLES
+      components      = lt_compo
+      bin_content     = lt_bin_content
+    EXCEPTIONS
+      internal_error  = 1
+      parameter_error = 2
+      not_authorized  = 3
+      doc_not_found   = 4
+      OTHERS          = 5.
+  IF sy-subrc IS NOT INITIAL.
+    EXIT.
+  ENDIF.
+
+  READ TABLE lt_compo INTO ls_compo INDEX 1.
+  lv_in_len = ls_compo-comp_size .
+
+  CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
+    EXPORTING
+      input_length = lv_in_len
+    IMPORTING
+      buffer       = lv_xstr
+    TABLES
+      binary_tab   = lt_bin_content
+    EXCEPTIONS
+      failed       = 1
+      OTHERS       = 2.
+
+  IF sy-subrc IS INITIAL.
+
+    CALL METHOD zcl_signatura_desatesa=>get_doc_properties
+      EXPORTING
+        iv_docclass   = pi_docclass
+        iv_objectid   = pi_objectid
+      IMPORTING
+        ev_doc_type   = lv_doc_type   " Extensión
+        ev_descripcio = lv_descripcio.
+
+*   Si es un documento Office se convertirá a PDF
+
+    lv_extension = lv_doc_type . " extensión de fichero
+
+    IF lv_extension = 'PDF'.
+      lv_xstr_out  = lv_xstr  .
+    ELSE.
+      IF lv_extension CS 'XLS' OR
+         lv_extension CS 'DOC'.
+        lv_xstr_in   = lv_xstr .
+*       Convertir office en PDF y devolverlo en XSTRING.
+        CALL METHOD zcl_utils_docs=>office_2_pdf_to_xtring
+          EXPORTING
+            iv_xstring_in  = lv_xstr_in
+            iv_extension   = lv_extension
+          IMPORTING
+            ev_xstring_out = lv_xstr_out
+            ev_rc          = lv_rc.
+
+        IF lv_rc = abap_true.    " Se pudo convertir
+*<<<SPEC:66792, Inici modificació - ECMLS
+          zcl_gdg=>check_iso(
+            EXPORTING
+              z_docid    = pi_objectid
+              z_classid  = pi_docclass
+              iv_conv    = abap_true
+            RECEIVING
+              rc         = lv_iso_ok
+            EXCEPTIONS
+              no_data    = 1
+              no_validat = 2
+              iso_ko     = 3
+              OTHERS     = 4
+          ).
+
+          IF sy-subrc <> 0.
+            IF sy-subrc EQ 3.
+              ls_msg-number = zcl_gdg=>gc_check_iso_ko. "El document no compleix amb la ISO
+            ELSE.
+              ls_msg-number = zcl_gdg=>gc_check_iso_err. "No s'ha pogut realitzar la validació o...
+            ENDIF.
+
+            CALL FUNCTION 'BAPI_MESSAGE_GETDETAIL'
+              EXPORTING
+                id         = ls_msg-id
+                number     = ls_msg-number
+                language   = sy-langu
+                textformat = 'CH'
+              IMPORTING
+                message    = ls_msg-message.
+
+            IF sy-subrc EQ 0.
+              CLEAR : ls_log, lv_msg .
+
+              lv_msg = ls_msg-message.
+              ls_log-accio       = text-e13.
+              ls_log-direccio_ip = space .
+              ls_log-resultat   =  lv_msg .
+              ls_log-document   =  ls_compo-comp_id . " Nombre fichero
+              ls_log-docclass   =  pi_docclass .
+              ls_log-object_id  =  pi_objectid .
+              ls_log-version    =  0 .
+              ls_log-error_msg  =  'GF: ZRM_SIGNA  Rutina: doc_srm_to_attach_2'.
+              ls_log-error_ext  =  space .
+
+              ">>>SPEC:71096, Inici modificació - ECACM
+
+              DATA(lv_resultat) = 'E'.
+
+              CALL METHOD zcl_signatura_desatesa=>afegir_log
+                EXPORTING
+                  is_log      = ls_log
+                  iv_resultat = lv_resultat
+                  iv_tasca    = zglog_tasca_comprovar_iso
+                  ">>>SPEC:71096, Final modificació - ECACM
+                IMPORTING
+                  ev_res      = lv_res.
+
+            ENDIF.
+          ENDIF.
+*>>>SPEC:66792, Final modificació - ECMLS
+
+
+          lv_extension = 'PDF'.
+        ELSE.
+          lv_xstr_out = lv_xstr. " Se deja el contenido original
+        ENDIF.
+      ELSE.
+        lv_xstr_out = lv_xstr.  " Otros documentos NO se convierten
+      ENDIF.
+    ENDIF.
+
+    lv_file_name =   pi_objectid  && '_' && lv_version_signatura &&
+                     '.' && lv_extension .
+
+    ls_attach-description    = lv_descripcio.
+    ls_attach-name           = ls_compo-comp_id. " Nombre Original
+    ls_attach-filename       = lv_file_name .    " Nombre para enviar a WEB
+    ls_attach-mimetype       = lv_extension .    " Nueva Extension
+    ls_attach-filesize       = lv_in_len.
+    ls_attach-creationtime   = sy-uzeit.
+    ls_attach-modificationtime = sy-uzeit.
+    ls_attach-data           = lv_xstr_out .  " Contenido
+
+    po_adjunto = ls_attach.
+
+  ENDIF.
+
+ENDFORM.                     " doc_srm_to_attach_2
+*
+*----------------------------------------------------------------------*
+*
+
+*
+*<< Fi  SPEC-57188  - ETMAE
+*
+*----------------------------------------------------------------------*
+*
+*&---------------------------------------------------------------------*
+*&      Form  SET_RESP_MOD_AUT_BPM
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM set_resp_mod_aut_bpm .
+  DATA : gr_bpm_nominate   TYPE REF TO zco_tasques_usuari_admin_globa,
+         l_output_nominate TYPE znominar_owner_in,
+         l_input_nominate  TYPE znominar_owner_out.
+
+  DATA: error_message TYPE  string,
+        result        TYPE string.
+
+  DATA: l_flux_actual    TYPE zproces_bpm_id.
+
+  DATA: lv_cap_geren TYPE xubname.
+
+  DATA:
+    lv_codi_exp TYPE z_codi_exp,
+    lv_periode  TYPE  zperiode.
+
+* 1. Obtenir l'usuari cap gerència
+  lv_codi_exp = gv_codi_exp.
+  lv_periode = gs_zbpm_dades_rv-periode.
+
+
+  CALL FUNCTION 'ZBPM_CO_FM_USUARIS_TASQUES2'
+    EXPORTING
+      societat       = gv_bukrs
+      z_codi_exp     = lv_codi_exp
+      periode        = lv_periode
+      only_read      = 'X'
+    IMPORTING
+      resp_contracte = lv_cap_geren.
+
+*2. Fer un nominate owner de la tasca TA008, que és la primera tasca de les
+* tasques de signatura del document de Modificació Autoritzada
+
+  TRY.
+      CREATE OBJECT gr_bpm_nominate.
+    CATCH cx_ai_system_fault .
+  ENDTRY.
+
+  l_output_nominate-parameters-proces_bpmid = gs_zbpm_dades_rv-proces_bpm_id.
+  l_output_nominate-parameters-tipus_tasca_id = 'TA008'.
+  l_output_nominate-parameters-usuari = lv_cap_geren.
+
+  TRY.
+      CALL METHOD gr_bpm_nominate->nominar_owner
+        EXPORTING
+          output = l_output_nominate
+        IMPORTING
+          input  = l_input_nominate.
+    CATCH cx_ai_system_fault .
+  ENDTRY.
+
+
+  error_message = l_input_nominate-nominar_owner_response-return-error_message.
+  result = l_input_nominate-nominar_owner_response-return-result.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CONVERT_ANNEX_PDF
+*&---------------------------------------------------------------------*
+* En el moment d'enviar a signatura digital SAP (Portasignatures Extern / GDG),
+* abans d'incrustar/annexar els documents annexes al principal,
+* s'ha de convertir tots els seleccionats
+* (que es puguin convertir pel seu format) a PDF.
+*----------------------------------------------------------------------*
+FORM convert_annex_pdf  CHANGING ct_ac_gdg    TYPE tt_ac_gdg
+                                 ct_docs_adj  TYPE zrm_tt_dt_docs_adj.
+
+  DATA: lt_components TYPE bapidoccompt,
+        ls_component  TYPE bapidoccomp,
+        lv_ja_pdf     TYPE xfeld,
+        lv_mime_valid TYPE xfeld.
+
+  "Recorrem els annexes seleccionats
+  LOOP AT ct_ac_gdg ASSIGNING FIELD-SYMBOL(<fs_annex>) WHERE flag_a = abap_on.
+    "Busquem el seu DOCCLAS+OBJECTID
+    READ TABLE ct_docs_adj  ASSIGNING FIELD-SYMBOL(<fs_docs_adj>)
+      WITH KEY z_num_doc = <fs_annex>-num_doc.
+    CHECK sy-subrc = 0.
+
+    CLEAR: lt_components, lt_components[].
+    "Es comprova l'extensió del document per veure si es pot convertir a PDF
+    CALL FUNCTION 'SRM_DOCUMENT_CHECKOUT_VIA_TAB'
+      EXPORTING
+        objectid      = <fs_docs_adj>-objectid
+        documentclass = <fs_docs_adj>-docclass
+      TABLES
+        components    = lt_components
+      EXCEPTIONS
+        OTHERS        = 5.
+    CHECK sy-subrc = 0.
+    CLEAR: ls_component.
+    READ TABLE lt_components INTO ls_component INDEX 1.
+    CHECK sy-subrc = 0.
+    CLEAR: lv_mime_valid, lv_ja_pdf.
+    PERFORM check_mime_ext_permesa USING    ls_component-mimetype
+                                   CHANGING lv_mime_valid
+                                            lv_ja_pdf.
+    "Si és un document no convertible a PDF o ja està convertit, no el tractem
+    IF lv_mime_valid = abap_off OR lv_ja_pdf = abap_on.
+      CONTINUE.
+    ENDIF.
+    "Si és un document convertible a PDF haurem arribat fins aquí, l'intentem convertir
+    "i si dona error, guardem log i no deixem continuar
+    PERFORM convert_to_pdf_gdg USING  <fs_docs_adj>-docclass
+                                      <fs_docs_adj>-objectid.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_MIME_EXT_PERMESA
+*&---------------------------------------------------------------------*
+* Controlem que el mimetype del document a afegir estigui permés per convertir a PDF
+*----------------------------------------------------------------------*
+FORM check_mime_ext_permesa  USING    iv_mimetype   TYPE bapimimetype
+                             CHANGING cv_mime_valid TYPE xfeld
+                                      cv_ja_pdf     TYPE xfeld.
+
+  CONSTANTS: lc_conversio_pdf TYPE char20 VALUE 'CONVERSIO_PDF',
+             lc_is_pdf        TYPE zsap_dt_param_hc-value VALUE 'PDF'.
+
+  DATA: lv_ext TYPE sdok_fnext.
+
+  CLEAR: cv_ja_pdf, cv_mime_valid.
+
+  TRY.
+      CALL METHOD cl_rsod_utilities=>mimetype_to_extension
+        EXPORTING
+          i_mimetype  = iv_mimetype
+        RECEIVING
+          r_extension = lv_ext.
+    CATCH cx_rsod .
+  ENDTRY.
+
+  TRANSLATE lv_ext TO UPPER CASE.
+  SELECT SINGLE *
+    FROM zsap_dt_param_hc
+    INTO @DATA(ls_param_hc)
+    WHERE repid      = @lc_conversio_pdf
+      AND field_info = @lv_ext.
+  IF sy-subrc = 0.
+    cv_mime_valid = abap_on.
+    IF ls_param_hc-value = lc_is_pdf.
+      cv_ja_pdf = abap_on.
+    ENDIF.
+  ELSE.
+    cv_mime_valid = abap_off.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_CHANGE_ANNEXES_TO_PDF
+*&---------------------------------------------------------------------*
+* Verifica si ha de mostrar-se editable o no el flag de GV_ANNEXES_TO_PDF
+* Només serà editable si s'envia a PSIG Intern / SAP
+*----------------------------------------------------------------------*
+FORM check_change_annexes_to_pdf  USING it_respons_psig TYPE ty_t_responsables_psig.
+
+  CONSTANTS: lc_psig_extern TYPE zmitja_sig VALUE 'PSIG E'.
+
+  DATA: lv_annexes_pdf_habil TYPE abap_bool.
+
+  CLEAR: lv_annexes_pdf_habil.
+
+  LOOP AT it_respons_psig INTO DATA(ls_resp_psig).
+    DATA(lv_resp_psig) = ls_resp_psig-zmitja_sig.
+
+    IF lv_resp_psig <> lc_psig_extern.
+      lv_annexes_pdf_habil = abap_true.
+      EXIT.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT SCREEN.
+    IF screen-name = 'GV_ANNEXES_TO_PDF'.
+      IF lv_annexes_pdf_habil = abap_true.
+        screen-active    = 1.
+        screen-input     = 1.
+        screen-invisible = 0.
+      ELSE.
+        screen-active    = 0.
+        screen-input     = 0.
+        screen-invisible = 1.
+        CLEAR: gv_annexes_to_pdf.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.
+** INI ECAGM SPEC-80199 30-10-2023
+FORM actualitza_data_signa USING p_data     TYPE sydatum
+                                 p_codi_exp
+                                 p_anchor
+                                 p_ver
+                                 p_docclass
+                                 p_objectid.
+
+  DATA iv_codi_exp  TYPE z_codi_exp.
+  DATA iv_valid     TYPE xfeld.
+  DATA is_exp       TYPE zrm_dt_exp_cont.
+  DATA ls_proper    TYPE bapiproptb.
+  DATA ls_docs      TYPE zgdg_docs.
+  DATA lt_signa_des TYPE STANDARD TABLE OF zdocs_signa_des.
+
+  DATA lt_proper   TYPE TABLE OF bapiproptb.
+  DATA:lt_docs     TYPE TABLE OF zgdg_docs.  .
+
+  CLEAR lt_signa_des.
+  SELECT  * FROM zdocs_signa_des INTO TABLE lt_signa_des
+   WHERE docclass     = p_docclass
+     AND objectid     = p_objectid
+     AND version      = p_ver
+     AND z_codi_exp   = p_codi_exp
+     AND gdg_anchor   = p_anchor.
+
+  CHECK lt_signa_des IS NOT INITIAL.
+
+  READ TABLE lt_signa_des TRANSPORTING NO FIELDS WITH KEY data_accio = '00000000'
+                                                          z_estat    = 'PND' .
+
+  CHECK sy-subrc NE 0.
+
+  iv_codi_exp = p_codi_exp.
+
+  SELECT SINGLE docclass objectid INTO CORRESPONDING FIELDS OF is_exp
+    FROM zrm_dt_exp_cont WHERE z_codi_exp EQ iv_codi_exp.
+
+  CHECK sy-subrc EQ 0.
+
+  PERFORM determina_set USING p_anchor CHANGING iv_valid.
+
+  CHECK iv_valid EQ abap_true.
+
+  CONDENSE p_codi_exp NO-GAPS.
+
+  UPDATE zrm_dt_exp_cont
+     SET z_data_adj = p_data
+         z_estat    = 'ZAD'
+    WHERE z_codi_exp EQ iv_codi_exp.
+
+  ls_proper-name  = 'SRM_STATE'.
+  ls_proper-value = 'ZAD'.
+  APPEND ls_proper TO lt_proper.
+
+  CALL FUNCTION 'SRM_RECORD_CHANGEPROPERTIES'
+    EXPORTING
+      objectid            = is_exp-objectid
+      documentclass       = is_exp-docclass
+    TABLES
+      properties          = lt_proper
+    EXCEPTIONS
+      container_is_locked = 1  " check Bloqueig
+      not_authorized      = 2
+      parameter_error     = 3
+      container_not_found = 4
+      container_corrupt   = 5
+      internal_error      = 6
+      record_is_frozen    = 7
+      invalid_srm_state   = 8
+      OTHERS              = 9.
+
+ENDFORM.
+
+FORM determina_set USING p_anchor CHANGING p_valid TYPE xfeld.
+
+  CONSTANTS: k_set    TYPE           char30 VALUE 'Z_ANCHOR_VALIDS'.
+
+  DATA:      it_rgsbv TYPE TABLE OF rgsbv.
+  DATA:      iv_rgsbv TYPE          rgsbv.
+  DATA:      lv_setid TYPE          sethier-setid.
+
+  p_valid = abap_false.
+
+  "Obtenció del ID a partir del nom del set
+  CALL FUNCTION 'G_SET_GET_ID_FROM_NAME'
+    EXPORTING
+      shortname                = k_set
+    IMPORTING
+      new_setid                = lv_setid
+    EXCEPTIONS
+      no_set_found             = 1
+      no_set_picked_from_popup = 2
+      wrong_class              = 3
+      wrong_subclass           = 4
+      table_field_not_found    = 5
+      fields_dont_match        = 6
+      set_is_empty             = 7
+      formula_in_set           = 8
+      set_is_dynamic           = 9
+      OTHERS                   = 10.
+
+  CHECK sy-subrc EQ 0.
+
+  "Obtención de los datos del SET
+  CALL FUNCTION 'G_SET_FETCH'
+    EXPORTING
+      setnr           = lv_setid
+    TABLES
+      set_lines_basic = it_rgsbv
+    EXCEPTIONS
+      no_authority    = 1
+      set_is_broken   = 2
+      set_not_found   = 3
+      OTHERS          = 4.
+
+  CHECK sy-subrc EQ 0.
+
+  READ TABLE it_rgsbv INTO iv_rgsbv WITH KEY from = p_anchor.
+
+  CHECK sy-subrc EQ 0.
+
+  p_valid = abap_true.
+
+ENDFORM.
+** END ECAGM SPEC-80199 30-10-2023
+*&---------------------------------------------------------------------*
+*&      Form  CONVERT_PDFA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LV_XSTR_MERGED  text
+*      -->P_ENDIF  text
+*----------------------------------------------------------------------*
+FORM convert_pdfa  USING    pv_xstr_merged
+                            pv_is_pdf.
+
+  DATA: lv_pdf_xstring TYPE xstring,
+        lr_pdf_conv    TYPE REF TO cl_fp_conv_pdfa,
+        lt_binary      TYPE TABLE OF bapicontent255,
+        lv_out_len     TYPE  i,
+        lt_compo       TYPE TABLE OF bapidoccomp,
+        ls_ret2        TYPE bapiret2.
+  FIELD-SYMBOLS <fs_compo> TYPE bapidoccomp .
+
+  "INI SPEC-88732 Només si és un PDF
+  CHECK pv_is_pdf IS INITIAL.
+  "FI SPEC-88732
+
+  "Convertir a PDF/A
+  CALL METHOD zcl_utils_docs=>convert_to_pdfa(
+    EXPORTING
+      iv_pdf_xstring       = pv_xstr_merged
+      iv_has_attatchments  = abap_false
+    IMPORTING
+      ev_pdfa_xstring      = lv_pdf_xstring
+    CHANGING
+      cr_pdf_conv          = lr_pdf_conv
+    EXCEPTIONS
+      error_ads_version    = 1
+      error_ads_connection = 2
+      error_conversion     = 3
+      OTHERS               = 4 ).
+
+  IF sy-subrc = 0.
+
+    CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+      EXPORTING
+        buffer          = lv_pdf_xstring
+        append_to_table = abap_true
+      IMPORTING
+        output_length   = lv_out_len
+      TABLES
+        binary_tab      = lt_binary.
+
+* doc principal
+    CALL FUNCTION 'SRM_DOCUMENT_GET_COMP_INFO'
+      EXPORTING
+        objectid        = zrm_dt_docs_adj-objectid " pi_OBJECTID
+        documentclass   = zrm_dt_docs_adj-docclass " pi_DOCCLASS
+      TABLES
+        component_info  = lt_compo
+      EXCEPTIONS
+        internal_error  = 1
+        parameter_error = 2
+        not_authorized  = 3
+        doc_not_found   = 4
+        OTHERS          = 5.
+
+    READ TABLE lt_compo ASSIGNING <fs_compo> INDEX 1.
+    <fs_compo>-comp_size = lv_out_len. " Asignar el tamaño actual.
+
+    CALL FUNCTION 'SRM_DOCUMENT_CHECKIN_CONT_TAB'
+      EXPORTING
+        objectid          = zrm_dt_docs_adj-objectid  "pi_OBJECTID
+        documentclass     = zrm_dt_docs_adj-docclass  "pi_DOCCLASS
+        as_new_version    = abap_true
+        do_commit         = abap_true
+*       DOC_CONTEXT       =
+*       VSCAN_PROFILE     = '/SRM/RCM_CREATE'
+      IMPORTING
+        return            = ls_ret2
+      TABLES
+        components        = lt_compo
+*       ASCII_CONTENT     =
+        bin_content       = lt_binary
+      EXCEPTIONS
+        internal_error    = 1
+        parameter_error   = 2
+        not_authorized    = 3
+        doc_not_found     = 4
+        yet_locked        = 5
+        yet_checked_out   = 6
+        yet_closed        = 7
+        customizing_error = 8
+        OTHERS            = 9.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  COMPROVAR_DOC_EXTENSIO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_ZRM_DT_DOCS_ADJ_DOCCLASS  text
+*      -->P_ZRM_DT_DOCS_ADJ_OBJECTID  text
+*      <--P_LV_IS_PDF  text
+*----------------------------------------------------------------------*
+FORM comprovar_doc_extensio  USING    pv_docclass
+                                      pv_objectid
+                             CHANGING pv_is_pdf.
+
+  DATA: lt_compo TYPE TABLE OF bapidoccomp,
+        ls_compo TYPE bapidoccomp.
+
+  CALL FUNCTION 'SRM_DOCUMENT_CHECKOUT_VIA_TAB'
+    EXPORTING
+      objectid        = pv_objectid
+      documentclass   = pv_docclass
+    TABLES
+      components      = lt_compo
+    EXCEPTIONS
+      internal_error  = 1
+      parameter_error = 2
+      not_authorized  = 3
+      doc_not_found   = 4
+      OTHERS          = 5.
+
+  CHECK lt_compo IS NOT INITIAL.
+
+  CLEAR ls_compo.
+  READ TABLE lt_compo INTO ls_compo  INDEX 1.
+
+  IF ls_compo-mimetype = 'application/pdf'.
+    pv_is_pdf = abap_true.
+  ELSE.
+    CLEAR pv_is_pdf.
+  ENDIF.
+
+ENDFORM.

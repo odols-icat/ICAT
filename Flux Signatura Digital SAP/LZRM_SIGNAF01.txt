@@ -1,0 +1,5559 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_SIGNAF01 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  determina_documents
+*&---------------------------------------------------------------------*
+FORM docs_i_resp.
+  CONSTANTS: co_parvw_sign TYPE parvw VALUE 'YC'.
+  DATA: ls_sdok_cont TYPE sdokobject,
+        ls_values    TYPE vrm_value,
+        lv_checkcc   TYPE xfeld.
+
+  SELECT SINGLE docclass
+                objectid
+                z_codi_exp
+                z_descrip_abr
+                z_num_cont_tip
+                z_data_sign_cont ebeln
+                z_data_val_ger
+                z_data_val_con
+                z_data_signa
+                z_data_val_ge_cc
+                z_data_val_co_cc
+                z_data_signa_cc
+                societat
+                z_doc_exp_cont
+                z_obj_exp_cont
+                z_estat
+                z_nou_psig_contr                  "MODIF ETODR 17.02.2016 SPEC-38374
+           FROM zrm_dt_contr
+           INTO (ls_sdok_cont-class,
+                 ls_sdok_cont-objid,
+                 gv_codi_exp,
+                 gv_descr_abr,
+                 gv_num_cont_tip,
+                 zrm_dt_contr-z_data_sign_cont, zrm_dt_contr-ebeln,
+                 zrm_dt_contr-z_data_val_ger,
+                 zrm_dt_contr-z_data_val_con,
+                 zrm_dt_contr-z_data_signa,
+                 zrm_dt_contr-z_data_val_ge_cc,
+                 zrm_dt_contr-z_data_val_co_cc,
+                 zrm_dt_contr-z_data_signa_cc,
+                 zrm_dt_contr-societat,
+                 zrm_dt_contr-z_doc_exp_cont,
+                 zrm_dt_contr-z_obj_exp_cont,
+                 zrm_dt_contr-z_estat,
+                 zrm_dt_contr-z_nou_psig_contr)"MODIF ETODR 17.02.2016 SPEC-38374
+           WHERE docclass = gs_sdok-class
+             AND objectid = gs_sdok-objid.
+
+  CHECK sy-subrc = 0 AND
+    NOT gv_num_cont_tip IS INITIAL.
+
+  SELECT * FROM zrm_dm_docs_sign
+           INTO TABLE gt_docs_sign_t
+           WHERE z_num_cont_tip = gv_num_cont_tip.
+
+
+  SELECT * FROM zrm_dt_docs_adj   " * * * * * *
+           INTO TABLE gt_docs_adj_t
+           WHERE docclass = gs_sdok-class
+             AND objectid = gs_sdok-objid.
+
+
+  SELECT * FROM zrm_dt_resp_cont
+           INTO TABLE gt_respons_t
+           WHERE docclass = ls_sdok_cont-class
+             AND objectid = ls_sdok_cont-objid
+             AND z_carrec = co_parvw_sign.
+
+  LOOP AT gt_respons_t INTO gs_respons.
+    CASE gs_respons-z_tipus_carrec.
+      WHEN co_carrec_ext.
+        SELECT SINGLE name1 INTO gs_respons-nom
+                 FROM zrm_persones_v
+                WHERE lifnr EQ gs_respons-z_responsable .
+        IF sy-subrc NE 0 .
+          MESSAGE e163(f2) WITH gs_respons-z_responsable .
+        ENDIF .
+
+      WHEN co_carrec_int.
+        DATA: ls_hrmr_rep TYPE hrmr_rep,
+              l_person    TYPE pernr_d.
+        l_person = gs_respons-z_responsable .
+        CALL FUNCTION 'HR_REPRESENTANT_GET_DATA'
+          EXPORTING
+            p_pernr           = l_person
+            p_auth_check_off  = 'X'
+          IMPORTING
+            p_hrmr_rep        = ls_hrmr_rep
+          EXCEPTIONS
+            pernr_not_found   = 1
+            no_authorization  = 2
+            parea_not_found   = 3
+            address_not_found = 4
+            OTHERS            = 5.
+        IF sy-subrc <> 0.
+          MESSAGE e001(vpd) WITH 'Empleat'(001) l_person .
+        ENDIF.
+        gs_respons-nom = ls_hrmr_rep-namee .
+    ENDCASE .
+    MODIFY gt_respons_t FROM gs_respons.
+  ENDLOOP.
+
+* Modificats
+  CLEAR gt_val_mod.
+  ls_values-key  = gc_princ_modif-principal.
+  ls_values-text = 'Contracte principal'(c0p) .
+  APPEND ls_values TO gt_val_mod.
+
+  PERFORM check_contracte_credit USING lv_checkcc
+                                       ls_sdok_cont-objid
+                                       ls_sdok_cont-class.
+  IF lv_checkcc EQ c_true.
+    CLEAR ls_values.
+    ls_values-key  = gc_princ_modif-credit.
+    ls_values-text = 'Contracte crèdit'(c0c) .
+    APPEND ls_values TO gt_val_mod.
+  ENDIF.
+
+  SELECT z_num_modif
+         z_num_cont_tip
+         z_descripcio
+         z_data_sign_cont
+         z_data_val_ger
+         z_data_val_con
+         z_data_signa FROM zrm_dt_modificat
+                      INTO CORRESPONDING FIELDS OF TABLE gt_modificat
+                      WHERE docclass = gs_sdok-class
+                        AND objectid = gs_sdok-objid.
+  IF sy-subrc = 0.
+    SELECT * FROM zrm_dm_docs_sign
+             APPENDING TABLE gt_docs_sign_t
+             FOR ALL ENTRIES IN gt_modificat
+             WHERE z_num_cont_tip = gt_modificat-z_num_cont_tip.
+
+    SORT gt_docs_sign_t.
+    DELETE ADJACENT DUPLICATES FROM gt_docs_sign_t.
+    SORT gt_modificat BY z_num_modif.
+    LOOP AT gt_modificat INTO gs_modificat.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+        EXPORTING
+          input  = gs_modificat-z_num_modif
+        IMPORTING
+          output = ls_values-key.
+      ls_values-text = gs_modificat-z_descripcio .
+      APPEND ls_values TO gt_val_mod.
+      MOVE gs_modificat-z_num_modif TO zrm_dt_docs_adj-z_princ_modif.
+    ENDLOOP .
+  ELSE.
+    MOVE gc_princ_modif-principal TO zrm_dt_docs_adj-z_princ_modif.
+  ENDIF.
+  gv_ult_p_mod = zrm_dt_docs_adj-z_princ_modif.
+ENDFORM.                    " determina_documents
+*&---------------------------------------------------------------------*
+*&      Form  autoritzacio
+*&---------------------------------------------------------------------*
+FORM autoritzacio.
+  DATA lt_actor TYPE TABLE OF swhactor.
+  FIELD-SYMBOLS <fs_actor> TYPE swhactor.
+  CALL FUNCTION 'RH_STRUC_GET'
+    EXPORTING
+      act_otype      = 'US'
+      act_objid      = sy-uname
+      act_wegid      = 'US-CP-P'
+    TABLES
+      result_tab     = lt_actor
+    EXCEPTIONS
+      no_plvar_found = 1
+      no_entry_found = 2
+      OTHERS         = 3.
+
+  CHECK sy-subrc = 0 AND
+    NOT lt_actor IS INITIAL.
+
+  READ TABLE lt_actor ASSIGNING <fs_actor>
+                      WITH KEY otype = 'P'.
+  CHECK sy-subrc = 0.
+  CALL FUNCTION 'RH_STRUC_GET'
+    EXPORTING
+      act_otype      = 'P'
+      act_objid      = <fs_actor>-objid
+      act_wegid      = 'P-S-BU'
+    TABLES
+      result_tab     = lt_actor
+    EXCEPTIONS
+      no_plvar_found = 1
+      no_entry_found = 2
+      OTHERS         = 3.
+
+* Autorització per contractacio
+  READ TABLE lt_actor TRANSPORTING NO FIELDS
+                      WITH KEY otype = 'O'
+                               objid = co_un_org-cont.
+  IF sy-subrc = 0.
+    IF NOT gs_valid-flag_gerencia IS INITIAL.
+      IF gs_valid-flag_contractacio IS INITIAL.
+        gs_operacio-con = 'X'.
+      ELSE.
+        IF gv_ult_p_mod = 'P'.
+          IF zrm_dt_contr-z_data_sign_cont IS NOT INITIAL AND
+             zrm_dt_contr-z_data_signa IS INITIAL.
+            gs_operacio-env = 'X'.
+          ENDIF.
+        ELSE.
+          IF gs_modificat-z_data_sign_cont IS NOT INITIAL AND
+             gs_modificat-z_data_signa IS INITIAL.
+            gs_operacio-env = 'X'.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    EXIT.
+  ENDIF.
+
+  LOOP AT lt_actor TRANSPORTING NO FIELDS
+                   WHERE otype = 'O'
+                     AND ( objid = co_un_org-ger_gisa OR
+                           objid = co_un_org-ger_regs OR
+                           objid = co_un_org-ger_ifer ).
+    EXIT.
+  ENDLOOP.
+  CHECK sy-subrc = 0 AND
+        gs_valid-flag_gerencia IS INITIAL.
+  gs_operacio-ger = 'X'.
+ENDFORM.                    " autoritzacio
+*&---------------------------------------------------------------------*
+*&      Form  enviar_mail
+*&---------------------------------------------------------------------*
+FORM enviar_mail.
+  DATA: ls_document_data  TYPE sodocchgi1,
+        ls_object_content TYPE solisti1,
+        lt_object_content TYPE TABLE OF solisti1,
+        lt_receivers      TYPE TABLE OF somlreci1.
+  ">>> SPEC-56879, Inici Modificació - ECTRP  08012020
+  DATA: ls_packing_list TYPE sopcklsti1,
+        lt_packing_list TYPE sopcklsti1_t,
+        lv_mail         TYPE soextreci1-receiver,
+        lv_adr_type     TYPE soextreci1-adr_typ.
+  "<<< SPEC-56879, Final Modificació - ECTRP  08012020
+
+  CLEAR: ls_document_data, lt_object_content, lt_receivers.
+  CASE 'X'.
+    WHEN gs_operacio-ger.
+      CONCATENATE: text-g01
+                   gv_codi_exp INTO ls_document_data-obj_descr
+                               SEPARATED BY space,
+                   text-g02
+                   gv_codi_exp
+                   text-g03
+                   gv_descr_abr INTO ls_object_content
+                                SEPARATED BY space.
+      APPEND ls_object_content TO lt_object_content.
+
+    WHEN gs_operacio-con.
+      CONCATENATE: text-c01
+                   gv_codi_exp INTO ls_document_data-obj_descr
+                               SEPARATED BY space,
+                   text-c02
+                   gv_codi_exp
+                   text-g03
+                   gv_descr_abr INTO ls_object_content
+                                SEPARATED BY space.
+      APPEND ls_object_content TO lt_object_content.
+  ENDCASE.
+  PERFORM receptors TABLES lt_receivers.
+
+  ">>> SPEC-56879, Inici Modificació - ECTRP  08012020
+  REFRESH lt_packing_list[].
+  DESCRIBE TABLE lt_object_content LINES ls_packing_list-body_num.
+  ls_packing_list-transf_bin = space.
+  ls_packing_list-head_start = 1.
+  ls_packing_list-head_num   = 0.
+  ls_packing_list-body_start = 1.
+  ls_packing_list-doc_type   = zsubc_doc_type.
+  APPEND ls_packing_list TO lt_packing_list.
+
+  "Crida al mètode que retorna dades de l'usuari de la Taula Parametrit.
+  zcl_utilities=>get_auto_email_sender( EXPORTING i_mail_flag = abap_true
+                                        IMPORTING o_mail      = lv_mail
+                                                  o_adr_type  = lv_adr_type ).
+
+  "Enviament del correu
+  CALL FUNCTION 'ZSO_NEW_DOCUMENT_SEND_API1'
+    EXPORTING
+      document_data              = ls_document_data
+      sender_address             = lv_mail
+      sender_address_type        = lv_adr_type
+      commit_work                = abap_on
+    TABLES
+      packing_list               = lt_packing_list
+      object_content             = lt_object_content
+      receivers                  = lt_receivers
+    EXCEPTIONS
+      too_many_receivers         = 1
+      document_not_sent          = 2
+      document_type_not_exist    = 3
+      operation_no_authorization = 4
+      parameter_error            = 5
+      x_error                    = 6
+      enqueue_error              = 7
+      OTHERS                     = 8.
+
+  ">>> SPEC-56879, Final Modificació - ECTRP  08012020
+
+ENDFORM.                    " enviar_mail
+*&---------------------------------------------------------------------*
+*&      Form  receptors
+*&---------------------------------------------------------------------*
+FORM receptors TABLES p_t_receivers STRUCTURE somlreci1.
+  CONSTANTS: co_respons   TYPE parvw VALUE 'YN',
+             co_resp_cont TYPE sobid VALUE '50000054',
+             co_carr_secr TYPE sobid VALUE '50000075'.
+  DATA: lv_objid     TYPE sobid,
+        ls_receivers TYPE somlreci1,
+        lt_struc     TYPE TABLE OF struc.
+  FIELD-SYMBOLS <fs_struc> TYPE struc.
+
+  CASE 'X'.
+    WHEN gs_operacio-ger.
+      CALL FUNCTION 'RH_STRUC_GET'
+        EXPORTING
+          act_otype      = 'S'
+          act_objid      = co_resp_cont
+          act_wegid      = 'S-P-BU'
+        TABLES
+          result_struc   = lt_struc
+        EXCEPTIONS
+          no_plvar_found = 1
+          no_entry_found = 2
+          OTHERS         = 3.
+      CHECK sy-subrc = 0.
+      READ TABLE lt_struc ASSIGNING <fs_struc>
+                          WITH KEY otype = 'US'.
+      IF sy-subrc = 0.
+        MOVE <fs_struc>-objid TO ls_receivers.
+        APPEND ls_receivers TO p_t_receivers.
+      ENDIF.
+
+    WHEN gs_operacio-con.
+      SELECT SINGLE z_responsable FROM zrm_dt_resp_cont
+                                  INTO lv_objid
+                                  WHERE docclass = gs_sdok-class
+                                    AND objectid = gs_sdok-objid
+                                    AND z_carrec = co_respons.
+      CHECK sy-subrc = 0.
+      SELECT SINGLE usrid FROM pa0105
+                          INTO ls_receivers
+                          WHERE pernr = lv_objid.
+      IF sy-subrc = 0.
+        APPEND ls_receivers TO p_t_receivers.
+      ENDIF.
+
+* Busquem secretaria
+      CALL FUNCTION 'RH_STRUC_GET'
+        EXPORTING
+          act_otype      = 'P'
+          act_objid      = lv_objid
+          act_wegid      = 'P-S-C-O'
+        TABLES
+          result_struc   = lt_struc
+        EXCEPTIONS
+          no_plvar_found = 1
+          no_entry_found = 2
+          OTHERS         = 3.
+      CHECK sy-subrc = 0.
+      READ TABLE lt_struc ASSIGNING <fs_struc>
+                          WITH KEY otype = 'O'.
+      CHECK sy-subrc = 0.
+      CALL FUNCTION 'RH_STRUC_GET'
+        EXPORTING
+          act_otype      = <fs_struc>-otype
+          act_objid      = <fs_struc>-objid
+          act_wegid      = 'O-S-P-BU'
+        TABLES
+          result_struc   = lt_struc
+        EXCEPTIONS
+          no_plvar_found = 1
+          no_entry_found = 2
+          OTHERS         = 3.
+      CHECK sy-subrc = 0.
+      READ TABLE lt_struc ASSIGNING <fs_struc>
+                          WITH KEY otype = 'C'
+                                   objid = co_carr_secr.
+      CHECK sy-subrc = 0.
+      READ TABLE lt_struc ASSIGNING <fs_struc>
+                          WITH KEY seqnr = <fs_struc>-pprev.
+      CHECK sy-subrc = 0.
+      SELECT SINGLE usrid FROM pa0105
+                          INTO ls_receivers
+                          WHERE pernr = <fs_struc>-objid.
+      IF sy-subrc = 0.
+        APPEND ls_receivers TO p_t_receivers.
+      ENDIF.
+
+  ENDCASE.
+ENDFORM.                    " receptors
+
+*----------------------------------------------------------------------*
+*   INCLUDE TABLECONTROL_FORMS                                         *
+*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form  USER_OK_TC                                               *
+*&---------------------------------------------------------------------*
+FORM user_ok_tc USING    p_tc_name TYPE dynfnam
+                         p_table_name
+                         p_mark_name
+                CHANGING p_ok      LIKE sy-ucomm.
+
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA: l_ok     TYPE sy-ucomm,
+        l_offset TYPE i.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+  DATA: lv_answer,
+        ls_doc_adj TYPE zrm_dt_docs_adj,
+        ls_spopli  TYPE spopli,
+        lt_spopli  TYPE TABLE OF spopli.
+
+*&SPWIZARD: Table control specific operations                          *
+*&SPWIZARD: evaluate TC name and operations                            *
+  SEARCH p_ok FOR p_tc_name.
+  IF sy-subrc <> 0.
+    EXIT.
+  ENDIF.
+  l_offset = strlen( p_tc_name ) + 1.
+  l_ok = p_ok+l_offset.
+*&SPWIZARD: execute general and TC specific operations                 *
+  CASE l_ok.
+    WHEN 'INSR'.                      "insert row
+*      PERFORM fcode_insert_row USING    p_tc_name
+*                                        p_table_name.
+      CLEAR p_ok.
+      CLEAR lt_spopli.
+* Llamar a la función POPUP_TO_DECIDE_LIST y ofrecer docs posibles
+      LOOP AT gt_docs_adj_t ASSIGNING <fs_doc_adj>
+                            WHERE z_eliminat = 'X'
+                              AND z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+        CLEAR ls_spopli.
+        READ TABLE gt_docs_sign_t ASSIGNING <fs_docs_sign>
+                                  WITH KEY z_num_doc_sign = <fs_doc_adj>-z_num_doc
+                                           z_num_cont_tip = gv_num_cont_ti.
+        MOVE: <fs_docs_sign>-z_descripcio TO ls_spopli-varoption.
+        APPEND ls_spopli TO lt_spopli.
+      ENDLOOP.
+      CALL FUNCTION 'POPUP_TO_DECIDE_LIST'
+        EXPORTING
+          textline1          = 'Escolleixi un document'
+          titel              = 'AFEGIR DOCUMENT'
+        IMPORTING
+          answer             = lv_answer
+        TABLES
+          t_spopli           = lt_spopli
+        EXCEPTIONS
+          not_enough_answers = 1
+          too_much_answers   = 2
+          too_much_marks     = 3
+          OTHERS             = 4.
+      IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      ENDIF.
+      IF lv_answer <> 'A'.
+        LOOP AT gt_docs_adj_t ASSIGNING <fs_doc_adj>
+                              WHERE z_eliminat = 'X'
+                                AND z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+          IF sy-index = lv_answer.
+            CLEAR <fs_doc_adj>-z_eliminat.
+            EXIT.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+
+    WHEN 'DELE'.                      "delete row
+
+      CLEAR p_ok.
+      READ TABLE gt_docs_sign ASSIGNING <fs_docs_sign>
+                              WITH KEY marca = 'X'.
+      IF sy-subrc = 0.
+        READ TABLE gt_docs_adj_t ASSIGNING <fs_doc_adj>
+                                 WITH KEY z_princ_modif = zrm_dt_docs_adj-z_princ_modif
+                                          z_num_doc     = <fs_docs_sign>-z_num_doc_sign.
+        IF sy-subrc = 0.
+          <fs_doc_adj>-z_eliminat = 'X'.
+        ELSE.
+          MOVE: gs_sdok-class                 TO ls_doc_adj-docclass,
+                gs_sdok-objid                 TO ls_doc_adj-objectid,
+                zrm_dt_docs_adj-z_princ_modif TO ls_doc_adj-z_princ_modif,
+                <fs_docs_sign>-z_num_doc_sign TO ls_doc_adj-z_num_doc,
+                'X'                           TO ls_doc_adj-z_eliminat.
+          APPEND ls_doc_adj TO gt_docs_adj_t.
+        ENDIF.
+      ENDIF.
+
+    WHEN 'P--' OR                     "top of list
+         'P-'  OR                     "previous page
+         'P+'  OR                     "next page
+         'P++'.                       "bottom of list
+      PERFORM compute_scrolling_in_tc USING p_tc_name
+                                            l_ok.
+      CLEAR p_ok.
+
+    WHEN 'MARK'.                      "mark all filled lines
+      PERFORM fcode_tc_mark_lines USING p_tc_name
+                                        p_table_name
+                                        p_mark_name   .
+      CLEAR p_ok.
+
+    WHEN 'DMRK'.                      "demark all filled lines
+      PERFORM fcode_tc_demark_lines USING p_tc_name
+                                          p_table_name
+                                          p_mark_name .
+      CLEAR p_ok.
+
+  ENDCASE.
+
+ENDFORM.                              " USER_OK_TC
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_INSERT_ROW                                         *
+*&---------------------------------------------------------------------*
+FORM fcode_insert_row
+              USING    p_tc_name           TYPE dynfnam
+                       p_table_name             .
+
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_lines_name       LIKE feld-name.
+  DATA l_selline          LIKE sy-stepl.
+  DATA l_lastline         TYPE i.
+  DATA l_line             TYPE i.
+  DATA l_table_name       LIKE feld-name.
+  FIELD-SYMBOLS <tc>                 TYPE cxtab_control.
+  FIELD-SYMBOLS <table>              TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <lines>              TYPE i.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: get looplines of TableControl                              *
+  CONCATENATE 'G_' p_tc_name '_LINES' INTO l_lines_name.
+  ASSIGN (l_lines_name) TO <lines>.
+
+*&SPWIZARD: get current line                                           *
+  GET CURSOR LINE l_selline.
+  IF sy-subrc <> 0.                   " append line to table
+    l_selline = <tc>-lines + 1.
+*&SPWIZARD: set top line                                               *
+    IF l_selline > <lines>.
+      <tc>-top_line = l_selline - <lines> + 1 .
+    ELSE.
+      <tc>-top_line = 1.
+    ENDIF.
+  ELSE.                               " insert line into table
+    l_selline = <tc>-top_line + l_selline - 1.
+    l_lastline = <tc>-top_line + <lines> - 1.
+  ENDIF.
+*&SPWIZARD: set new cursor line                                        *
+  l_line = l_selline - <tc>-top_line + 1.
+
+*&SPWIZARD: insert initial line                                        *
+  INSERT INITIAL LINE INTO <table> INDEX l_selline.
+  <tc>-lines = <tc>-lines + 1.
+*&SPWIZARD: set cursor                                                 *
+  SET CURSOR LINE l_line.
+
+ENDFORM.                              " FCODE_INSERT_ROW
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_DELETE_ROW                                         *
+*&---------------------------------------------------------------------*
+FORM fcode_delete_row
+              USING    p_tc_name           TYPE dynfnam
+                       p_table_name
+                       p_mark_name   .
+
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_table_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <table>      TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <wa>.
+  FIELD-SYMBOLS <mark_field>.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: delete marked lines                                        *
+  DESCRIBE TABLE <table> LINES <tc>-lines.
+
+  LOOP AT <table> ASSIGNING <wa>.
+
+*&SPWIZARD: access to the component 'FLAG' of the table header         *
+    ASSIGN COMPONENT p_mark_name OF STRUCTURE <wa> TO <mark_field>.
+
+    IF <mark_field> = 'X'.
+      DELETE <table> INDEX syst-tabix.
+      IF sy-subrc = 0.
+        <tc>-lines = <tc>-lines - 1.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                              " FCODE_DELETE_ROW
+
+*&---------------------------------------------------------------------*
+*&      Form  COMPUTE_SCROLLING_IN_TC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_TC_NAME  name of tablecontrol
+*      -->P_OK       ok code
+*----------------------------------------------------------------------*
+FORM compute_scrolling_in_tc USING    p_tc_name
+                                      p_ok.
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_tc_new_top_line     TYPE i.
+  DATA l_tc_name             LIKE feld-name.
+  DATA l_tc_lines_name       LIKE feld-name.
+  DATA l_tc_field_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <lines>      TYPE i.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+*&SPWIZARD: get looplines of TableControl                              *
+  CONCATENATE 'G_' p_tc_name '_LINES' INTO l_tc_lines_name.
+  ASSIGN (l_tc_lines_name) TO <lines>.
+
+
+*&SPWIZARD: is no line filled?                                         *
+  IF <tc>-lines = 0.
+*&SPWIZARD: yes, ...                                                   *
+    l_tc_new_top_line = 1.
+  ELSE.
+*&SPWIZARD: no, ...                                                    *
+    CALL FUNCTION 'SCROLLING_IN_TABLE'
+      EXPORTING
+        entry_act      = <tc>-top_line
+        entry_from     = 1
+        entry_to       = <tc>-lines
+        last_page_full = 'X'
+        loops          = <lines>
+        ok_code        = p_ok
+        overlapping    = 'X'
+      IMPORTING
+        entry_new      = l_tc_new_top_line
+      EXCEPTIONS
+        OTHERS         = 0.
+  ENDIF.
+
+*&SPWIZARD: get actual tc and column                                   *
+  GET CURSOR FIELD l_tc_field_name
+             AREA  l_tc_name.
+
+  IF syst-subrc = 0.
+    IF l_tc_name = p_tc_name.
+*&SPWIZARD: et actual column                                           *
+      SET CURSOR FIELD l_tc_field_name LINE 1.
+    ENDIF.
+  ENDIF.
+
+*&SPWIZARD: set the new top line                                       *
+  <tc>-top_line = l_tc_new_top_line.
+
+
+ENDFORM.                              " COMPUTE_SCROLLING_IN_TC
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_TC_MARK_LINES
+*&---------------------------------------------------------------------*
+*       marks all TableControl lines
+*----------------------------------------------------------------------*
+*      -->P_TC_NAME  name of tablecontrol
+*----------------------------------------------------------------------*
+FORM fcode_tc_mark_lines USING p_tc_name
+                               p_table_name
+                               p_mark_name.
+*&SPWIZARD: EGIN OF LOCAL DATA-----------------------------------------*
+  DATA l_table_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <table>      TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <wa>.
+  FIELD-SYMBOLS <mark_field>.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: mark all filled lines                                      *
+  LOOP AT <table> ASSIGNING <wa>.
+
+*&SPWIZARD: access to the component 'FLAG' of the table header         *
+    ASSIGN COMPONENT p_mark_name OF STRUCTURE <wa> TO <mark_field>.
+
+    <mark_field> = 'X'.
+  ENDLOOP.
+ENDFORM.                                          "fcode_tc_mark_lines
+
+*&---------------------------------------------------------------------*
+*&      Form  FCODE_TC_DEMARK_LINES
+*&---------------------------------------------------------------------*
+*       demarks all TableControl lines
+*----------------------------------------------------------------------*
+*      -->P_TC_NAME  name of tablecontrol
+*----------------------------------------------------------------------*
+FORM fcode_tc_demark_lines USING p_tc_name
+                                 p_table_name
+                                 p_mark_name .
+*&SPWIZARD: BEGIN OF LOCAL DATA----------------------------------------*
+  DATA l_table_name       LIKE feld-name.
+
+  FIELD-SYMBOLS <tc>         TYPE cxtab_control.
+  FIELD-SYMBOLS <table>      TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <wa>.
+  FIELD-SYMBOLS <mark_field>.
+*&SPWIZARD: END OF LOCAL DATA------------------------------------------*
+
+  ASSIGN (p_tc_name) TO <tc>.
+
+*&SPWIZARD: get the table, which belongs to the tc                     *
+  CONCATENATE p_table_name '[]' INTO l_table_name. "table body
+  ASSIGN (l_table_name) TO <table>.                "not headerline
+
+*&SPWIZARD: demark all filled lines                                    *
+  LOOP AT <table> ASSIGNING <wa>.
+
+*&SPWIZARD: access to the component 'FLAG' of the table header         *
+    ASSIGN COMPONENT p_mark_name OF STRUCTURE <wa> TO <mark_field>.
+
+    <mark_field> = space.
+  ENDLOOP.
+ENDFORM.                                          "fcode_tc_mark_lines
+*&---------------------------------------------------------------------*
+*&      Form  selecciona_dades
+*&---------------------------------------------------------------------*
+FORM selecciona_dades .
+  CLEAR: gt_docs_sign, gt_respons, gs_valid.
+
+  IF zrm_dt_docs_adj-z_princ_modif = gc_princ_modif-principal.
+* Principal
+    MOVE: gv_num_cont_tip             TO gv_num_cont_ti,
+          zrm_dt_contr-z_data_val_ger TO gs_valid-data_gerencia,
+          zrm_dt_contr-z_data_val_con TO gs_valid-data_contractacio,
+          zrm_dt_contr-z_data_signa   TO gs_valid-data_signa.
+  ELSEIF zrm_dt_docs_adj-z_princ_modif = gc_princ_modif-credit.
+* Crèdit
+    MOVE: gv_num_cont_tip               TO gv_num_cont_ti,
+          zrm_dt_contr-z_data_val_ge_cc TO gs_valid-data_gerencia,
+          zrm_dt_contr-z_data_val_co_cc TO gs_valid-data_contractacio,
+          zrm_dt_contr-z_data_signa_cc  TO gs_valid-data_signa.
+  ELSE.
+* Modificats
+    READ TABLE gt_modificat INTO gs_modificat
+                            WITH KEY z_num_modif = zrm_dt_docs_adj-z_princ_modif.
+    MOVE: gs_modificat-z_num_cont_tip TO gv_num_cont_ti,
+          gs_modificat-z_data_val_ger TO gs_valid-data_gerencia,
+          gs_modificat-z_data_val_con TO gs_valid-data_contractacio,
+          gs_modificat-z_data_signa   TO gs_valid-data_signa.
+  ENDIF.
+
+  LOOP AT gt_docs_sign_t INTO gs_docs_sign
+                         WHERE z_num_cont_tip = gv_num_cont_ti.
+    APPEND gs_docs_sign TO gt_docs_sign.
+  ENDLOOP.
+
+  LOOP AT gt_docs_sign INTO gs_docs_sign.
+    READ TABLE gt_docs_adj_t ASSIGNING <fs_doc_adj>
+                             WITH KEY z_num_doc = gs_docs_sign-z_num_doc_sign
+                                      z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+    IF sy-subrc = 0.
+      IF <fs_doc_adj>-z_eliminat IS NOT INITIAL.
+        DELETE TABLE gt_docs_sign FROM gs_docs_sign.
+      ELSE.
+        MOVE <fs_doc_adj>-z_doc_adjuntat TO gs_docs_sign-flag.
+        MODIFY gt_docs_sign FROM gs_docs_sign.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT gt_respons_t INTO gs_respons
+                       WHERE z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+    APPEND gs_respons TO gt_respons.
+  ENDLOOP.
+
+  IF gv_ult_p_mod <> zrm_dt_docs_adj-z_princ_modif.
+    LOOP AT SCREEN.
+      IF screen-name <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  IF NOT gs_valid-data_gerencia IS INITIAL.
+    gs_valid-flag_gerencia = 'X'.
+  ENDIF.
+
+  IF NOT gs_valid-data_contractacio IS INITIAL.
+    gs_valid-flag_contractacio = 'X'.
+  ENDIF.
+
+  IF NOT gs_valid-data_signa IS INITIAL.
+    gs_valid-flag_signa = 'X'.
+  ENDIF.
+ENDFORM.                    " selecciona_dades
+*&---------------------------------------------------------------------*
+*&      Form  check_contracte_credit
+*&---------------------------------------------------------------------*
+FORM check_contracte_credit USING lv_checkcc
+                                  pv_objectid TYPE  bapiguid
+                                  pv_docclass TYPE  bapidclass.
+
+  CALL FUNCTION 'Z_RM_CONT_CHECK_CREDIT'
+    EXPORTING
+      objectid      = pv_objectid
+      docclass      = pv_docclass
+    IMPORTING
+      credit        = lv_checkcc
+    EXCEPTIONS
+      error_ifercat = 1
+      error_metod   = 2
+      error_credit  = 3.
+
+ENDFORM.                    " check_contracte_credit
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_IF_NOU_PSIG
+*&---------------------------------------------------------------------*
+* Comprova si es treballa amb el NOUPSIG i actualitza el flag de la taula
+* ZRM_DT_CONTR
+*----------------------------------------------------------------------*
+FORM check_if_nou_psig  USING    p_class     TYPE sdok_class
+                                 p_objid     TYPE sdok_docid
+                        CHANGING cs_dt_contr TYPE zrm_dt_contr.
+  DATA: lv_date_noupsig TYPE zsap_de_field.
+  SELECT SINGLE value AS string
+    INTO lv_date_noupsig
+    FROM zsap_dt_param_hc
+    WHERE repid       = 'NOU_PSIG'
+      AND langu       = sy-langu
+      AND field_info  = 'PSIG_CONT'.
+  IF sy-datum >= lv_date_noupsig. "Si la data de creació és més gran o igual a la data d'activació del NOUPSIG
+    cs_dt_contr-z_nou_psig_contr = abap_on.
+  ELSE.
+    CLEAR: cs_dt_contr-z_nou_psig_contr.
+  ENDIF.
+  UPDATE zrm_dt_contr SET z_nou_psig_contr = cs_dt_contr-z_nou_psig_contr
+    WHERE docclass = p_class
+      AND objectid = p_objid.
+ENDFORM.                    " CHECK_IF_NOU_PSIG
+*&---------------------------------------------------------------------*
+*&      Form  SELECCIONA_DADES_DOC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM selecciona_dades_doc .
+
+  CLEAR: gt_docs_psig_t, gt_respons.
+  DATA: ls_docs_psig TYPE ty_docs_sign_psig.
+
+
+  LOOP AT gt_docs_psig INTO ls_docs_psig WHERE is_main IS INITIAL.
+    APPEND ls_docs_psig TO gt_docs_psig_t.
+  ENDLOOP.
+
+  SORT gt_respons_psig BY ordre.
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+FORM selecciona_dades_doc_gdg .
+
+  DATA : ls_docs_psig TYPE ty_docs_sign_psig,
+         ls_ac_gdg    TYPE ty_ac_gdg ,  " Anexos y Consultas Docs. GDG
+         lv_con       TYPE i,
+         ls_adjunt    TYPE zrm_dt_docs_adj,
+         ls_docs      TYPE zrm_dt_docs_doc,
+         lv_tip_doc   TYPE zrm_dt_docs_doc-z_tip_doc.
+
+  CLEAR:  gt_docs_psig_t, gt_respons, lv_con.
+  REFRESH gt_ac_gdg.
+
+  SELECT *
+    FROM zrm_dt_docs_doc " Expediente y Documentos.
+    INTO TABLE @DATA(lt_docs)
+    WHERE docclass  = @gs_sdok-class
+     AND  objectid  = @gs_sdok-objid
+     AND  z_anchor  = @gv_anchor
+     AND  z_versio  = @gv_versio_sig.
+
+*INI PRL :: PSPEC-3596
+" 1) Llegim tots ordenats per versió descendent
+  SELECT *
+    INTO TABLE @DATA(lt_docs_desc)
+    FROM zrm_dt_docs_doc
+    WHERE docclass  = @gs_sdok-class
+     AND  objectid  = @gs_sdok-objid
+     AND  z_anchor  = @gv_anchor.
+
+  IF lt_docs_desc IS NOT INITIAL.
+    SORT lt_docs_desc BY docclass objectid z_versio DESCENDING.
+  ENDIF.
+*FIN PRL :: PSPEC-3596
+
+  LOOP AT gt_docs_psig INTO ls_docs_psig .
+
+*   si el registro esta bloqueado porque ya se envió, recuperar
+*   los flags( annex i consulta) que se marcaron cuando se envió la última vez.
+    CLEAR lv_tip_doc.
+    IF gs_valid-flag_signa = abap_true.
+      READ TABLE gt_docs_adj_t INTO ls_adjunt  WITH  KEY z_num_doc = ls_docs_psig-num_doc.
+      IF sy-subrc IS INITIAL.
+        READ TABLE lt_docs INTO ls_docs WITH KEY docclass_doc = ls_adjunt-docclass
+                                                 objectid_doc = ls_adjunt-objectid.
+        IF  sy-subrc IS INITIAL.
+          lv_tip_doc = ls_docs-z_tip_doc .
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    IF ls_docs_psig-is_main = abap_true . " Doc. Principal.
+      gs_main_doc = ls_docs_psig.
+      ADD 1 TO lv_con . " solo 1
+    ELSE.                                 " Anexos y consultas.
+      CLEAR ls_ac_gdg.
+      MOVE-CORRESPONDING ls_docs_psig TO ls_ac_gdg.
+      CASE lv_tip_doc.
+        WHEN 'A' . ls_ac_gdg-flag_a = abap_true.
+        WHEN 'C' . ls_ac_gdg-flag_c = abap_true.
+      ENDCASE.
+
+      ">>> SPEC-51771, Inici Modificació - ECTRP  0806020
+      ls_ac_gdg-codi_exp  = gv_codi_exp.
+      ls_ac_gdg-descr_abr = gv_descr_abr.
+      ">>> SPEC-51771, Final Modificació - ECTRP  0806020
+
+*INI PRL :: PSPEC-3596
+*      READ TABLE lt_docs_desc INTO DATA(ls_flag) WITH KEY docclass_doc = ls_adjunt-docclass
+*                                                          objectid_doc = ls_adjunt-objectid.
+
+      READ TABLE lt_docs_desc INTO DATA(ls_flag) WITH KEY Z_COD_DOC = ls_docs_psig-DENOMINACIO.
+      IF sy-subrc = 0.
+        CASE ls_flag-z_tip_doc.
+          WHEN 'A' . ls_ac_gdg-flag_a = abap_true.
+          WHEN 'C' . ls_ac_gdg-flag_c = abap_true.
+        ENDCASE.
+      ENDIF.
+*FIN PRL :: PSPEC-3596
+
+      APPEND ls_ac_gdg TO gt_ac_gdg.
+    ENDIF.
+
+  ENDLOOP.
+*>> SPEC-51771, Inici modificació - ETLJS
+*  Añadimos los documentos que se han añadido de otro expediente
+  PERFORM add_docs_altre_exp.
+
+*  marcamos los anexos y de consulta
+  LOOP AT gt_ac_gdg ASSIGNING FIELD-SYMBOL(<fs_ac>) WHERE codi_exp NE gv_codi_exp.
+
+    READ TABLE gt_docs_adj_t INTO ls_adjunt WITH KEY z_num_doc = <fs_ac>-num_doc.
+
+    READ TABLE lt_docs WITH KEY docclass_doc = ls_adjunt-docclass
+                                objectid_doc = ls_adjunt-objectid
+                           INTO ls_docs.
+    ">> SPEC-93513, Inici Modificació - EVODR
+    IF sy-subrc = 0.
+      "<< SPEC-93513, Final Modificació - EVODR
+      CASE ls_docs-z_tip_doc.
+        WHEN 'A' . <fs_ac>-flag_a = abap_true.
+        WHEN 'C' . <fs_ac>-flag_c = abap_true.
+      ENDCASE.
+    ENDIF.
+
+*INI PRL :: PSPEC-3596
+    CLEAR: ls_flag.
+    READ TABLE lt_docs_desc INTO ls_flag WITH KEY docclass_doc = ls_adjunt-docclass
+                                                        objectid_doc = ls_adjunt-objectid.
+    IF sy-subrc = 0.
+      CASE ls_flag-z_tip_doc.
+        WHEN 'A' . <fs_ac>-flag_a = abap_true.
+        WHEN 'C' . <fs_ac>-flag_c = abap_true.
+      ENDCASE.
+    ENDIF.
+*FIN PRL :: PSPEC-3596
+
+  ENDLOOP.
+*<< SPEC-51771, Final modificació - ETLJS
+
+  SORT gt_respons_psig BY ordre.
+
+  gt_ac_gdg_aux[] = gt_ac_gdg[].   ">>> SPEC-51771 - ECTRP
+
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+FORM status_0200.
+
+  DATA: lv_lines TYPE i,
+        fcode    TYPE TABLE OF sy-ucomm.
+
+  DATA: l_total_count(2) TYPE n,
+        l_count_sign(2)  TYPE n.
+  REFRESH fcode.
+
+
+  IF gs_valid-flag_signa IS NOT INITIAL.
+    gs_operacio-vis  = abap_true.
+    APPEND 'SAVE' TO fcode.
+    "Excluimos el botón de añadir documento en modo visualizar y cuando ya esta
+    "firmado el documento
+    APPEND 'ADD'  TO fcode.
+  ENDIF.
+
+  SET PF-STATUS 'PF200' EXCLUDING fcode.
+
+  SET TITLEBAR 'PSIG'.
+
+  CASE 'X'.
+    WHEN gs_operacio-vis.
+      LOOP AT SCREEN.
+        IF screen-name <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF'.
+          screen-input = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+    WHEN gs_operacio-ger.
+      LOOP AT SCREEN.
+        IF screen-name   <> 'GS_VALID-FLAG_GERENCIA' AND
+           screen-name   <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF' AND
+           screen-group1 <> 'MOD' AND
+           screen-name   <> 'GS_DOCS_PSIG-MARCA'.
+          screen-input  = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+      DESCRIBE TABLE gt_docs_sign LINES lv_lines.
+      IF lv_lines = 0.
+        LOOP AT SCREEN.
+          IF screen-name CS 'GS_DOCS_PSIG-'.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+
+    WHEN gs_operacio-con.
+      LOOP AT SCREEN.
+        IF screen-name   <> 'GS_VALID-FLAG_CONTRACTACIO' AND
+           screen-name   <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF' AND
+           screen-group1 <> 'MOD' AND
+           screen-name   <> 'GS_DOCS_PSIG-MARCA'.
+          screen-input  = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+    WHEN gs_operacio-env.
+      LOOP AT SCREEN.
+        IF screen-name <> 'BOT_SIGNA' AND
+           screen-name <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF'.
+          screen-input  = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+  ENDCASE.
+
+* S'inhabilita el botó d'Enviament a Signatura si ja s'ha enviat.
+  LOOP AT SCREEN.
+    IF screen-name = 'BOT_SIGNA' AND gs_valid-flag_signa = 'X'.
+      screen-input  = 0.
+      MODIFY SCREEN.
+    ENDIF.
+    IF screen-name CS 'GS_RESPONS-' AND gs_valid-flag_signa = 'X'.
+      screen-input = 0.
+      MODIFY SCREEN.
+    ENDIF.
+    IF ( screen-name = 'INS_LIN' OR screen-name = 'DEL_LIN' )
+     AND gs_valid-flag_signa = 'X'.
+      screen-input  = 0.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+  READ TABLE gt_docs_adj_t TRANSPORTING NO FIELDS
+                           WITH KEY z_eliminat    = 'X'
+                                    z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+  IF sy-subrc <> 0.
+    LOOP AT SCREEN.
+      IF screen-name = 'ZTC_DOCS2_INSERT'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  READ TABLE gt_docs_sign TRANSPORTING NO FIELDS
+                          INDEX 1.
+  IF sy-subrc <> 0.
+    LOOP AT SCREEN.
+      IF screen-name = 'ZTC_DOCS2_DELETE'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+** >> INI MODIF ETODR 17/02/2016 SPEC-38374
+  CLEAR: l_count_sign, l_total_count.
+  LOOP AT gt_respons_t TRANSPORTING NO FIELDS WHERE z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+    ADD 1 TO l_total_count.
+  ENDLOOP.
+
+  LOOP AT gt_respons_t TRANSPORTING NO FIELDS WHERE z_carrec      = 'YC'
+                                                AND z_signat      = abap_on
+                                                AND z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+    ADD 1 TO l_count_sign.
+  ENDLOOP.
+  IF gs_valid-flag_signa = abap_on.
+    LOOP AT SCREEN.
+      IF screen-name = 'BOT_SUBSA'.
+        screen-input  = 0.
+        IF gs_valid-flag_signa = 'X'." AND gs_operacio-vis <> abap_on. "només es permet subsanar un cop enviat i no està en visualitzar
+          screen-input  = 1.
+        ENDIF.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDLOOP.
+  ELSE.
+* Es fa invisible el botó de subsanació si no es tracta amb el NOUPSIG
+    LOOP AT SCREEN.
+      IF screen-name = 'BOT_SUBSA'.
+        screen-invisible  = 1.
+        screen-input      = 0.
+        MODIFY SCREEN.
+      ENDIF.
+      IF screen-name CS 'GS_RESPONS-'.
+        screen-input = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_DOCS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_docs.
+
+  TYPES: BEGIN OF ty_cust_doc.
+           INCLUDE TYPE zpsig_dt_cus_doc.
+           INCLUDE TYPE zrm_dm_tipus_exp.
+         TYPES: END OF ty_cust_doc.
+
+  TYPES: BEGIN OF ty_exp,
+           societat      TYPE bukrs,
+           docclass      TYPE bapidclass,
+           objectid      TYPE bapiguid,
+           z_codi_exp    TYPE z_codi_exp,
+           z_descrip_abr TYPE z_descrip_abr,
+         END OF ty_exp.
+
+  DATA: lv_fields         TYPE string,
+        ls_cust_doc       TYPE ty_cust_doc,
+        ls_exp            TYPE ty_exp,
+        lt_documents      TYPE TABLE OF bapisrmrec_element,
+        lt_properties     TYPE TABLE OF bapipropelement,
+        lt_props          TYPE TABLE OF bapiproptb,
+        lt_identification TYPE TABLE OF bapisrmrec_element_ident,
+        ls_docs_sign      TYPE ty_docs_sign_psig,
+        ls_respons_psig   TYPE zrm_dt_resp_doc,
+        ls_docs_adj       TYPE zrm_dt_docs_adj,
+        ls_return         TYPE bapiret2,
+        lv_data           TYPE dats,
+        lv_versio         TYPE z_versio,
+        lv_societat       TYPE bukrs.
+
+  FIELD-SYMBOLS: <fs_taula> TYPE tabname,
+                 <fs_expe>  TYPE ty_exp.
+
+  CLEAR gs_valid.
+  CLEAR gv_signataris.
+
+*  Propiedades del expediente
+
+  CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+    EXPORTING
+      objectid       = gs_sdok-objid
+      documentclass  = gs_sdok-class
+      whole_document = 'X'
+    TABLES
+      properties     = lt_props.
+
+  READ TABLE lt_props WITH KEY name = 'Z_SOCIETAT' ASSIGNING FIELD-SYMBOL(<ls_p>).
+  CHECK sy-subrc EQ 0.
+  ls_exp-societat = <ls_p>-value.
+  gv_bukrs = ls_exp-societat.
+
+  READ TABLE lt_props WITH KEY name = 'SRM_DOCUMENT_ID' ASSIGNING <ls_p>.
+  CHECK sy-subrc EQ 0.
+*** INI ETOVB SPEC-49142
+  ls_exp-z_codi_exp = <ls_p>-value.
+  gv_codi_exp = <ls_p>-value.
+*** FIN ETOVB SPEC-49142
+  READ TABLE lt_props WITH KEY name = 'DESCRIPTION' ASSIGNING <ls_p>.
+  CHECK sy-subrc EQ 0.
+  gv_descr_abr = ls_exp-z_descrip_abr = <ls_p>-value.
+
+  CLEAR lt_props.
+
+  SELECT *
+    FROM zrm_dt_docs_doc
+    INTO TABLE @DATA(lt_versions)
+   WHERE docclass     EQ @gs_sdok-class AND
+         objectid     EQ @gs_sdok-objid AND
+         z_anchor     EQ @gv_anchor
+    ORDER BY z_versio DESCENDING.
+
+*Propiedades del documento
+  CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+    EXPORTING
+      objectid      = zrm_dt_docs_adj-objectid
+      documentclass = zrm_dt_docs_adj-docclass
+    IMPORTING
+      return        = ls_return
+    TABLES
+      properties    = lt_props.
+
+  READ TABLE lt_props ASSIGNING FIELD-SYMBOL(<fs_propi>)
+   WITH KEY name = 'SRM_VERSION_ID'.
+  IF sy-subrc EQ 0.
+
+    gv_versio = <fs_propi>-value.
+
+    gv_versio_sig = lv_versio = 1. "version psig
+    IF lt_versions IS NOT INITIAL.
+      READ TABLE lt_versions ASSIGNING FIELD-SYMBOL(<fs_versions>) INDEX 1.
+      gv_versio_sig = lv_versio = <fs_versions>-z_versio + 1.
+
+
+      LOOP AT  lt_versions  ASSIGNING <fs_versions>
+        WHERE docclass EQ gs_sdok-class AND
+              objectid EQ gs_sdok-objid AND
+              z_anchor EQ gv_anchor.
+        IF sy-subrc EQ 0.
+          IF <fs_versions>-z_data_enviament EQ lv_data.
+            gv_versio_sig = lv_versio = <fs_versions>-z_versio.
+          ELSE.
+            gv_versio_sig       = <fs_versions>-z_versio.
+
+            DATA: lv_fecha TYPE string,
+                  lv_hora  TYPE string.
+            CONCATENATE <fs_versions>-z_data_enviament+6(2) '/'
+                        <fs_versions>-z_data_enviament+4(2) '/'
+                        <fs_versions>-z_data_enviament(4)
+                        INTO lv_fecha.
+
+            CONCATENATE <fs_versions>-z_hora_enviament(2) ':'
+                        <fs_versions>-z_hora_enviament+2(2) ':'
+                        <fs_versions>-z_hora_enviament+4(2)
+                        INTO lv_hora.
+            CONCATENATE lv_fecha lv_hora
+                        INTO gv_data_sign SEPARATED BY '   '.
+            gs_valid-flag_signa = abap_true.
+          ENDIF.
+        ENDIF.
+        EXIT.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+
+  SELECT SINGLE *
+    FROM ( zpsig_dt_cus_doc AS a INNER JOIN
+           zrm_dm_tipus_exp AS b ON
+           a~z_tipus_expe = b~z_tipus_exp )
+    INTO @DATA(ls_cust_doc_2)
+    WHERE a~zrtf_bukrs      EQ @ls_exp-societat AND
+          a~sysid           EQ @sy-sysid        AND
+          a~z_anchor        EQ @gv_anchor       AND
+          a~z_sistema_desti EQ 'PSIG'.
+
+  CHECK sy-subrc EQ 0.
+
+  ls_cust_doc = ls_cust_doc_2.
+  ASSIGN ls_cust_doc-tabname TO <fs_taula>.
+
+  IF ls_cust_doc-tabname IS NOT INITIAL.
+
+    CALL FUNCTION 'BAPI_RECORD_GETELEMENTS'
+      EXPORTING
+        objectid               = gs_sdok-objid
+        documentclass          = gs_sdok-class
+      TABLES
+        element                = lt_documents
+        element_identification = lt_identification
+        element_properties     = lt_properties.
+
+    CLEAR: gt_docs_psig, gt_docs_adj_t.
+
+    SELECT *
+      FROM zrm_dt_docs_doc
+      INTO TABLE @DATA(lt_docs)
+      WHERE docclass  EQ @gs_sdok-class
+       AND  objectid  EQ @gs_sdok-objid
+       AND  z_anchor  EQ @gv_anchor
+       AND  z_versio  EQ @gv_versio_sig.
+
+
+*    Parametrizaciones psig
+    SELECT *
+      FROM zpsig_dt_cus_doc
+      INTO TABLE @DATA(lt_cus_doc)
+      WHERE zrtf_bukrs      EQ @ls_exp-societat AND
+            sysid           EQ @sy-sysid        AND
+            z_sistema_desti EQ 'PSIG'.
+
+    SELECT  *
+      FROM  zrm_dt_resp_doc
+      INTO TABLE @DATA(lt_resp_doc)
+     WHERE  docclass  EQ @gs_sdok-class
+       AND    objectid  EQ @gs_sdok-objid
+       AND    z_anchor  EQ @gv_anchor
+       AND    z_versio  EQ @gv_versio_sig.
+
+    DATA: lv_enviat TYPE flag.
+    lv_enviat = abap_true.
+    DATA: lv_aux TYPE datum.
+    LOOP AT lt_resp_doc ASSIGNING FIELD-SYMBOL(<ls_resp_doc>).
+      MOVE-CORRESPONDING <ls_resp_doc> TO gs_respons_psig.
+      gs_respons_psig-ordre    = <ls_resp_doc>-z_ordre.
+
+***>>> INICI Insert SPEC-48397 ETXGL
+      IF <ls_resp_doc>-z_responsable IS NOT INITIAL.
+        CLEAR wa_pa0002.
+
+        SELECT SINGLE *
+         FROM pa0002
+          INTO CORRESPONDING FIELDS OF wa_pa0002
+            WHERE pernr EQ <ls_resp_doc>-z_responsable.
+
+        IF sy-subrc = 0.
+          CONCATENATE wa_pa0002-nachn wa_pa0002-nach2 wa_pa0002-vorna INTO gs_respons_psig-nom SEPARATED BY space.
+          CLEAR wa_pa0002.
+        ELSE.
+        ENDIF.
+      ELSE.
+      ENDIF.
+***<<< FI Insert SPEC-48397 ETXGL
+
+      APPEND gs_respons_psig TO gt_respons_psig.
+
+      IF  gs_respons_psig-z_data_signatura EQ lv_aux AND gs_respons_psig-z_subsanat EQ abap_false.
+        CLEAR lv_enviat.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT lt_properties ASSIGNING FIELD-SYMBOL(<fs_props>)
+   WHERE name = 'ANCHOR'.
+
+      CLEAR:  ls_docs_sign, ls_docs_adj.
+
+      READ TABLE lt_documents ASSIGNING FIELD-SYMBOL(<fs_docs>) WITH KEY element_id = <fs_props>-element_id type = 'I'.
+      CHECK sy-subrc EQ 0.
+
+      ls_docs_sign-versio = lv_versio.
+      ls_docs_sign-z_num_cont_tip = ls_exp-z_codi_exp.
+      ls_docs_adj-z_num_doc = ls_docs_sign-num_doc = <fs_docs>-element_id.
+      ls_docs_sign-z_descripcio = <fs_docs>-description.
+
+      READ TABLE lt_documents ASSIGNING FIELD-SYMBOL(<fs_parent>) WITH KEY element_id = <fs_docs>-parent_id.
+      IF <fs_parent> IS ASSIGNED.
+        ls_docs_sign-carpeta = <fs_parent>-description.
+      ENDIF.
+
+      READ TABLE lt_identification ASSIGNING FIELD-SYMBOL(<fs_ident>) WITH KEY element_id = <fs_props>-element_id name = 'DOC_ID'.
+      CHECK sy-subrc EQ 0.
+      ls_docs_adj-docclass = <fs_ident>-value(8).
+      ls_docs_adj-objectid = <fs_ident>-value+10.
+
+      READ TABLE lt_docs WITH KEY docclass_doc = ls_docs_adj-docclass
+                                  objectid_doc = ls_docs_adj-objectid
+                          INTO DATA(ls_docs).
+
+      IF ls_docs_adj-docclass EQ zrm_dt_docs_adj-docclass AND
+         ls_docs_adj-objectid EQ zrm_dt_docs_adj-objectid.
+        ls_docs_sign-is_main = abap_true.
+        ls_docs_sign-flag    = abap_true.
+        gv_desc_text = <fs_docs>-description.
+
+      ENDIF.
+
+      REFRESH lt_props.
+      CALL FUNCTION 'BAPI_SRM_DOC_GETPROPERTIES'
+        EXPORTING
+          objectid      = ls_docs_adj-objectid
+          documentclass = ls_docs_adj-docclass
+        TABLES
+          properties    = lt_props.
+
+      IF ls_docs-z_data_enviament NE lv_data.
+        ls_docs_sign-flag = abap_true.
+      ENDIF.
+      READ TABLE lt_props ASSIGNING FIELD-SYMBOL(<fs_prop>) WITH KEY name = 'SRM_DOCUMENT_ID'.
+      IF <fs_prop> IS ASSIGNED.
+        ls_docs_sign-denominacio = <fs_prop>-value.
+      ENDIF.
+      CHECK ls_docs_sign-denominacio IS NOT INITIAL.
+      IF ls_docs_sign-is_main EQ abap_false.
+        IF gv_data_sign IS NOT INITIAL.
+          IF lv_enviat = abap_true.
+            CLEAR ls_docs_sign-flag.
+          ELSE.
+            CHECK ls_docs_sign-flag EQ abap_true.
+          ENDIF.
+        ENDIF.
+        APPEND ls_docs_adj TO gt_docs_adj_t.
+        APPEND ls_docs_sign TO gt_docs_psig.
+      ELSEIF ls_docs_sign-is_main NE abap_false.
+        APPEND ls_docs_adj TO gt_docs_adj_t.
+        APPEND ls_docs_sign TO gt_docs_psig.
+      ENDIF.
+      CLEAR ls_docs.
+    ENDLOOP.
+
+  ENDIF.
+
+  IF lv_enviat = abap_true.
+    CLEAR: gt_respons_psig.
+    gv_versio_sig = lv_versio.
+    CLEAR gs_valid.
+    CLEAR gv_data_sign.
+  ENDIF.
+
+  IF gt_respons_psig IS INITIAL.
+
+    SELECT *
+      FROM zrm_signa_docu
+      INTO TABLE @gt_signataris
+     WHERE bukrs    EQ @gv_bukrs AND
+           z_anchor EQ @gv_anchor.
+
+    IF sy-subrc NE 0.
+      CLEAR gs_respons_psig.
+      gs_respons_psig-docclass   = gs_sdok-class.
+      gs_respons_psig-objectid   = gs_sdok-objid.
+      gs_respons_psig-z_codi_exp = gv_codi_exp.
+      gs_respons_psig-ordre      = 1.
+      APPEND gs_respons_psig TO gt_respons_psig.
+    ELSE.
+
+      LOOP AT gt_signataris ASSIGNING FIELD-SYMBOL(<fs_singnants>).
+        AT FIRST.
+          gv_signataris = <fs_singnants>-z_grupo.
+        ENDAT.
+        DATA(lv_line) = sy-tabix.
+
+        CLEAR gs_respons_psig.
+        gs_respons_psig-docclass   = gs_sdok-class.
+        gs_respons_psig-objectid   = gs_sdok-objid.
+        gs_respons_psig-z_codi_exp = gv_codi_exp.
+
+        gs_respons_psig-ordre    = <fs_singnants>-z_ordre.
+        gs_respons_psig-z_carrec = <fs_singnants>-z_carrec.
+        gs_respons_psig-z_responsable = <fs_singnants>-z_responsable.
+        APPEND gs_respons_psig TO gt_respons_psig.
+
+        DESCRIBE TABLE gt_respons_psig LINES lv_line.
+
+        PERFORM get_respon_name USING gt_respons_psig  lv_line lv_line gv_int_only.
+
+        AT END OF z_grupo.
+          EXIT.
+        ENDAT.
+
+      ENDLOOP.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM. " FORM get_docs.
+*
+*----------------------------------------------------------------------*
+FORM save_docs_signa.
+
+  DATA: ls_docs_doc   TYPE zrm_dt_docs_doc,
+        lt_docs_doc   TYPE TABLE OF zrm_dt_docs_doc,
+        ls_resp_doc   TYPE zrm_dt_resp_doc,
+        lt_resp_doc   TYPE TABLE OF zrm_dt_resp_doc,
+        lt_properties TYPE TABLE OF bapiproptb,
+        ls_properties TYPE bapiproptb,
+        lv_docclass   TYPE bapidclass,
+        lv_objectid   TYPE bapiguid,
+        lv_anchor     TYPE z_anchor.
+
+  CLEAR:
+    lt_docs_doc,
+    ls_docs_doc.
+
+
+**  Si ha habido cambios en el documento de la graella se guardan en el content server
+*  PERFORM save_doc_to_contentserver USING gv_changed gt_bin_content gt_components.
+
+  LOOP AT gt_ac_gdg ASSIGNING FIELD-SYMBOL(<fs_docs_psig>)
+    WHERE flag_a EQ abap_true.
+
+    ls_docs_doc-docclass     = gs_sdok-class.
+    ls_docs_doc-objectid     = gs_sdok-objid.
+    READ TABLE gt_docs_adj_t ASSIGNING FIELD-SYMBOL(<fs_adj>) WITH KEY z_num_doc = <fs_docs_psig>-num_doc.
+    CHECK <fs_adj> IS ASSIGNED.
+    ls_docs_doc-docclass_doc       = <fs_adj>-docclass.
+    ls_docs_doc-objectid_doc       = <fs_adj>-objectid.
+    ls_docs_doc-z_versio           = gv_versio_sig.
+    ls_docs_doc-z_anchor           = gv_anchor.
+    ls_docs_doc-z_data_enviament   = gv_data_enviament.
+    ls_docs_doc-z_hora_enviament   = gv_hora_enviament.
+    ls_docs_doc-z_usuari_enviament = gv_usuari_enviament.
+
+
+    CLEAR lt_properties.
+    CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+      EXPORTING
+        objectid      = <fs_adj>-objectid
+        documentclass = <fs_adj>-docclass
+      TABLES
+        properties    = lt_properties.
+    CHECK lt_properties IS NOT INITIAL.
+
+    CLEAR ls_properties.
+    READ TABLE lt_properties WITH KEY name = 'SRM_DOCUMENT_ID' INTO ls_properties.
+    ls_docs_doc-z_cod_doc = ls_properties-value.
+
+    CLEAR ls_properties.
+    READ TABLE lt_properties WITH KEY name = 'SRM_VERSION_ID' INTO ls_properties.
+
+    ls_docs_doc-z_versio_doc = ls_properties-value.
+
+    IF <fs_docs_psig>-is_main EQ abap_true.
+      ls_docs_doc-z_tip_doc = 'P'.
+*      ls_docs_doc-z_clausula = flag_exclusio. "INI ECDRB 30.01.2017 SPEC-46686
+    ELSE.
+      ls_docs_doc-z_tip_doc = 'A'.
+    ENDIF.
+
+    APPEND ls_docs_doc TO lt_docs_doc.
+  ENDLOOP.
+
+* Se añade entrada de Documento Principal.
+*  IF lt_docs_doc IS NOT INITIAL.
+  PERFORM add_docmain_to_zrm_dt_docs_doc  CHANGING ls_docs_doc.
+  IF ls_docs_doc IS NOT INITIAL.
+    APPEND ls_docs_doc TO lt_docs_doc.
+  ENDIF.
+*  ENDIF.
+
+  DATA lv_responsable TYPE zrm_dt_resp_doc-z_responsable.
+
+  LOOP AT gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_resp>).
+    ls_resp_doc-docclass       = gs_sdok-class.
+    ls_resp_doc-objectid       = gs_sdok-objid.
+    ls_resp_doc-z_anchor       = gv_anchor.
+
+    lv_responsable = <fs_resp>-z_responsable.
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = lv_responsable
+      IMPORTING
+        output = lv_responsable.
+
+    ls_resp_doc-z_responsable      = lv_responsable.
+    ls_resp_doc-z_tipus_carrec     = <fs_resp>-z_tipus_carrec.
+    ls_resp_doc-z_codi_exp         = <fs_resp>-z_codi_exp.
+    ls_resp_doc-z_carrec           = <fs_resp>-z_carrec.
+    ls_resp_doc-z_parallel         = <fs_resp>-z_parallel.
+    ls_resp_doc-z_ordre            = <fs_resp>-ordre.
+    ls_resp_doc-z_rol_dig          = <fs_resp>-z_rol_dig.
+    ls_resp_doc-z_versio           = gv_versio_sig.
+    ls_resp_doc-z_posicio_hash     = <fs_resp>-z_posicio_hash.
+    ls_resp_doc-zmitja_sig         = <fs_resp>-zmitja_sig.
+
+***>>> INICI Insert SPEC-48397 ETXGL
+    IF ls_resp_doc-z_responsable IS NOT INITIAL.
+      CLEAR wa_pa0002.
+
+      SELECT SINGLE *
+       FROM pa0002
+        INTO CORRESPONDING FIELDS OF wa_pa0002
+          WHERE pernr EQ lv_responsable.
+
+      IF sy-subrc = 0.
+        <fs_resp>-z_nif_signatari = wa_pa0002-perid.
+        CLEAR wa_pa0002.
+      ELSE.
+      ENDIF.
+    ELSE.
+    ENDIF.
+
+    ls_resp_doc-z_nif_signatari    = <fs_resp>-z_nif_signatari.
+    ls_resp_doc-z_correu_signatari = <fs_resp>-z_correu_signatari.
+***<<< FI Insert SPEC-48397 ETXGL
+
+    APPEND ls_resp_doc TO lt_resp_doc.
+  ENDLOOP.
+
+  IF lt_resp_doc IS INITIAL.
+    MESSAGE text-e03 TYPE 'S' DISPLAY LIKE 'E'.
+  ELSE.
+    DELETE FROM zrm_dt_resp_doc WHERE docclass EQ gs_sdok-class AND
+                                      objectid EQ gs_sdok-objid AND
+                                      z_anchor EQ gv_anchor AND
+                                      z_versio EQ gv_versio_sig.
+    MODIFY zrm_dt_resp_doc FROM TABLE lt_resp_doc.
+    DELETE FROM zrm_dt_docs_doc WHERE docclass EQ gs_sdok-class AND
+                                      objectid EQ gs_sdok-objid AND
+                                      z_anchor EQ gv_anchor AND
+                                      z_versio EQ gv_versio_sig.
+
+    ">>>ECJSA SPEC-SPEC-54124
+    "Per si les dates no tenen valor..., sols si estem enviant
+    PERFORM completar_docs_doc  USING sy-ucomm
+                                CHANGING lt_docs_doc.
+    "<<<ECJSA SPEC-SPEC-54124
+
+    MODIFY zrm_dt_docs_doc FROM TABLE lt_docs_doc.
+  ENDIF.
+
+ENDFORM.
+*
+*&---------------------------------------------------------------------*
+*&      Form  GET_RESPON_NAME
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GS_RESPONS_PSIG_Z_RESPONSABLE  text
+*      <--P_GS_RESPONS_PSIG_NOM  text
+*----------------------------------------------------------------------*
+FORM get_respon_name  USING    pt_respons_psig TYPE ty_t_responsables_psig
+                               pt_index
+                               pt_lines
+                               pv_int_only  TYPE flag.
+
+  DATA: lv_pernr      TYPE catshr-pernr,
+        lv_user       TYPE syuname,
+        lv_name       TYPE pernr_list_structure-ename,
+        lv_vendor     TYPE bapi1008-vendor,
+        ls_vendor_det TYPE bapi1008_4,
+        ls_error      TYPE bapireturn.
+
+  READ TABLE pt_respons_psig
+   ASSIGNING FIELD-SYMBOL(<fs_respons_psig>)
+       INDEX pt_index.
+
+  CHECK <fs_respons_psig> IS ASSIGNED.
+
+  CLEAR <fs_respons_psig>-z_nif_signatari.
+
+  IF gs_respons_psig-z_responsable IS NOT INITIAL.
+    <fs_respons_psig>-z_responsable = lv_pernr = gs_respons_psig-z_responsable.
+  ELSE.
+    CLEAR: <fs_respons_psig>-nom,
+           <fs_respons_psig>-z_responsable.
+  ENDIF.
+
+  CLEAR <fs_respons_psig>-z_correu_signatari.
+
+  <fs_respons_psig>-z_carrec  = gs_respons_psig-z_carrec.
+  <fs_respons_psig>-z_rol_dig = gs_respons_psig-z_rol_dig.
+  <fs_respons_psig>-z_ordre = gs_respons_psig-ordre.
+
+  CALL FUNCTION 'CATS_GET_EMPLOYEE_NAME'
+    EXPORTING
+      pernr           = lv_pernr
+      date            = sy-datum
+    IMPORTING
+      name            = lv_name
+    EXCEPTIONS
+      pernr_not_found = 1
+      OTHERS          = 2.
+
+  IF sy-subrc NE 0." AND pv_int_only EQ abap_false.
+
+    ">> SPEC-83927, Inici Modificació - ETODR
+    IF gs_respons_psig-z_responsable IS NOT INITIAL.
+      "<< SPEC-83927, Final Modificació - ETODR
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = gs_respons_psig-z_responsable
+        IMPORTING
+          output = lv_vendor.
+
+
+      CALL FUNCTION 'BAPI_CREDITOR_GETDETAIL'
+        EXPORTING
+          creditorid              = lv_vendor
+        IMPORTING
+          creditor_general_detail = ls_vendor_det
+          return                  = ls_error.
+
+      IF ls_error-type NE 'E'.
+        <fs_respons_psig>-z_tipus_carrec = 'E'.
+        gs_respons_psig-nom = <fs_respons_psig>-nom = ls_vendor_det-name.
+
+        CLEAR  lv_lifnr.
+        lv_lifnr = <fs_respons_psig>-z_responsable.
+
+      ELSE.
+
+        MESSAGE text-e01 TYPE 'E'.
+      ENDIF.
+    ENDIF.
+***<<< FI Insert SPEC-48397 ETXGL
+
+
+  ELSEIF sy-subrc EQ 0.
+
+    gs_respons_psig-nom              = lv_name.
+    <fs_respons_psig>-nom            = lv_name.
+    <fs_respons_psig>-z_tipus_carrec = 'I'.
+
+
+***>>> INICI Insert SPEC-48397 ETXGL
+    IF <fs_respons_psig>-z_responsable IS NOT INITIAL.
+      CLEAR wa_pa0002.
+
+      SELECT SINGLE *
+       FROM pa0002
+        INTO CORRESPONDING FIELDS OF wa_pa0002
+          WHERE pernr EQ <fs_respons_psig>-z_responsable .
+
+      IF sy-subrc = 0.
+        <fs_respons_psig>-z_nif_signatari = wa_pa0002-perid.
+        CLEAR wa_pa0002.
+      ENDIF.
+    ELSE.
+    ENDIF.
+
+  ENDIF.
+  ">>>SPEC:SIGNATURA DESATESA, Inici modificació  - ETRCM
+  DATA l_ordren TYPE numc2.
+  l_ordren = <fs_respons_psig>-ordre.
+  CONCATENATE 'ZSIGNA_' l_ordren INTO <fs_respons_psig>-marcador.
+  ">>>SPEC:SIGNATURA DESATESA, Fi modificació  - ETRCM
+
+  gs_respons_psig = <fs_respons_psig>.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_RESPON_NAME2
+*&---------------------------------------------------------------------*
+*       backup
+*-----------------------------------------------------*
+*      -->P_GS_RESPONS_PSIG_Z_RESPONSABLE  text
+*      <--P_GS_RESPONS_PSIG_NOM  text
+*----------------------------------------------------------------------*
+FORM get_respon_name2  USING    pt_respons_psig TYPE ty_t_responsables_psig
+                               pt_index
+                               pt_lines
+                               pv_int_only  TYPE flag.
+
+  DATA: lv_pernr      TYPE catshr-pernr,
+        lv_user       TYPE syuname,
+        lv_name       TYPE pernr_list_structure-ename,
+        lv_vendor     TYPE bapi1008-vendor,
+        ls_vendor_det TYPE bapi1008_4,
+        ls_error      TYPE bapireturn,
+        ls_message    TYPE bapiret2.
+
+  READ TABLE pt_respons_psig
+   ASSIGNING FIELD-SYMBOL(<fs_respons_psig>)
+       INDEX pt_index.
+
+  CHECK <fs_respons_psig> IS ASSIGNED.
+
+  IF gs_respons_psig-z_responsable IS NOT INITIAL.
+    <fs_respons_psig>-z_responsable = lv_pernr = gs_respons_psig-z_responsable.
+  ELSE.
+    CLEAR: <fs_respons_psig>-nom,
+           <fs_respons_psig>-z_responsable.
+  ENDIF.
+
+  <fs_respons_psig>-z_carrec  = gs_respons_psig-z_carrec.
+
+  CALL FUNCTION 'CATS_GET_EMPLOYEE_NAME'
+    EXPORTING
+      pernr           = lv_pernr
+      date            = sy-datum
+    IMPORTING
+      name            = lv_name
+    EXCEPTIONS
+      pernr_not_found = 1
+      OTHERS          = 2.
+
+  IF sy-subrc NE 0 AND pv_int_only EQ abap_false.
+
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = gs_respons_psig-z_responsable
+      IMPORTING
+        output = lv_vendor.
+
+
+    CALL FUNCTION 'BAPI_CREDITOR_GETDETAIL'
+      EXPORTING
+        creditorid              = lv_vendor
+      IMPORTING
+        creditor_general_detail = ls_vendor_det
+        return                  = ls_error.
+
+    IF ls_error-type NE 'E'.
+      gs_respons_psig-nom = <fs_respons_psig>-nom = ls_vendor_det-name.
+      <fs_respons_psig>-z_tipus_carrec = 'E'.
+
+      CLEAR  lv_lifnr.
+      lv_lifnr = <fs_respons_psig>-z_responsable.
+
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = lv_lifnr
+        IMPORTING
+          output = lv_lifnr.
+
+***>>> INICI Insert SPEC-48397 ETXGL
+      CLEAR  wa_lfa1_responsable.
+      SELECT SINGLE *
+       FROM lfa1
+        INTO CORRESPONDING FIELDS OF wa_lfa1_responsable
+         WHERE lifnr = lv_lifnr.
+
+      IF sy-subrc = 0.
+        <fs_respons_psig>-z_nif_signatari = wa_lfa1_responsable-stcd1.
+        CONCATENATE wa_lfa1_responsable-name4 wa_lfa1_responsable-name3
+                    wa_lfa1_responsable-name2 wa_lfa1_responsable-name1 INTO <fs_respons_psig>-nom SEPARATED BY space.
+
+        CLEAR  wa_adr6_responsable.
+        SELECT SINGLE *
+         FROM adr6
+          INTO CORRESPONDING FIELDS OF wa_adr6_responsable
+           WHERE addrnumber = wa_lfa1_responsable-adrnr.
+
+        <fs_respons_psig>-z_correu_signatari = wa_adr6_responsable-smtp_addr.
+
+      ELSE.
+      ENDIF.
+    ELSE.
+      ls_message-type = 'E'.
+      ls_message-message = gs_respons_psig-z_responsable && `: ` && text-e01.
+    ENDIF.
+***<<< FI Insert SPEC-48397 ETXGL
+
+
+  ELSEIF sy-subrc EQ 0.
+
+    gs_respons_psig-nom              = lv_name.
+    <fs_respons_psig>-nom            = lv_name.
+    <fs_respons_psig>-z_tipus_carrec = 'I'.
+
+
+***>>> INICI Insert SPEC-48397 ETXGL
+    IF <fs_respons_psig>-z_responsable IS NOT INITIAL.
+      CLEAR wa_pa0002.
+
+      SELECT SINGLE *
+       FROM pa0002
+        INTO CORRESPONDING FIELDS OF wa_pa0002
+          WHERE pernr EQ <fs_respons_psig>-z_responsable .
+
+      IF sy-subrc = 0.
+        <fs_respons_psig>-z_nif_signatari = wa_pa0002-perid.
+        CLEAR wa_pa0002.
+      ELSE.
+      ENDIF.
+    ELSE.
+    ENDIF.
+
+    PERFORM check_mail.
+
+  ENDIF.
+
+  IF pv_int_only EQ abap_true.
+    lv_pernr = gs_respons_psig-z_responsable.
+    CALL FUNCTION 'HR_GET_USER_FROM_EMPLOYEE'
+      EXPORTING
+        pernr = lv_pernr
+        begda = sy-datum
+        endda = sy-datum
+      IMPORTING
+        user  = lv_user.
+
+    IF lv_user IS INITIAL.
+      gs_respons_psig-nom = <fs_respons_psig>-nom = ls_vendor_det-name.
+      <fs_respons_psig>-z_tipus_carrec = 'E'.
+
+      CLEAR  lv_lifnr.
+      lv_lifnr = <fs_respons_psig>-z_responsable.
+
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = lv_lifnr
+        IMPORTING
+          output = lv_lifnr.
+
+      CLEAR  wa_lfa1_responsable.
+      SELECT SINGLE *
+       FROM lfa1
+        INTO CORRESPONDING FIELDS OF wa_lfa1_responsable
+         WHERE lifnr = lv_lifnr.
+
+      IF sy-subrc = 0.
+        <fs_respons_psig>-z_nif_signatari = wa_lfa1_responsable-stcd1.
+        CONCATENATE wa_lfa1_responsable-name4 wa_lfa1_responsable-name3
+                    wa_lfa1_responsable-name2 wa_lfa1_responsable-name1 INTO <fs_respons_psig>-nom SEPARATED BY space.
+
+        CLEAR  wa_adr6_responsable.
+        SELECT SINGLE *
+         FROM adr6
+          INTO CORRESPONDING FIELDS OF wa_adr6_responsable
+           WHERE addrnumber = wa_lfa1_responsable-adrnr.
+
+        <fs_respons_psig>-z_correu_signatari = wa_adr6_responsable-smtp_addr.
+
+      ELSE.
+        MESSAGE ID 'ZCCTRMS' TYPE 'E' NUMBER 010 WITH gs_respons_psig-z_responsable gs_respons_psig-nom.
+      ENDIF.
+    ENDIF.
+***<<< FI Insert SPEC-48397 ETXGL
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  RESPONS_REPE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM respons_repe USING pv_index.
+
+  DATA: lt_respons_psig TYPE ty_t_responsables_psig,
+        lv_respons      TYPE pernr_d.
+
+  CLEAR gv_repetido.
+  lt_respons_psig[] = gt_respons_psig[].
+  DELETE lt_respons_psig INDEX pv_index.
+
+  READ TABLE gt_respons_psig
+ ASSIGNING FIELD-SYMBOL(<fs_respons_psig>)
+     INDEX pv_index.
+
+  IF gs_respons_psig-z_responsable IS INITIAL AND (
+     sy-ucomm EQ 'SIGNA' OR sy-ucomm EQ 'SAVE' ).
+    MESSAGE text-e05 TYPE 'E'.
+  ENDIF.
+
+  CHECK <fs_respons_psig> IS ASSIGNED.
+
+  lv_respons = gs_respons_psig-z_responsable.
+
+  READ TABLE lt_respons_psig WITH KEY z_responsable = lv_respons TRANSPORTING NO FIELDS.
+  DATA(lv_subrc) = sy-subrc.
+
+  IF lv_subrc EQ 0.
+    MESSAGE text-e04 TYPE 'E'.
+    CHECK lv_subrc EQ 0.
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data CHANGING pv_error TYPE xfeld.
+
+* Hay 3 casos para el tratamiento de documentos principales:
+* 1) Nunca se ha firmado. Editable y listo para firmar.
+* 2) Se ha firmado      . Solo lectura - Se puede SubSanar
+* 3) Subsanado          . Editable y con versión mayor a 1.
+
+  DATA: ls_return       TYPE bapiret2,
+        lt_props        TYPE TABLE OF bapiproptb,
+        lt_props_2      TYPE TABLE OF bapiproptb,
+        ls_respons_psig TYPE zrm_dt_resp_doc,
+        ls_docs_sign    TYPE ty_docs_sign_psig,
+        ls_docs_adj     TYPE zrm_dt_docs_adj,
+        lv_versio       TYPE z_versio,
+        lv_data         TYPE datum,
+        lt_versions     TYPE TABLE OF zrm_dt_docs_doc,
+        ls_versions     TYPE zrm_dt_docs_doc, " zgdg_docs ,
+        lv_fecha        TYPE char10,
+        lv_hora         TYPE char8,
+        lv_f8           TYPE char8 , " fecha 8
+        lv_h6           TYPE char6 , " hora  6
+        lv_enviat       TYPE flag VALUE abap_true,
+        lv_aux          TYPE datum.
+  DATA: lt_zgdg_docs TYPE TABLE OF zgdg_docs,
+        ls_zgdg_docs TYPE          zgdg_docs.
+  DATA: lv_anchor   TYPE char20 ,                     " SPEC-52934
+        lt_resp_doc TYPE TABLE OF zrm_dt_resp_doc .   " SPEC-52934
+  FIELD-SYMBOLS <fs_resp_doc> TYPE zrm_dt_resp_doc .  " SPEC-52934
+  DATA: lv_no_comp_mesa  TYPE flag. "ECTRP SPEC-52378
+
+  DATA: ls_responsable TYPE ty_responsables_psig. " SPEC-52378
+
+  CLEAR: lt_props , gs_operacio-vis, gs_valid, gv_data_sign.
+
+  DATA l_random_hash TYPE string. "SPEC-59583
+
+  DATA: lt_zbpm_dades_rv TYPE STANDARD TABLE OF zbpm_dades_rv.
+
+  gv_int_only = abap_true.
+
+* Propiedades del expediente
+  CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+    EXPORTING
+      objectid       = gs_sdok-objid
+      documentclass  = gs_sdok-class
+      whole_document = 'X'
+    TABLES
+      properties     = lt_props.
+
+  READ TABLE lt_props WITH KEY name = 'Z_SOCIETAT' ASSIGNING FIELD-SYMBOL(<ls_p>).
+  ">>>SPEC:56971, Inici modificació  - ECTRP
+  "Adaptació per a tractar documents no vinculats
+  IF sy-subrc = 0.
+    gv_bukrs = <ls_p>-value.
+  ENDIF.
+  "<<<SPEC:56971, Final modificació  - ECTRP
+
+  READ TABLE lt_props WITH KEY name = 'SRM_DOCUMENT_ID' ASSIGNING <ls_p>.
+  ">>>SPEC:56971, Inici modificació  - ECTRP
+  "Adaptació per a tractar documents no vinculats
+  IF sy-subrc = 0.
+    gv_codi_exp = <ls_p>-value.
+  ELSEIF gs_sdok-class = 'GEST_DOC'.
+    gv_codi_exp = 'GESTDOC'.
+  ENDIF.
+  "<<<SPEC:56971, Final modificació  - ECTRP
+
+  ">>>  SPEC-56012 Inici Modificació ETXGL
+  CLEAR lt_props.
+
+  CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+    EXPORTING
+      objectid      = gs_sdok-objid
+      documentclass = gs_sdok-class
+    TABLES
+      properties    = lt_props.
+  "<<<  SPEC-56012 Final Modificació ETXGL
+
+  READ TABLE lt_props WITH KEY name = 'DESCRIPTION' ASSIGNING <ls_p>.
+*  ">>>SPEC:56971, Inici modificació  - ECTRP
+*  "Adaptació per a tractar documents no vinculats
+
+  IF sy-subrc = 0.
+    gv_descr_abr = <ls_p>-value.
+  ENDIF.
+*  "<<<SPEC:56971, Final modificació  - ECTRP
+
+  ">>> Inici modificació ECJMS SPEC:75341 Data: 22.02.2023 13:19:44
+
+  CLEAR lt_props_2.
+  CALL FUNCTION 'SRM_DOCUMENT_GETPROPERTIES'
+    EXPORTING
+      objectid          = zrm_dt_docs_adj-objectid
+      documentclass     = zrm_dt_docs_adj-docclass
+      whole_document    = abap_true
+    TABLES
+      properties        = lt_props_2
+    EXCEPTIONS
+      internal_error    = 1
+      parameter_error   = 2
+      not_authorized    = 3
+      doc_not_found     = 4
+      variant_not_found = 5
+      version_not_found = 6
+      OTHERS            = 7.
+
+  "<<< Final modificació ECJMS SPEC:75341 Data: 22.02.2023 13:19:44
+
+  CLEAR lt_props.
+
+* Propiedades del documento
+  CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+    EXPORTING
+      objectid      = zrm_dt_docs_adj-objectid
+      documentclass = zrm_dt_docs_adj-docclass
+    IMPORTING
+      return        = ls_return
+    TABLES
+      properties    = lt_props.
+
+  READ TABLE lt_props ASSIGNING FIELD-SYMBOL(<fs_propi>)
+   WITH KEY name = 'SRM_VERSION_ID'.
+  CHECK sy-subrc EQ 0.
+
+  gv_versio = <fs_propi>-value.
+
+  lv_versio = 1.
+  DATA lv_exp TYPE z_codi_exp.
+
+  SELECT SINGLE z_codi_exp
+    FROM zrm_dt_resp_doc AS b INNER JOIN
+         zrm_dt_docs_doc AS a
+         ON a~docclass = b~docclass AND
+            a~objectid = b~objectid AND
+            a~z_versio = b~z_versio
+    INTO lv_exp
+   WHERE a~docclass_doc    = zrm_dt_docs_adj-docclass
+     AND a~objectid_doc     = zrm_dt_docs_adj-objectid   " Document
+     AND ( a~docclass     NE gs_sdok-class
+        OR a~objectid    NE gs_sdok-objid )
+     AND b~z_data_signatura = '00000000'
+     AND b~z_data_subsanacio = '00000000'.
+
+  IF sy-subrc EQ 0.
+    MESSAGE  text-007  && ` ` && lv_exp TYPE 'I'.
+    pv_error = abap_true.
+  ELSE.
+
+    SELECT *
+      FROM zrm_dt_docs_doc
+      INTO TABLE lt_versions
+*** INI ETOVB - SPEC-58032 Versió per document i no per tipus de document
+     WHERE docclass     = gs_sdok-class
+       AND objectid     = gs_sdok-objid   " Expediente
+       AND z_anchor     = gv_anchor
+       AND z_tip_doc    = 'P' "SPEC-93513 "Obtenim només versions de documents principals
+*** FIN ETOVB - SPEC-58032
+
+
+
+      ORDER BY z_versio DESCENDING.
+
+    IF sy-subrc IS INITIAL.
+*>> SPEC-58032, Inici modificació - ETLJS
+      READ TABLE lt_versions INTO ls_versions INDEX 1.
+      IF sy-subrc IS INITIAL.
+        lv_versio = ls_versions-z_versio.
+      ENDIF.
+      CLEAR ls_versions.
+      READ TABLE lt_versions INTO ls_versions WITH KEY objectid_doc = zrm_dt_docs_adj-objectid.
+      IF sy-subrc IS INITIAL.
+        gv_versio_sig = ls_versions-z_versio.
+      ELSE.
+        gv_versio_sig = lv_versio + 1.
+      ENDIF.
+*<< SPEC-58032, Final modificació - ETLJS
+
+    ELSE.                      " SPEC-52934
+*   sino no se ha enviado a firmar NUNCA versión de signatura = 1 .
+      gv_versio_sig = 1.       " SPEC-52934
+    ENDIF.
+
+    SELECT *
+      FROM zgdg_docs
+      INTO TABLE lt_zgdg_docs
+     WHERE docclass     = zrm_dt_docs_adj-docclass
+       AND objectid     = zrm_dt_docs_adj-objectid   " Documento
+       AND gdg_anchor   = gv_anchor
+       AND version      = gv_versio_sig.
+
+    SORT lt_zgdg_docs BY version DESCENDING .
+
+    READ TABLE lt_zgdg_docs INTO ls_zgdg_docs INDEX 1.
+
+* Si el registro existe ya se envio?
+    IF sy-subrc IS INITIAL.
+
+      "Pasem la posició a la variable global
+*      gv_posicio = ls_zgdg_docs-z_posicio."SPEC-59583
+
+      IF ls_zgdg_docs-motiu_rebutj = 'Subsanat'.
+
+*>> SPEC-58697, Inici modificació - ETLJS
+
+      ELSE. " ya existe y no esta subsanado.
+        ">>>SPEC:70225, Inici modificació - ECACM
+        IF ls_zgdg_docs-data_envio IS NOT INITIAL AND ls_zgdg_docs-tipus_env <> 'F'.
+          ">>>SPEC:70225, Final modificació - ECACM
+          CLEAR: lv_f8, lv_h6.
+          lv_f8 = ls_versions-z_data_enviament.
+          lv_h6 = ls_versions-z_hora_enviament.
+
+          lv_fecha = lv_f8+6(2) && '/' && lv_f8+4(2) && '/' && lv_f8(4).
+          lv_hora  = lv_h6(2) && ':' && lv_h6+2(2) && ':' && lv_h6+4(2).
+          gv_data_sign =  lv_fecha && `   ` && lv_hora.
+
+          gs_valid-flag_signa = abap_true.
+        ENDIF.
+
+*<< SPEC-58697, Final modificació - ETLJS
+      ENDIF.
+    ELSE. " ETLJS para añadir la versión en psig
+*>> SPEC-58697, Inici modificació - ETLJS
+*    Marcamos la versión como verdadero
+
+
+*<< SPEC-58697, Final modificació - ETLJS
+      IF ls_versions-z_data_enviament IS NOT INITIAL.
+
+        lv_fecha = ls_versions-z_data_enviament+6(2) && '/' && ls_versions-z_data_enviament+4(2) && '/' && ls_versions-z_data_enviament(4).
+        lv_hora  = ls_versions-z_hora_enviament(2) && ':' && ls_versions-z_hora_enviament+2(2) && ':' && ls_versions-z_hora_enviament+4(2).
+        gv_data_sign =  lv_fecha && `   ` && lv_hora.
+        gs_valid-flag_signa = abap_true.
+
+      ENDIF.
+
+    ENDIF.
+
+
+*>> Ini  SPEC-52934  - ETMAE
+
+    lv_anchor = gv_anchor. " <> LONG.
+
+
+    CLEAR: gt_docs_psig, gt_docs_adj_t.
+    REFRESH lt_resp_doc .
+
+****    Ojo aqui es para que no se cargen los firmantes y volver a cargar el hash
+    IF gv_data_sign IS NOT INITIAL.
+      SELECT  *
+        FROM zrm_dt_resp_doc
+        INTO TABLE  lt_resp_doc
+       WHERE docclass  =  gs_sdok-class
+         AND objectid  =  gs_sdok-objid
+         AND z_anchor  =  gv_anchor
+         AND z_versio  =  gv_versio_sig.
+
+    ENDIF.
+
+*    ENDIF. "ECTRP SPEC-52378 20190726
+
+*    ENDIF. " SPEC-52934
+
+
+    LOOP AT lt_resp_doc ASSIGNING FIELD-SYMBOL(<ls_resp_doc>).
+      DATA(lv_index) = sy-tabix.
+      MOVE-CORRESPONDING <ls_resp_doc> TO gs_respons_psig.
+      gs_respons_psig-ordre              = <ls_resp_doc>-z_ordre.
+      gs_respons_psig-z_correu_signatari = <ls_resp_doc>-z_correu_signatari.                                 " Insert SPEC-48397 ETXGL
+      gs_respons_psig-z_nif_signatari    = <ls_resp_doc>-z_nif_signatari.
+      gs_respons_psig-z_rol_dig          = <ls_resp_doc>-z_rol_dig.
+
+      " INI - SPEC-59583 - Calcular el hash per guardar-ho el primer cop a la
+      " taula ZRM_DT_RESP_DOC
+
+      IF <ls_resp_doc>-z_posicio_hash IS INITIAL.
+        IF l_random_hash IS INITIAL. "es posa el mateix hash a tots gt_respons_psig
+
+          ">>> Inici modificació ECJMS SPEC:75341 Data: 23.02.2023 17:44:04
+
+          CALL FUNCTION 'ZGENERAL_GET_RANDOM_STRING'
+            EXPORTING
+              i_docclass    = zrm_dt_docs_adj-docclass
+              i_objectid    = zrm_dt_docs_adj-objectid
+            IMPORTING
+              random_string = l_random_hash
+              o_error       = pv_error
+            TABLES
+              t_props       = lt_props_2.
+
+          IF pv_error EQ abap_true.
+            EXIT.
+          ENDIF.
+
+*          CALL FUNCTION 'GENERAL_GET_RANDOM_STRING'
+*            EXPORTING
+*              number_chars  = 8
+*            IMPORTING
+*              random_string = l_random_hash.
+
+          "<<< Final modificació ECJMS SPEC:75341 Data: 23.02.2023 17:44:04
+
+
+        ENDIF.
+        gs_respons_psig-z_posicio_hash = l_random_hash.
+      ELSE.
+        gs_respons_psig-z_posicio_hash = <ls_resp_doc>-z_posicio_hash.
+      ENDIF.
+
+
+      "FIN - SPEC-59583
+      APPEND gs_respons_psig TO gt_respons_psig.
+      PERFORM get_respon_name USING gt_respons_psig  lv_index lv_index gv_int_only.
+      IF  gs_respons_psig-z_data_signatura EQ lv_aux AND gs_respons_psig-z_subsanat EQ abap_false.
+        CLEAR lv_enviat.
+      ELSE.
+
+      ENDIF.
+    ENDLOOP.
+
+    ">>> Inici modificació ECJMS SPEC:75341 Data: 23.02.2023 17:54:39
+    CHECK pv_error EQ abap_false.
+    "<<< Final modificació ECJMS SPEC:75341 Data: 23.02.2023 17:54:39
+
+*>> SPEC-58032, Inici modificació - ETLJS
+
+    SELECT  *
+      FROM zrm_dt_resp_doc
+      INTO TABLE @DATA(lt_resp_doc_aux)
+     WHERE docclass  =  @gs_sdok-class
+       AND objectid  =  @gs_sdok-objid
+       AND z_anchor  =  @gv_anchor.
+
+    IF lt_resp_doc_aux IS INITIAL.
+      CLEAR lv_enviat.
+      gv_versio_sig = lv_versio = 1.
+    ENDIF.
+*<< SPEC-58032, Final modificació - ETLJS
+
+    IF gs_respons_psig-z_subsanat EQ abap_true.
+      ADD 1 TO lv_versio.
+      CLEAR gs_valid.
+      CLEAR gv_data_sign.
+    ENDIF.
+    CLEAR lt_props.
+
+    ">>> Inici modificació ECJMS SPEC:75341 Data: 22.02.2023 13:19:44
+
+    CLEAR lt_props_2.
+    CALL FUNCTION 'SRM_DOCUMENT_GETPROPERTIES'
+      EXPORTING
+        objectid          = zrm_dt_docs_adj-objectid
+        documentclass     = zrm_dt_docs_adj-docclass
+        whole_document    = abap_true
+      TABLES
+        properties        = lt_props_2
+      EXCEPTIONS
+        internal_error    = 1
+        parameter_error   = 2
+        not_authorized    = 3
+        doc_not_found     = 4
+        variant_not_found = 5
+        version_not_found = 6
+        OTHERS            = 7.
+
+    "<<< Final modificació ECJMS SPEC:75341 Data: 22.02.2023 13:19:44
+
+
+    CALL FUNCTION 'SRM_DOCUMENT_GETPROPERTIES'
+      EXPORTING
+        objectid          = zrm_dt_docs_adj-objectid
+        documentclass     = zrm_dt_docs_adj-docclass
+      TABLES
+        properties        = lt_props
+      EXCEPTIONS
+        internal_error    = 1
+        parameter_error   = 2
+        not_authorized    = 3
+        doc_not_found     = 4
+        variant_not_found = 5
+        version_not_found = 6
+        OTHERS            = 7.
+
+    READ TABLE lt_props ASSIGNING <fs_propi> WITH KEY name = 'DESCRIPTION'.
+    IF sy-subrc EQ 0.
+      gv_desc_text = ls_docs_sign-z_descripcio = <fs_propi>-value.
+    ENDIF.
+
+    READ TABLE lt_props ASSIGNING <fs_propi> WITH KEY name = 'SRM_DOCUMENT_ID'.
+    IF sy-subrc EQ 0.
+      ls_docs_sign-denominacio = <fs_propi>-value.
+    ENDIF.
+
+    ls_docs_sign-versio = lv_versio.
+    ls_docs_sign-z_num_cont_tip = gv_codi_exp.
+    ls_docs_adj-z_num_doc = ls_docs_sign-num_doc = 1.
+    ls_docs_sign-flag    = abap_true.
+
+    ls_docs_sign-is_main = abap_true.
+    ls_docs_adj-docclass = zrm_dt_docs_adj-docclass.
+    ls_docs_adj-objectid = zrm_dt_docs_adj-objectid.
+    APPEND ls_docs_adj TO gt_docs_adj_t.
+    APPEND ls_docs_sign TO gt_docs_psig.
+
+    CLEAR : lv_no_comp_mesa, lt_resp_doc.
+    PERFORM comp_mesa_automatica TABLES lt_resp_doc CHANGING lv_no_comp_mesa.
+
+
+    IF lv_enviat = abap_true.
+
+      ">>>SPEC:SIGNATURA DESATESA, Inici modificació  - ECJSA
+      "Ho posem dins l'IF, ja que sols volem recarregar els signataris
+      "Si no els tenim(en desatesa seran els mateixos del primer enviament)
+*      IF gv_es_desatesa = abap_false.
+      CLEAR: gt_respons_psig.
+*      ENDIF.
+      "<<<SPEC:SIGNATURA DESATESA, Final modificació - ECJSA
+
+      IF gs_respons_psig-z_subsanat NE abap_true."ETLJS VERSIO
+        gv_versio_sig = lv_versio + 1. "ETLJS VERSIO
+      ELSE.
+        IF lv_no_comp_mesa NE abap_true.
+          CLEAR: gt_respons_psig.
+          IF l_random_hash IS INITIAL. "es posa el mateix hash a tots gt_respons_psig
+
+            ">>> Inici modificació ECJMS SPEC:75341 Data: 23.02.2023 17:52:18
+
+            CALL FUNCTION 'ZGENERAL_GET_RANDOM_STRING'
+              EXPORTING
+                i_docclass    = zrm_dt_docs_adj-docclass
+                i_objectid    = zrm_dt_docs_adj-objectid
+              IMPORTING
+                random_string = l_random_hash
+                o_error       = pv_error
+              TABLES
+                t_props       = lt_props_2.
+
+            CHECK pv_error EQ abap_false.
+
+*            CALL FUNCTION 'GENERAL_GET_RANDOM_STRING'
+*              EXPORTING
+*                number_chars  = 8
+*              IMPORTING
+*                random_string = l_random_hash.
+
+            "<<< Final modificació ECJMS SPEC:75341 Data: 23.02.2023 17:52:18
+
+          ENDIF.
+
+          LOOP AT lt_resp_doc ASSIGNING <ls_resp_doc>.
+            lv_index = sy-tabix.
+            MOVE-CORRESPONDING <ls_resp_doc> TO gs_respons_psig.
+            gs_respons_psig-ordre              = <ls_resp_doc>-z_ordre.
+            gs_respons_psig-z_correu_signatari = <ls_resp_doc>-z_correu_signatari.                                 " Insert SPEC-48397 ETXGL
+            gs_respons_psig-z_nif_signatari    = <ls_resp_doc>-z_nif_signatari.
+            gs_respons_psig-z_rol_dig          = <ls_resp_doc>-z_rol_dig.
+            gs_respons_psig-z_posicio_hash = l_random_hash.
+
+            APPEND gs_respons_psig TO gt_respons_psig.
+            PERFORM get_respon_name USING gt_respons_psig  lv_index lv_index gv_int_only.
+
+          ENDLOOP.
+        ENDIF.
+        gv_versio_sig = lv_versio.
+      ENDIF.
+      CLEAR gs_valid.
+      CLEAR gv_data_sign.
+      CLEAR gt_respons_psig[].
+    ELSEIF lv_no_comp_mesa NE abap_true.
+      CLEAR: gt_respons_psig.
+      IF l_random_hash IS INITIAL. "es posa el mateix hash a tots gt_respons_psig
+
+        ">>> Inici modificació ECJMS SPEC:75341 Data: 23.02.2023 17:48:40
+
+        CALL FUNCTION 'ZGENERAL_GET_RANDOM_STRING'
+          EXPORTING
+            i_docclass    = zrm_dt_docs_adj-docclass
+            i_objectid    = zrm_dt_docs_adj-objectid
+          IMPORTING
+            random_string = l_random_hash
+            o_error       = pv_error
+          TABLES
+            t_props       = lt_props_2.
+
+        CHECK pv_error EQ abap_false.
+
+*        CALL FUNCTION 'GENERAL_GET_RANDOM_STRING'
+*          EXPORTING
+*            number_chars  = 8
+*          IMPORTING
+*            random_string = l_random_hash.
+
+        "<<< Final modificació ECJMS SPEC:75341 Data: 23.02.2023 17:48:40
+
+      ENDIF.
+      LOOP AT lt_resp_doc ASSIGNING <ls_resp_doc>.
+        lv_index = sy-tabix.
+        MOVE-CORRESPONDING <ls_resp_doc> TO gs_respons_psig.
+        gs_respons_psig-ordre              = <ls_resp_doc>-z_ordre.
+        gs_respons_psig-z_correu_signatari = <ls_resp_doc>-z_correu_signatari.                                 " Insert SPEC-48397 ETXGL
+        gs_respons_psig-z_nif_signatari    = <ls_resp_doc>-z_nif_signatari.
+        gs_respons_psig-z_rol_dig          = <ls_resp_doc>-z_rol_dig.
+        gs_respons_psig-z_posicio_hash = l_random_hash.
+
+        APPEND gs_respons_psig TO gt_respons_psig.
+        PERFORM get_respon_name USING gt_respons_psig  lv_index lv_index gv_int_only.
+
+      ENDLOOP.
+    ENDIF.
+
+*INI SPEC-60538
+*Pels documents Modificació Autoritzada BPM obtenir el periode RV
+    IF gv_anchor = 'CT004'.
+      SELECT * FROM zbpm_dades_rv UP TO 1 ROWS
+        INTO TABLE lt_zbpm_dades_rv
+      WHERE z_comanda = gv_codi_exp
+      AND societat = gv_bukrs
+      ORDER BY cpudt DESCENDING cputm DESCENDING.
+
+      READ TABLE lt_zbpm_dades_rv INTO gs_zbpm_dades_rv INDEX 1.
+
+      IF sy-subrc NE 0. "Certificació que no té flux BPM
+        gv_mod_aut_bpm = abap_false.
+      ELSE.
+        gv_mod_aut_bpm = abap_true.
+      ENDIF.
+    ELSE.
+      gv_mod_aut_bpm = abap_false.
+    ENDIF.
+*FIN SPEC-60538
+
+    IF gt_respons_psig IS INITIAL.
+
+      "INI SPEC-60538
+      "Document Modificació Autoritzada BPM per desatesa
+      "Si el document és de Modificació Autoritzada BPM
+      IF  gv_mod_aut_bpm = abap_true.
+        "Afegir a la taula de signataris els responsables BPM
+        PERFORM get_signataris_mod_aut_bpm USING l_random_hash
+                                           CHANGING gt_respons_psig.
+
+      ELSE.
+
+        "FIN SPEC-60538
+
+        IF l_random_hash IS INITIAL. "es posa el mateix hash a tots gt_respons_psig
+
+          ">>> Inici modificació ECJMS SPEC:75341 Data: 22.02.2023 12:48:33
+
+          CALL FUNCTION 'ZGENERAL_GET_RANDOM_STRING'
+            EXPORTING
+              i_docclass    = zrm_dt_docs_adj-docclass
+              i_objectid    = zrm_dt_docs_adj-objectid
+            IMPORTING
+              random_string = l_random_hash
+              o_error       = pv_error
+            TABLES
+              t_props       = lt_props_2.
+
+          CHECK pv_error EQ abap_false.
+
+*          CALL FUNCTION 'GENERAL_GET_RANDOM_STRING'
+*            EXPORTING
+*              number_chars  = 8
+*            IMPORTING
+*              random_string = l_random_hash.
+
+
+        ENDIF.
+
+*** INI ETOVB SPEC-74165
+
+*        SELECT *
+*          FROM zrm_signa_docu
+*          INTO TABLE @gt_signataris
+*         WHERE bukrs    EQ @gv_bukrs AND
+*               z_anchor EQ @gv_anchor.
+*
+*        IF sy-subrc NE 0.
+
+*** FIN ETOVB SPEC-74165
+
+        CLEAR gs_respons_psig.
+        gs_respons_psig-docclass   = gs_sdok-class.
+        gs_respons_psig-objectid   = gs_sdok-objid.
+        gs_respons_psig-z_codi_exp = gv_codi_exp.
+        gs_respons_psig-ordre      = 1.
+        gs_respons_psig-z_posicio_hash = l_random_hash.
+        APPEND gs_respons_psig TO gt_respons_psig.
+
+*** INI ETOVB SPEC-74165
+*
+*        ELSE.
+*
+*          LOOP AT gt_signataris ASSIGNING FIELD-SYMBOL(<fs_singnants>).
+*            AT FIRST.
+*              gv_signataris = <fs_singnants>-z_grupo.
+*            ENDAT.
+*            DATA(lv_line) = sy-tabix.
+*
+*            CLEAR gs_respons_psig.
+*            gs_respons_psig-docclass   = gs_sdok-class.
+*            gs_respons_psig-objectid   = gs_sdok-objid.
+*            gs_respons_psig-z_codi_exp = gv_codi_exp.
+*            gs_respons_psig-z_posicio_hash = l_random_hash.
+*            gs_respons_psig-ordre    = <fs_singnants>-z_ordre.
+*            gs_respons_psig-z_carrec = <fs_singnants>-z_carrec.
+*            gs_respons_psig-z_rol_dig = <fs_singnants>-z_rol_dig.
+*            gs_respons_psig-z_responsable = <fs_singnants>-z_responsable.
+*            APPEND gs_respons_psig TO gt_respons_psig.
+*
+*
+*            DESCRIBE TABLE gt_respons_psig LINES lv_line.
+*
+*            PERFORM get_respon_name USING gt_respons_psig  lv_line lv_line gv_int_only.
+*
+*            AT END OF z_grupo.
+*              EXIT.
+*            ENDAT.
+*
+*          ENDLOOP.
+*        ENDIF.
+
+** FIN ETOVB SPEC-74165
+      ENDIF.
+    ENDIF.
+
+    READ TABLE gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_r>) INDEX 1.
+    CHECK <fs_r> IS ASSIGNED.
+    gv_parallel = <fs_r>-z_parallel.
+
+    IF gt_respons_psig IS INITIAL.
+      CLEAR gs_respons_psig.
+      gs_respons_psig-docclass   = gs_sdok-class.
+      gs_respons_psig-objectid   = gs_sdok-objid.
+      gs_respons_psig-z_codi_exp = gv_codi_exp.
+      gs_respons_psig-ordre      = 1.
+      APPEND gs_respons_psig TO gt_respons_psig.
+    ENDIF.
+
+*>> Ini  SPEC-52378  - ETMAE
+
+    LOOP AT gt_respons_psig INTO ls_responsable.
+      ls_responsable-correlativo = sy-tabix.
+      MODIFY gt_respons_psig FROM ls_responsable
+        TRANSPORTING correlativo.
+    ENDLOOP.
+
+*<< Fi  SPEC-52378  - ETMAE
+
+  ENDIF.
+
+ENDFORM.                     " get_data.
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_GDG_DOCS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM update_gdg_docs .
+
+  DATA: ls_docs  TYPE zgdg_docs,
+        lt_docs  TYPE TABLE OF zgdg_docs,
+        lv_pernr TYPE pernr_d,
+        lv_user  TYPE syuname,
+        lv_error TYPE c,
+        l_rc     TYPE abap_bool.
+
+  READ TABLE gt_docs_psig ASSIGNING FIELD-SYMBOL(<fs_docs_psig>) INDEX 1.
+
+  lv_error = space.
+
+  SELECT MAX( pos )
+    FROM zgdg_docs
+    INTO @DATA(lv_pos)
+   WHERE docclass EQ @zrm_dt_docs_adj-docclass AND
+         objectid EQ @zrm_dt_docs_adj-objectid
+     AND status   <> @gc_cancel .  " SPEC-49453
+
+  SELECT COUNT(*) FROM zgdg_pos_signa  WHERE gdg_anchor = gv_anchor
+    AND add_sign_page = 'X'.
+
+
+  IF sy-subrc = 0. "Agregamos la página de firmas al final
+    CALL METHOD zcl_gdg=>add_sign_page
+      EXPORTING
+        z_docid   = zrm_dt_docs_adj-objectid
+        z_classid = zrm_dt_docs_adj-docclass
+      RECEIVING
+        rc        = l_rc.
+    IF l_rc = abap_false.
+      MESSAGE 'Error en afegir pagina de signatures' TYPE 'S'.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+  LOOP AT gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_resp>).
+
+    ls_docs-docclass = zrm_dt_docs_adj-docclass.
+    ls_docs-objectid = zrm_dt_docs_adj-objectid.
+    ls_docs-data_envio = sy-datum.
+    ls_docs-hora_envio = sy-uzeit.
+    ls_docs-aux1  = gv_codi_exp.
+    ls_docs-aux2  = gv_anchor.
+    ls_docs-aux3  = gv_versio_sig.
+    ls_docs-gdg_anchor = gv_anchor.
+    ls_docs-signa_parallel = <fs_resp>-z_parallel.
+    ls_docs-z_posicio_hash = <fs_resp>-z_posicio_hash.
+    ls_docs-z_posicio      = abap_true.
+    IF <fs_resp>-z_parallel EQ abap_true.
+      ls_docs-pos = lv_pos + 1.
+    ELSE.
+      ls_docs-pos = lv_pos + <fs_resp>-ordre.
+    ENDIF.
+    lv_pernr         = <fs_resp>-z_responsable.
+    CLEAR lv_user.
+
+    CALL FUNCTION 'HR_GET_USER_FROM_EMPLOYEE'
+      EXPORTING
+        pernr = lv_pernr
+        begda = sy-datum
+        endda = sy-datum
+      IMPORTING
+        user  = lv_user.
+
+    IF lv_user IS INITIAL.
+      lv_error = '1'.
+      EXIT.
+    ENDIF.
+
+    ls_docs-usuari = lv_user.
+    ls_docs-tipus_proces = 'DOCPSIG'.
+    ls_docs-status  = 'P'.
+    ls_docs-accions = 'F'.
+
+    APPEND ls_docs TO lt_docs.
+
+  ENDLOOP.
+  IF lt_docs IS INITIAL.
+    lv_error = '2'.
+  ENDIF.
+
+  CASE lv_error.
+    WHEN space.
+      MODIFY zgdg_docs FROM TABLE lt_docs.
+
+      READ TABLE gt_docs_psig ASSIGNING FIELD-SYMBOL(<fs_d>) INDEX 1.
+
+      IF sy-subrc EQ 0.
+
+        gv_data_enviament   = sy-datum.
+        gv_hora_enviament   = sy-uzeit.
+        gv_usuari_enviament = sy-uname.
+
+        gt_docs[] = lt_docs[].
+
+      ENDIF.
+
+    WHEN '1'.
+      MESSAGE ID 'ZCCTRMS' TYPE 'I' NUMBER 010 WITH <fs_resp>-z_responsable <fs_resp>-nom DISPLAY LIKE 'E'.
+    WHEN OTHERS.
+      MESSAGE ID 'ZCCTRMS' TYPE 'E' NUMBER 011 DISPLAY LIKE 'E'.
+  ENDCASE.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CONVERT_PDF
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM convert_pdf .
+  DATA:
+    lt_info     TYPE TABLE OF bapidoccomp,
+    lv_versio   TYPE bapisrmdoc-version,
+    lv_answer   TYPE c,
+    lt_comps    TYPE TABLE OF bapidoccomp,
+    lt_bin      TYPE TABLE OF bapiconten,
+    lv_filename TYPE string,
+    lt_conaux   TYPE zt_bapicontent255,
+    wa_conaux   TYPE bapicontent255,
+    lt_content  TYPE zt_bapicontent255,
+    lv_lenght   TYPE num12,
+    lv_return   TYPE bapiret2,
+*<<<SPEC:66792, Final modificació - ECMLS
+    lv_iso_ok   TYPE abap_bool.
+*>>>SPEC:66792, Inici modificació - ECMLS
+
+
+  "INICI - SPEC-80408 - ECMRG
+
+
+*  DATA: lt_components            TYPE TABLE OF bapidoccomp,
+*        lt_bin_content           TYPE bapidoccontentab,
+*        cv_error                 TYPE int4,
+*        lv_len                   TYPE i,
+*        lv_xstring_doc_principal TYPE xstring,
+*        lv_xstring_xls_annex     TYPE xstring,
+*        lt_components_annex      TYPE TABLE OF bapidoccomp,
+*        ev_pdf_xstring           TYPE xstring.
+*
+*  DATA: lr_pdf_conv TYPE REF TO cl_fp_conv_pdfa,
+*        lr_pdfobj   TYPE REF TO if_fp_pdf_object,
+*        lv_dest     TYPE rfcdest,
+*        lx_fpex     TYPE REF TO cx_fp_runtime,
+*        lx_fp_conv  TYPE REF TO cx_fp_conv,
+*        lv_out_len  TYPE i,
+*        lt_tabpdf   TYPE TABLE OF bapiconten.
+*
+*  FIELD-SYMBOLS <fs>    TYPE  bapidoccomp.
+
+  "FI - SPEC-80408 - ECMRG
+
+  lv_versio = gv_versio.
+  CALL FUNCTION 'SRM_DOCUMENT_GET_COMP_INFO'
+    EXPORTING
+      objectid        = zrm_dt_docs_adj-objectid
+      documentclass   = zrm_dt_docs_adj-docclass
+      version         = lv_versio
+    TABLES
+      component_info  = lt_info
+    EXCEPTIONS
+      internal_error  = 1
+      parameter_error = 2
+      not_authorized  = 3
+      doc_not_found   = 4
+      OTHERS          = 5.
+
+  CHECK lt_info IS NOT INITIAL.
+
+  READ TABLE lt_info ASSIGNING FIELD-SYMBOL(<fs_info>) INDEX 1.
+
+  IF <fs_info>-comp_id CS '.xls' OR <fs_info>-comp_id CS '.doc' .
+    DATA l_rc TYPE abap_bool.
+    CALL METHOD zcl_utils_docs=>office_2_pdf_cs
+      EXPORTING
+        z_docid       = zrm_dt_docs_adj-objectid
+        z_classid     = zrm_dt_docs_adj-docclass
+        z_new_version = abap_true
+      RECEIVING
+        rc            = l_rc.
+    IF l_rc EQ abap_true.
+
+      "INICI - SPEC-80408 - ECMRG
+
+      "CALL FUNCTION 'SRM_DOCUMENT_CHECKOUT_VIA_TAB'
+      "        EXPORTING
+      "          objectid        = zrm_dt_docs_adj-objectid
+      "          documentclass   = zrm_dt_docs_adj-docclass
+      "        TABLES
+      "          components      = lt_components
+      "          bin_content     = lt_bin_content
+      "        EXCEPTIONS
+      "          internal_error  = 1
+      "          parameter_error = 2
+      "          not_authorized  = 3
+      "          doc_not_found   = 4
+      "          OTHERS          = 5.
+      "      IF sy-subrc <> 0.
+      "        cv_error = sy-subrc.
+      "        EXIT.
+      "      ENDIF.
+
+      "      READ TABLE lt_components ASSIGNING FIELD-SYMBOL(<fs_comp>) INDEX 1.
+      "      CHECK sy-subrc EQ 0.
+      "      lv_len = <fs_comp>-comp_size.
+
+      "      CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
+      "        EXPORTING
+      "          input_length = lv_len
+      "        IMPORTING
+      "          buffer       = lv_xstring_doc_principal
+      "        TABLES
+      "          binary_tab   = lt_bin_content
+      "        EXCEPTIONS
+      "          failed       = 1
+      "          OTHERS       = 2.
+
+      "      TRY.
+      "          lv_dest     = cl_fp=>get_ads_connection( ).
+      "          CREATE OBJECT lr_pdf_conv EXPORTING iv_connection = lv_dest.
+      "        CATCH cx_fp_conv INTO lx_fp_conv.
+      "          IF lx_fp_conv->textid EQ cx_fp_conv=>ads_version_is_too_low.
+      "            "          RAISE error_ads_version.
+      "          ELSEIF lx_fp_conv->textid EQ cx_fp_conv=>error_ads_connection.
+      "            "          RAISE error_ads_connection.
+      "          ELSE.
+      "            "          RAISE error_ads_connection.
+      "          ENDIF.
+      "      ENDTRY.
+
+      "      CHECK lr_pdf_conv IS BOUND.
+
+      "      CALL METHOD zcl_utils_docs=>convert_to_pdfa(
+      "        EXPORTING
+      "          iv_pdf_xstring       = lv_xstring_doc_principal
+      "          iv_has_attatchments  = abap_true
+      "        IMPORTING
+      "          ev_pdfa_xstring      = ev_pdf_xstring
+      "        CHANGING
+      "          cr_pdf_conv          = lr_pdf_conv
+      "        EXCEPTIONS
+      "          error_ads_version    = 1
+      "          error_ads_connection = 2
+      "          error_conversion     = 3
+      "          OTHERS               = 4 ).
+      "      IF sy-subrc <> 0.
+      "        "RAISE error_conversion.
+      "      ENDIF.
+
+      "      CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+      "        EXPORTING
+      "          buffer          = ev_pdf_xstring
+      "          append_to_table = abap_true
+      "        IMPORTING
+      "          output_length   = lv_out_len
+      "        TABLES
+      "          binary_tab      = lt_tabpdf.
+
+      "      READ TABLE lt_components ASSIGNING <fs> INDEX 1.
+
+      "      <fs>-comp_size = lv_out_len.
+
+      "      CALL FUNCTION 'SRM_DOCUMENT_CHECKIN_VIA_TAB'
+      "        EXPORTING
+      "          objectid        = zrm_dt_docs_adj-objectid
+      "          documentclass   = zrm_dt_docs_adj-docclass
+      "          as_new_version  = abap_true
+      "          do_commit       = abap_true
+      "        TABLES
+      "          components      = lt_components
+      "          bin_content     = lt_tabpdf
+      "        EXCEPTIONS
+      "          internal_error  = 1
+      "          parameter_error = 2
+      "          not_authorized  = 3
+      "          doc_not_found   = 4
+      "          yet_locked      = 5
+      "          OTHERS          = 6.
+*    IF sy-subrc = 0.
+*      rc = abap_true.
+*    ELSE.
+*      rc = abap_false.
+*    ENDIF.
+
+      "FI - SPEC-80408 - ECMRG
+
+*<<<SPEC:66792, Inici modificació - ECMLS
+      zcl_gdg=>check_iso(
+        EXPORTING
+          z_docid    = zrm_dt_docs_adj-objectid
+          z_classid  = zrm_dt_docs_adj-docclass
+          iv_conv    = abap_true
+        RECEIVING
+          rc         = lv_iso_ok
+        EXCEPTIONS
+          no_data    = 1
+          no_validat = 2
+          iso_ko     = 3
+          OTHERS     = 4
+      ).
+
+      IF sy-subrc <> 0.
+        IF sy-subrc EQ 3.
+          MESSAGE e017(zsignatura)."El document no compleix amb la ISO
+        ELSE.
+          MESSAGE e018(zsignatura)."No s'ha pogut realitzar la validació o...
+        ENDIF.
+      ENDIF.
+*>>>SPEC:66792, Final modificació - ECMLS
+
+      PERFORM update_gdg_docs.
+    ELSE.
+      MESSAGE 'No s''ha pogut transformar el document en PDF, contacti amb el CAU' TYPE 'E'.
+    ENDIF.
+
+  ELSEIF <fs_info>-mimetype = 'application/pdf'.
+    PERFORM update_gdg_docs.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SEND_NOTIFICACIÓ
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LT_DOCS  text
+*----------------------------------------------------------------------*
+FORM send_notificacio  USING    pt_docs TYPE zty_gdg_docs.
+
+  READ TABLE pt_docs ASSIGNING FIELD-SYMBOL(<fs_doc>) INDEX 1.
+**>> INI MODIF ETODR SPEC-46732 "Evitem que doni dump si no s'ha pogut convertir el fitxer per signar digitalment
+  IF sy-subrc <> 0 OR pt_docs[] IS INITIAL.
+    MESSAGE e018(zrm_msg). "No s'ha pogut convertir el fitxer per a signar digitalment.
+  ENDIF.
+**<< FI MODIF ETODR SPEC-46732
+  LOOP AT pt_docs
+    ASSIGNING FIELD-SYMBOL(<fs_p>)
+    WHERE pos EQ <fs_doc>-pos OR signa_parallel EQ abap_true.
+
+    "INI ECDRB SPEC-63311 - Unificar notificacions signatura
+
+    CALL METHOD zcl_utilitats_signa=>enviar_notificacions_global
+      EXPORTING
+        iv_tipus_correu = zcl_utilitats_signa=>co_mail_org_env_sign
+        is_docs         = <fs_p>
+      EXCEPTIONS
+        mail_not_found  = 1
+        bukrs_not_found = 2
+        OTHERS          = 3.
+
+    "FI ECDRB SPEC-63311
+
+    CASE sy-subrc.
+      WHEN 1. "No se encuentra el email
+        MESSAGE e009(zrm_msg) WITH <fs_p>-usuari.
+      WHEN 2. "No se encuentra la sociedad
+        MESSAGE e008(zrm_msg).
+      WHEN OTHERS.
+    ENDCASE.
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_MAIL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM check_mail .
+
+  LOOP AT gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_resp>).
+    ztc_resp3-current_line = sy-tabix.
+    PERFORM get_mail CHANGING <fs_resp>.
+  ENDLOOP.
+ENDFORM.
+*
+*----------------------------------------------------------------------*
+*
+*&---------------------------------------------------------------------*
+*&      Form  GET_MAIL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_<FS_RESP>  text
+*----------------------------------------------------------------------*
+FORM get_mail  CHANGING   p_s_resp TYPE ty_responsables_psig.
+
+  DATA:
+    lv_pern    TYPE pernr_d,
+    lv_syuname TYPE syuname,
+    lv_uname   TYPE bapibname-bapibname,
+    lv_address TYPE bapiaddr3,
+    lt_return  TYPE bapiret2_t.
+
+  CHECK p_s_resp-z_responsable IS NOT INITIAL.
+
+  IF p_s_resp-z_tipus_carrec = 'I'.
+    CLEAR lv_syuname.
+    lv_pern = p_s_resp-z_responsable.
+    CALL FUNCTION 'HR_GET_USER_FROM_EMPLOYEE'
+      EXPORTING
+        pernr = lv_pern
+        begda = sy-datum
+        endda = sy-datum
+      IMPORTING
+        user  = lv_syuname.
+    IF lv_syuname IS INITIAL.
+      CLEAR:
+       p_s_resp-z_correu_signatari.
+
+      MODIFY gt_respons_psig FROM p_s_resp INDEX ztc_resp3-current_line TRANSPORTING z_correu_signatari nom z_nif_signatari.
+      MESSAGE e017(zrm_msg) WITH lv_pern.
+    ENDIF.
+    lv_uname = lv_syuname.
+
+    CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+      EXPORTING
+        username = lv_uname
+      IMPORTING
+        address  = lv_address
+      TABLES
+        return   = lt_return.
+
+    IF lv_address-e_mail IS INITIAL.
+      MODIFY gt_respons_psig FROM p_s_resp INDEX ztc_resp3-current_line TRANSPORTING z_correu_signatari nom z_nif_signatari.
+      MESSAGE e009(zrm_msg) WITH lv_uname .
+    ELSE.
+      p_s_resp-z_correu_signatari = lv_address-e_mail.         " Insert SPEC-48397 ETXGL
+      MODIFY gt_respons_psig FROM p_s_resp INDEX ztc_resp3-current_line TRANSPORTING z_correu_signatari nom z_nif_signatari.
+    ENDIF.
+
+  ELSEIF p_s_resp-z_tipus_carrec = 'E'.
+
+    CLEAR  lv_lifnr.
+    lv_lifnr = p_s_resp-z_responsable.
+
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = lv_lifnr
+      IMPORTING
+        output = lv_lifnr.
+
+    CLEAR  wa_lfa1_responsable.
+    SELECT SINGLE *
+     FROM lfa1
+      INTO CORRESPONDING FIELDS OF wa_lfa1_responsable
+       WHERE lifnr = lv_lifnr.
+
+
+    p_s_resp-z_nif_signatari = wa_lfa1_responsable-stcd1.
+    CONCATENATE wa_lfa1_responsable-name4 wa_lfa1_responsable-name3
+                wa_lfa1_responsable-name2 wa_lfa1_responsable-name1 INTO p_s_resp-nom SEPARATED BY space.
+
+    CLEAR  wa_adr6_responsable.
+    SELECT SINGLE *
+      FROM adr6
+       INTO CORRESPONDING FIELDS OF wa_adr6_responsable
+         WHERE addrnumber = wa_lfa1_responsable-adrnr.
+
+
+
+
+    IF wa_adr6_responsable-smtp_addr IS INITIAL.
+      MODIFY gt_respons_psig FROM p_s_resp INDEX ztc_resp3-current_line TRANSPORTING z_responsable z_correu_signatari nom z_nif_signatari.
+      MESSAGE e009(zrm_msg) WITH p_s_resp-z_responsable DISPLAY LIKE 'I'.
+    ELSE.
+      p_s_resp-z_correu_signatari = wa_adr6_responsable-smtp_addr.         " Insert SPEC-48397 ETXGL
+      MODIFY gt_respons_psig FROM p_s_resp INDEX ztc_resp3-current_line TRANSPORTING z_correu_signatari nom z_nif_signatari.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  ADD_DOC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM add_doc .
+  MODIFY gt_ac_gdg
+    FROM gs_ac_gdg
+   INDEX ztc_ac-current_line
+   TRANSPORTING flag_a  flag_c  .
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  BOTON_SIGNA_PSIG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM boton_signa_psig .
+
+  DATA: ls_return                 TYPE bapireturn,
+        lt_return                 TYPE isi_bapireturn_tt,
+        lv_signat_correctament(1) TYPE c.           " Insert SPEC-58939 ETXGL.
+
+
+  AUTHORITY-CHECK OBJECT 'ZPSIG_DOC'
+       ID 'ACTVT'  FIELD '01'.
+  "Si l'usuari no té autorització mostrem missatge d'error.
+  IF sy-subrc <> 0.
+    MESSAGE 'No té permisos per executar aquest procés.' TYPE 'E'.
+  ENDIF.
+
+  REFRESH lt_return.
+  CLEAR: ls_return,
+         lv_signat_correctament.         " Insert SPEC-58939 ETXGL
+
+  PERFORM check_mail.
+
+  ">>>  SPEC-58939 Inici Modificació ETXGL
+*  PERFORM save_docs_signa.
+  PERFORM save_docs_signa_externs USING lv_signat_correctament.
+  "<<<  SPEC-58939 Final Modificació ETXGL
+
+
+  CALL FUNCTION 'ZPSIGNA_DOCUMENTS'
+    EXPORTING
+      i_objectid       = gs_sdok-objid
+      i_docclass       = gs_sdok-class
+      i_anchor         = gv_anchor
+      i_descripcio     = gv_desc_text
+      i_codi_exp       = gv_codi_exp
+      i_versio         = gv_versio_sig
+      i_dies_expiracio = gv_dies_expiracio_viafirma "SPEC-86568
+    IMPORTING
+      pt_return        = lt_return.
+
+  READ TABLE lt_return INTO ls_return INDEX 1.
+  IF sy-subrc = 0.
+    MESSAGE ls_return-message TYPE ls_return-type.
+    IF ls_return-type NE 'E'.
+      CLEAR: gt_bin_content, gv_changed, gt_components, gt_web_hash.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+    ENDIF.
+  ELSE.
+    "Sols desem les dades si hem pogut signar
+    ">>>  SPEC-58939 Inici Modificació ETXGL
+    lv_signat_correctament = abap_on.
+    PERFORM save_docs_signa_externs USING lv_signat_correctament.
+    CLEAR lv_signat_correctament.
+    "<<<  SPEC-58939 Final Modificació ETXGL
+
+
+    "Informem a l'usuari de l'OK
+    MESSAGE 'Document enviat al Portasignatures' TYPE 'I'.
+    SET PARAMETER ID 'ZRM_LOCKED' FIELD abap_true.
+
+    "Tornem a la pantalla d'inici
+    CLEAR: gt_bin_content, gv_changed, gt_components, gt_web_hash.
+    SET SCREEN 0.
+    LEAVE SCREEN.
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  BOTON_SUBSANCAIO_PSIG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM boton_subsancaio_psig .
+  DATA:
+    ls_return TYPE bapireturn,
+    lt_return TYPE isi_bapireturn_tt.
+
+  DATA: lt_text_popup TYPE catsxt_longtext_itab,
+        ls_text_popup TYPE txline,
+        lv_text_popup TYPE string.
+
+  AUTHORITY-CHECK OBJECT 'ZPSIG_DOC'
+          ID 'ACTVT'  FIELD '01'.
+  "Si l'usuari no té autorització mostrem missatge d'error.
+  IF sy-subrc <> 0.
+    MESSAGE 'No té permisos per executar aquest procés.' TYPE 'E'.
+  ENDIF.
+
+  REFRESH lt_return.
+  CLEAR ls_return.
+
+  "INI SPEC-86568 Popup motiu rebuig
+  CALL FUNCTION 'CATSXT_SIMPLE_TEXT_EDITOR'
+    EXPORTING
+      im_title = 'Motiu de rebuig'
+    CHANGING
+      ch_text  = lt_text_popup.
+
+  LOOP AT lt_text_popup INTO ls_text_popup.
+    lv_text_popup = lv_text_popup && ` ` && ls_text_popup.
+  ENDLOOP.
+
+  "FI SPEC-86568
+
+  CALL FUNCTION 'ZPSIG_SUBSANACIO_DOCUMENT'
+    EXPORTING
+      i_codi_exp = gv_codi_exp
+      i_anchor   = gv_anchor
+      i_versio   = gv_versio_sig
+      i_doc_ret  = ''
+      i_bukrs    = gv_bukrs
+      i_motiu    = lv_text_popup "SPEC-86568
+    CHANGING
+      return     = lt_return.
+
+  READ TABLE lt_return INTO ls_return INDEX 1.
+  IF sy-subrc = 0.
+
+    "Comuniquem la subsanació als interesats
+    PERFORM comunicar_notificats.
+
+
+    MESSAGE ls_return-message TYPE ls_return-type.
+    IF ls_return-type NE 'E'.
+      CLEAR: gt_bin_content, gv_changed, gt_components, gt_web_hash.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+    ENDIF.
+  ELSE.
+
+    UPDATE zrm_dt_resp_doc  SET z_subsanat      = abap_on
+                         z_data_subsanacio   = sy-datum
+                         z_hora_subsanacio   = sy-uzeit
+                         z_usuari_subsanacio = sy-uname
+                         WHERE docclass      = gs_sdok-class   AND
+                               objectid      = gs_sdok-objid   AND
+                               z_anchor      = gv_anchor       AND
+                               z_versio      = gv_versio_sig.
+
+    MESSAGE 'Document subsanat correctament' TYPE 'S'.
+    DATA
+    lt_seqg3  TYPE TABLE OF seqg3.
+    SET PARAMETER ID 'ZRM_LOCKED' FIELD abap_true.
+    CLEAR: gt_bin_content, gv_changed, gt_components, gt_web_hash.
+    SET SCREEN 0.
+    LEAVE SCREEN.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  COMPLETAR_DOCS_DOC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_LT_DOCS_DOC  text
+*----------------------------------------------------------------------*
+FORM completar_docs_doc  USING p_ucomm TYPE sy-ucomm
+                          CHANGING p_lt_docs_doc TYPE gty_tt_docs_doc.
+
+  FIELD-SYMBOLS <fs_docs_doc> TYPE zrm_dt_docs_doc.
+
+  DATA:lv_data     TYPE sy-datum,
+       lv_data_str TYPE string.
+
+  "Sols farem això si estem enviant
+  CHECK p_ucomm = 'CMD_SIGNA_GDG' OR p_ucomm = 'SIGNA' OR p_ucomm = 'SIGNA_G'.
+
+  LOOP AT p_lt_docs_doc ASSIGNING <fs_docs_doc>.
+
+    "Informem el camp si no està informat
+    lv_data = <fs_docs_doc>-z_data_enviament.
+
+    IF lv_data IS INITIAL    OR lv_data = '00000000'.
+      <fs_docs_doc>-z_data_enviament = sy-datum.
+    ENDIF.
+
+    "Informem el cam si no està informat
+    IF <fs_docs_doc>-z_hora_enviament IS INITIAL.
+      <fs_docs_doc>-z_hora_enviament = sy-uzeit.
+    ENDIF.
+
+    "Informem el camp si no està informat
+    IF <fs_docs_doc>-z_usuari_enviament IS INITIAL.
+      <fs_docs_doc>-z_usuari_enviament = sy-uname.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+*
+*&---------------------------------------------------------------------*
+*&      Form  COMP_MESA_AUTOMATICA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM comp_mesa_automatica  TABLES         pt_resp_doc
+                           CHANGING       po_no_comp_mesa.
+
+  DATA: lt_car_doc     TYPE TABLE OF zrm_dt_car_doc,
+        ls_car_doc     TYPE          zrm_dt_car_doc,
+        lt_car_exp     TYPE TABLE OF zrm_dt_car_exp,
+        ls_car_exp     TYPE          zrm_dt_car_exp,
+        ls_resp_doc    TYPE          zrm_dt_resp_doc,
+        lt_carrecs_sig TYPE TABLE OF zrm_carrecs_sig,
+        ls_carrecs_sig TYPE          zrm_carrecs_sig.
+
+*Comprovar si el document té "Composició de Mesa" ==> accedir a la Taula
+*"Càrrecs per document" ZRM_DT_CAR_DOC
+  SELECT * INTO TABLE lt_car_doc FROM  zrm_dt_car_doc
+         WHERE  z_codi_exp          = gv_codi_exp
+         AND    z_anchor            = gv_anchor
+         AND    z_actiu             = abap_on.
+  IF sy-subrc NE 0.
+    po_no_comp_mesa = abap_on.
+    EXIT.
+  ENDIF.
+
+*Guardar en la taula interna GT_CAR_EXP els camps:
+*'Z_CODI_EXP', 'Z_MEMBRE_EXPEDIENT', 'Z_CARREC_MEMBRE', 'Z_ORDRE_CARREC'.
+  SELECT * INTO TABLE lt_car_exp FROM  zrm_dt_car_exp
+         WHERE  z_codi_exp  = gv_codi_exp
+         AND    z_baixa     = abap_off
+         AND    z_tract     NE ' '.
+  IF lt_car_exp[] IS INITIAL.
+    po_no_comp_mesa = abap_on.
+    EXIT.
+  ENDIF.
+
+*Ordenar la taula interna GT_CAR_EXP pel camp Z_ORDRE_CARREC en sentit ascendent
+  SORT lt_car_exp BY z_ordre_carrec.
+
+*Ordenar la taula interna GT_CAR_DOC pel camp Z_DATA_MODIF en sentit descendent
+*(per a que en el READ posterior agafi la última Data de Modificació)
+  SORT lt_car_doc BY z_data_modif DESCENDING.
+
+* Para código cargo + descripción
+  SELECT * INTO TABLE lt_carrecs_sig FROM zrm_carrecs_sig.
+  LOOP AT lt_carrecs_sig INTO ls_carrecs_sig.
+    TRANSLATE ls_carrecs_sig-z_desabr_carrec TO UPPER CASE.
+    MODIFY lt_carrecs_sig FROM ls_carrecs_sig.
+  ENDLOOP.
+
+*Els registres obtinguts anteriorment, s'han de guardar en la taula interna
+*LT_RESP_DOC que omplirà la GT_RESPONS_PSIG que es la que ompla la subscreen
+  LOOP AT lt_car_exp INTO ls_car_exp.
+    READ TABLE lt_car_doc INTO ls_car_doc  WITH KEY
+                          z_membre_expedient = ls_car_exp-z_membre_expedient
+                          z_carrec_membre    = ls_car_exp-z_carrec_membre.
+    IF sy-subrc = 0.
+      LOOP AT lt_carrecs_sig INTO ls_carrecs_sig
+           WHERE z_desabr_carrec CS ls_car_exp-z_desabr_carrec.
+        EXIT.
+      ENDLOOP.
+      ls_resp_doc-z_responsable = ls_car_exp-z_membre_expedient.
+      ls_resp_doc-z_ordre       = ls_car_exp-z_ordre_carrec.
+      MOVE ls_carrecs_sig-z_carrec TO ls_resp_doc-z_carrec.
+      APPEND ls_resp_doc TO pt_resp_doc.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_DOCS_SIGNA_EXTERNS
+*&---------------------------------------------------------------------*
+FORM save_docs_signa_externs  USING p_lv_signat_correctament TYPE c.
+
+  DATA: ls_docs_doc    TYPE zrm_dt_docs_doc,
+        lt_docs_doc    TYPE TABLE OF zrm_dt_docs_doc,
+        ls_resp_doc    TYPE zrm_dt_resp_doc,
+        lt_resp_doc    TYPE TABLE OF zrm_dt_resp_doc,
+        lt_properties  TYPE TABLE OF bapiproptb,
+        ls_properties  TYPE bapiproptb,
+        lv_docclass    TYPE bapidclass,
+        lv_objectid    TYPE bapiguid,
+        lv_anchor      TYPE z_anchor,
+        lv_responsable TYPE zrm_dt_resp_doc-z_responsable..
+
+  CLEAR:lt_docs_doc,
+        ls_docs_doc.
+
+  LOOP AT gt_ac_gdg ASSIGNING FIELD-SYMBOL(<fs_docs_psig>)
+    WHERE flag_a EQ abap_true.
+
+    ls_docs_doc-docclass     = gs_sdok-class.
+    ls_docs_doc-objectid     = gs_sdok-objid.
+    READ TABLE gt_docs_adj_t ASSIGNING FIELD-SYMBOL(<fs_adj>)
+                 WITH KEY z_num_doc = <fs_docs_psig>-num_doc.
+    CHECK <fs_adj> IS ASSIGNED.
+    ls_docs_doc-docclass_doc       = <fs_adj>-docclass.
+    ls_docs_doc-objectid_doc       = <fs_adj>-objectid.
+    ls_docs_doc-z_versio           = gv_versio_sig.
+    ls_docs_doc-z_anchor           = gv_anchor.
+
+    IF p_lv_signat_correctament IS NOT INITIAL.
+      ls_docs_doc-z_data_enviament   = gv_data_enviament.
+      ls_docs_doc-z_hora_enviament   = gv_hora_enviament.
+      ls_docs_doc-z_usuari_enviament = gv_usuari_enviament.
+    ENDIF.
+
+    CLEAR lt_properties.
+    CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+      EXPORTING
+        objectid      = <fs_adj>-objectid
+        documentclass = <fs_adj>-docclass
+      TABLES
+        properties    = lt_properties.
+    CHECK lt_properties IS NOT INITIAL.
+
+    CLEAR ls_properties.
+    READ TABLE lt_properties WITH KEY name = 'SRM_DOCUMENT_ID'
+                                           INTO ls_properties.
+    ls_docs_doc-z_cod_doc = ls_properties-value.
+
+    CLEAR ls_properties.
+    READ TABLE lt_properties WITH KEY name = 'SRM_VERSION_ID'
+                                          INTO ls_properties.
+
+    ls_docs_doc-z_versio_doc = ls_properties-value.
+
+    IF <fs_docs_psig>-is_main EQ abap_true.
+      ls_docs_doc-z_tip_doc = 'P'.
+    ELSE.
+      ls_docs_doc-z_tip_doc = 'A'.
+    ENDIF.
+
+    APPEND ls_docs_doc TO lt_docs_doc.
+  ENDLOOP.
+
+* Se añade entrada de Documento Principal.
+  PERFORM add_docmain_to_zrm_dt_docs_doc  CHANGING ls_docs_doc.
+
+  IF ls_docs_doc IS NOT INITIAL.
+    APPEND ls_docs_doc TO lt_docs_doc.
+  ENDIF.
+
+  LOOP AT gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_resp>).
+    ls_resp_doc-docclass       = gs_sdok-class.
+    ls_resp_doc-objectid       = gs_sdok-objid.
+    ls_resp_doc-z_anchor       = gv_anchor.
+
+    lv_responsable = <fs_resp>-z_responsable.
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = lv_responsable
+      IMPORTING
+        output = lv_responsable.
+
+    ls_resp_doc-z_responsable      = lv_responsable.
+    ls_resp_doc-z_tipus_carrec     = <fs_resp>-z_tipus_carrec.
+    ls_resp_doc-z_codi_exp         = <fs_resp>-z_codi_exp.
+    ls_resp_doc-z_carrec           = <fs_resp>-z_carrec.
+    ls_resp_doc-z_parallel         = <fs_resp>-z_parallel.
+    ls_resp_doc-z_ordre            = <fs_resp>-ordre.
+    ls_resp_doc-z_rol_dig          = <fs_resp>-z_rol_dig.
+    ls_resp_doc-z_versio           = gv_versio_sig.
+
+    IF ls_resp_doc-z_responsable IS NOT INITIAL.
+      CLEAR wa_pa0002.
+
+      SELECT SINGLE *
+       FROM pa0002
+        INTO CORRESPONDING FIELDS OF wa_pa0002
+          WHERE pernr EQ lv_responsable.
+
+      IF sy-subrc = 0.
+        <fs_resp>-z_nif_signatari = wa_pa0002-perid.
+        CLEAR wa_pa0002.
+      ELSE.
+      ENDIF.
+    ELSE.
+    ENDIF.
+
+    ls_resp_doc-z_nif_signatari    = <fs_resp>-z_nif_signatari.
+    ls_resp_doc-z_correu_signatari = <fs_resp>-z_correu_signatari.
+
+    APPEND ls_resp_doc TO lt_resp_doc.
+  ENDLOOP.
+
+  IF lt_resp_doc IS INITIAL.
+    MESSAGE text-e03 TYPE 'S' DISPLAY LIKE 'E'.
+  ELSE.
+    DELETE FROM zrm_dt_resp_doc WHERE docclass EQ gs_sdok-class AND
+                                      objectid EQ gs_sdok-objid AND
+                                      z_anchor EQ gv_anchor AND
+                                      z_versio EQ gv_versio_sig.
+    MODIFY zrm_dt_resp_doc FROM TABLE lt_resp_doc.
+    DELETE FROM zrm_dt_docs_doc WHERE docclass EQ gs_sdok-class AND
+                                      objectid EQ gs_sdok-objid AND
+                                      z_anchor EQ gv_anchor AND
+                                      z_versio EQ gv_versio_sig.
+
+    "Per si les dates no tenen valor..., sols si estem enviant
+    PERFORM completar_docs_doc_externs  USING p_lv_signat_correctament
+                                              sy-ucomm
+                                        CHANGING lt_docs_doc.
+
+    MODIFY zrm_dt_docs_doc FROM TABLE lt_docs_doc.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  COMPLETAR_DOCS_DOC_EXTERNS
+*&---------------------------------------------------------------------*
+FORM completar_docs_doc_externs  USING pp_lv_signat_correctament TYPE c
+                                       p_ucomm TYPE sy-ucomm
+                                 CHANGING p_lt_docs_doc TYPE gty_tt_docs_doc.
+
+  FIELD-SYMBOLS <fs_docs_doc> TYPE zrm_dt_docs_doc.
+
+  DATA:lv_data     TYPE sy-datum,
+       lv_data_str TYPE string.
+
+  "Sols farem això si estem enviant
+  CHECK p_ucomm = 'CMD_SIGNA_GDG' OR p_ucomm = 'SIGNA' OR p_ucomm = 'SIGNA_G'.
+
+  LOOP AT p_lt_docs_doc ASSIGNING <fs_docs_doc>.
+    IF pp_lv_signat_correctament IS NOT INITIAL.
+      "Informem el camp si no està informat
+      lv_data = <fs_docs_doc>-z_data_enviament.
+
+      IF lv_data IS INITIAL
+       OR lv_data = '00000000'.
+        <fs_docs_doc>-z_data_enviament = sy-datum.
+      ENDIF.
+
+      "Informem el cam si no està informat
+      IF <fs_docs_doc>-z_hora_enviament IS INITIAL.
+        <fs_docs_doc>-z_hora_enviament = sy-uzeit.
+      ENDIF.
+
+      "Informem el camp si no està informat
+      IF <fs_docs_doc>-z_usuari_enviament IS INITIAL.
+        <fs_docs_doc>-z_usuari_enviament = sy-uname.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_PROVEIDOR_EXTERN_VALID
+*&---------------------------------------------------------------------*
+FORM check_proveidor_extern_valid USING gs_responsable TYPE z_resp_cont.
+
+  DATA: lv_ktokk TYPE lfa1-ktokk.
+
+  CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+    EXPORTING
+      input  = gs_responsable
+    IMPORTING
+      output = gs_responsable.
+
+  CLEAR lv_ktokk.
+  SELECT SINGLE ktokk
+   FROM lfa1
+    INTO lv_ktokk
+     WHERE lifnr = gs_responsable.
+
+  CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+    EXPORTING
+      input  = gs_responsable
+    IMPORTING
+      output = gs_responsable.
+
+  IF lv_ktokk NE 'ZPRS'.
+    MESSAGE e020(zrm_msg) WITH gs_responsable DISPLAY LIKE 'I'.
+*    exit.
+    LEAVE TO SCREEN '300'.
+  ENDIF.
+ENDFORM.
+
+" SPEC-51771 - ECTRP
+*&---------------------------------------------------------------------*
+*&      Form  SHOW_DOC
+*&---------------------------------------------------------------------*
+*       Mostrar el document seleccionat per doubleclick
+*----------------------------------------------------------------------*
+FORM show_doc USING pi_dynpro_gral pi_row_no.
+
+  DATA: ls_docs_adj_t TYPE zrm_dt_docs_adj,
+        ls_alv_pos    TYPE zty_cerca_docs,
+        lv_objectid   TYPE bapiguid,
+        lv_docclass   TYPE bapidclass.
+
+  IF pi_dynpro_gral = abap_true.
+    READ TABLE gt_docs_adj_t INTO ls_docs_adj_t
+                             WITH KEY z_num_doc = gs_ac_gdg-num_doc.
+    lv_objectid = ls_docs_adj_t-objectid.
+    lv_docclass = ls_docs_adj_t-docclass.
+  ELSE.
+    READ TABLE gt_alv_pos INTO ls_alv_pos INDEX pi_row_no.
+    lv_objectid = ls_alv_pos-objectid_doc.
+    lv_docclass = ls_alv_pos-docclass_doc.
+  ENDIF.
+
+* Validar que el doc. existeixi
+  CALL FUNCTION 'SRM_DOCUMENT_EXISTENCECHECK'
+    EXPORTING
+      objectid        = lv_objectid
+      documentclass   = lv_docclass
+*     DOC_CONTEXT     =
+    EXCEPTIONS
+      not_authorized  = 1
+      internal_error  = 2
+      parameter_error = 3
+      not_found       = 4
+      OTHERS          = 5.
+
+  IF sy-subrc <> 0.
+    "No s'ha pogut trobar el document
+    MESSAGE text-e08 TYPE 'S' DISPLAY LIKE 'E'.
+    EXIT.
+  ENDIF.
+
+* Mostrar el document
+  CALL FUNCTION 'SRM_DOCUMENT_DISPLAY'
+    EXPORTING
+      objectid        = lv_objectid
+      documentclass   = lv_docclass
+*     modify          = 'X'
+    EXCEPTIONS
+      not_authorized  = 1
+      internal_error  = 2
+      parameter_error = 3
+      not_found       = 4
+      OTHERS          = 5.
+
+  IF sy-subrc <> 0 AND sy-msgid IS NOT INITIAL.
+    MESSAGE ID sy-msgid TYPE 'I'
+      NUMBER sy-msgno
+       WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+
+  ELSEIF sy-subrc <> 0 .
+    "No s'ha pogut trobar el document
+    MESSAGE text-e08 TYPE 'S' DISPLAY LIKE 'E'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F4_TIPUS_DOCUMENTS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f4_tipus_documents .
+
+  DATA: lt_values TYPE vrm_values,
+        ls_values TYPE vrm_value.
+
+  ls_values-key  = ztpdo_c_tipus_doc-doc_expe.
+  ls_values-text = ztpdo_c_texto_doc-doc_expe.
+  APPEND ls_values TO lt_values .
+
+  ls_values-key  = ztpdo_c_tipus_doc-doc_lots.
+  ls_values-text = ztpdo_c_texto_doc-doc_lots.
+  APPEND ls_values TO lt_values .
+
+  ls_values-key  = ztpdo_c_tipus_doc-doc_altr.
+  ls_values-text = ztpdo_c_texto_doc-doc_altr.
+  APPEND ls_values TO lt_values .
+
+  ls_values-key  = ztpdo_c_tipus_doc-doc_noex.
+  ls_values-text = ztpdo_c_texto_doc-doc_noex.
+  APPEND ls_values TO lt_values .
+
+  ls_values-key  = ztpdo_c_tipus_doc-doc_pc.
+  ls_values-text = ztpdo_c_texto_doc-doc_pc.
+  APPEND ls_values TO lt_values .
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = 'GV_DOCUMENTO'
+      values = lt_values.
+
+  READ TABLE lt_values INTO ls_values INDEX 1.
+
+*  GET CURSOR LINE lv_sel_line.
+  gv_documento = ls_values-text.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND_0400
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM user_command_0400 .
+
+  DATA lv_answ TYPE c.
+
+  CASE sy-ucomm.
+
+    WHEN 'BACK'.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+
+    WHEN 'CERCA'.
+      IF gv_documento IS INITIAL.
+        "Cal seleccionar una opció del desplegable
+        MESSAGE ID 'ZRM_MSG' TYPE 'I' NUMBER '021'.
+        EXIT.
+      ENDIF.
+
+      "Si no han escollit cap opció, cal emetre un missatge d'avis de què pot
+      "trigar i pot ser molt llarg, però deixar continuar.
+      IF gv_descripcio_uni IS INITIAL AND gv_descripcio_abr IS INITIAL AND
+         gv_data_creacio IS INITIAL AND
+         ( gv_documento NE ztpdo_c_tipus_doc-doc_pc AND
+           gv_documento NE ztpdo_c_tipus_doc-doc_expe ).
+        "El procés pot trigar molt sino utilitza els filtres de selecció
+        CALL FUNCTION 'POPUP_TO_CONFIRM'
+          EXPORTING
+            titlebar              = text-t08
+            text_question         = text-t09
+            text_button_1         = text-t10
+            icon_button_1         = 'ICON_OKAY'
+            text_button_2         = text-t11
+            icon_button_2         = 'ICON_CANCEL'
+            display_cancel_button = abap_false
+          IMPORTING
+            answer                = lv_answ
+          EXCEPTIONS
+            text_not_found        = 1
+            OTHERS                = 2.
+
+        CHECK lv_answ NE '2'.
+
+      ENDIF.
+
+      "Selecció de dades per cada opció del Desplegable
+      CASE gv_documento.
+        WHEN ztpdo_c_tipus_doc-doc_expe.
+          "Documents de l'expedient
+          PERFORM selec_doc_expe.
+        WHEN ztpdo_c_tipus_doc-doc_lots.
+          "Documents d'expedients relacionats (Lots)
+          PERFORM selec_doc_lots.
+        WHEN ztpdo_c_tipus_doc-doc_altr.
+          "Documents d'un altre expedient
+          PERFORM selec_doc_altr.
+        WHEN ztpdo_c_tipus_doc-doc_noex.
+          "Documents no vinculats a un expedient
+          PERFORM selec_doc_noex.
+        WHEN ztpdo_c_tipus_doc-doc_pc.
+          "Documents del meu PC
+          PERFORM selec_doc_doc_pc.
+        WHEN OTHERS.
+      ENDCASE.
+
+  ENDCASE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  BUTTON_ADD_DOCUMENT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM button_add_document .
+
+  CALL SCREEN '0400'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SHOW_ALV_PRIN
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM show_alv_prin .
+
+  IF go_container_prin IS INITIAL.
+
+    CREATE OBJECT go_event_handler.
+
+*Crear l'objecte contenidor
+    CREATE OBJECT go_container_prin
+      EXPORTING
+        container_name = 'TABLE1'.
+
+
+*Assignar a la part superior del split l'alv de capçalera
+    CREATE OBJECT go_alv_grid_princ
+      EXPORTING
+        i_parent = go_container_prin.
+
+    PERFORM fill_fieldcatalog.
+    PERFORM fill_layout.
+
+*Activar disparadors d'events
+    SET HANDLER go_event_handler->princ_toolbar FOR go_alv_grid_princ.
+
+    SET HANDLER go_event_handler->m_user_command FOR go_alv_grid_princ.
+
+    CALL METHOD go_alv_grid_princ->set_table_for_first_display
+      EXPORTING
+        is_layout       = gs_layout
+      CHANGING
+        it_outtab       = gt_documents[]   "gt_alv_princ[]
+        it_fieldcatalog = gt_fcat_princ.
+  ELSE.
+
+    CALL METHOD go_alv_grid_princ->refresh_table_display
+      EXCEPTIONS
+        finished = 1
+        OTHERS   = 2.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FIELDCATALOG
+*&---------------------------------------------------------------------*
+*        Catàleg de camps pel ALV Pantalla '0400'
+*----------------------------------------------------------------------*
+FORM fill_fieldcatalog .
+
+  DATA: lv_cont(2) TYPE n,
+        lv_aux     TYPE string.
+
+  CALL FUNCTION 'LVC_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name       = 'ZTY_CERCA_DOCS'
+      i_internal_tabname     = 'GT_ALV_PRINC'
+    CHANGING
+      ct_fieldcat            = gt_fcat_princ
+    EXCEPTIONS
+      inconsistent_interface = 1
+      program_error          = 2
+      OTHERS                 = 3.
+  IF sy-subrc <> 0.
+    LEAVE TO SCREEN 0.
+  ENDIF.
+
+  LOOP AT gt_fcat_princ ASSIGNING FIELD-SYMBOL(<fs_fcat>).
+
+    CASE <fs_fcat>-fieldname.
+      WHEN 'Z_PROC_ADJ' OR 'Z_COD_DOC' OR 'OBJECTID' OR 'DOCCLASS' OR
+           'BOTON_DELETE' OR 'BOTON_SAVE' OR 'OBJECTID_DOC' OR
+           'DOCCLASS_DOC' OR 'COD_EXP2' OR 'ANCHOR' OR 'VERSIO' OR
+           'TIP_DOC'.
+        <fs_fcat>-no_out = abap_true.
+*      WHEN 'ANCHOR'.
+*        <fs_fcat>-tech = abap_true.
+      WHEN  'Z_DESCRIPCIO'.
+        <fs_fcat>-coltext   = 'Denominació Cl.Element'(T12).
+        <fs_fcat>-scrtext_l = 'Denominació Cl.Element'(T12).
+        <fs_fcat>-scrtext_m = 'Denominació Cl.Element'(T12).
+        <fs_fcat>-scrtext_s = 'Denominació Cl.Element'(T12).
+        <fs_fcat>-outputlen = 22.
+      WHEN 'Z_DESCRIP_ABR'.
+        <fs_fcat>-coltext   = 'Descripció abreujada'(T20).
+        <fs_fcat>-scrtext_l = 'Descripció abreujada'(T20).
+        <fs_fcat>-scrtext_m = 'Descripció abreujada'(T20).
+        <fs_fcat>-scrtext_s = 'Descripció abreujada'(T20).
+        <fs_fcat>-outputlen = 35.
+      WHEN 'COD_EXP'.
+        <fs_fcat>-coltext   = 'Codi Expedient'(T17).
+        <fs_fcat>-scrtext_l = 'Codi Expedient'(T17).
+        <fs_fcat>-scrtext_m = 'Codi Expedient'(T17).
+        <fs_fcat>-scrtext_s = 'Codi Expedient'(T17).
+        <fs_fcat>-outputlen = 14.
+      WHEN 'CARPETA'.
+        <fs_fcat>-coltext = '          Carpeta'(T14).
+        <fs_fcat>-scrtext_l = '          Carpeta'(T14).
+        <fs_fcat>-scrtext_m = '          Carpeta'(T14).
+        <fs_fcat>-scrtext_s = '          Carpeta'(T14).
+        <fs_fcat>-outputlen = 25.
+      WHEN 'Z_NOM_DOCUMENT'.
+        <fs_fcat>-coltext   = 'Descripció del document'(T13).
+        <fs_fcat>-scrtext_l = 'Descripció del document'(T13).
+        <fs_fcat>-scrtext_m = 'Descripció del document'(T13).
+        <fs_fcat>-scrtext_s = 'Descripció del document'(T13).
+        <fs_fcat>-outputlen = 35.
+      WHEN 'SOCIETAT'.
+        <fs_fcat>-coltext   = 'Societat'(T16).
+        <fs_fcat>-scrtext_l = 'Societat'(T16).
+        <fs_fcat>-scrtext_m = 'Societat'(T16).
+        <fs_fcat>-scrtext_s = 'Societat'(T16).
+        <fs_fcat>-outputlen = 8.
+      WHEN 'Z_DATA_CREACIO'.
+        <fs_fcat>-coltext   = 'Creat el dia'(T18).
+        <fs_fcat>-scrtext_l = 'Creat el dia'(T18).
+        <fs_fcat>-scrtext_m = 'Creat el dia'(T18).
+        <fs_fcat>-scrtext_s = 'Creat el dia'(T18).
+        <fs_fcat>-outputlen = 12.
+      WHEN 'Z_HORA_CREACIO'.
+        <fs_fcat>-coltext   = 'Hora de creació'(T19).
+        <fs_fcat>-scrtext_l = 'Hora de creació'(T19).
+        <fs_fcat>-scrtext_m = 'Hora de creació'(T19).
+        <fs_fcat>-scrtext_s = 'Hora de creació'(T19).
+        <fs_fcat>-outputlen = 15.
+      WHEN OTHERS.
+    ENDCASE.
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SHOW_ALV_SEC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM show_alv_sec.
+
+  IF go_container_pos IS INITIAL.
+
+    CREATE OBJECT go_event_handler.
+
+*Crear l'objecte contenidor
+    CREATE OBJECT go_container_pos
+      EXPORTING
+        container_name = 'TABLE2'.
+
+
+*Assignar a la part superior del split l'alv de capçalera
+    CREATE OBJECT go_alv_grid_pos
+      EXPORTING
+        i_parent = go_container_pos.
+
+    PERFORM fill_fieldcatalog_pos.
+    PERFORM fill_layout.
+
+    SET HANDLER go_event_handler->m_toolbar FOR go_alv_grid_pos.
+
+    SET HANDLER go_event_handler->m_user_command FOR go_alv_grid_pos.
+
+    SET HANDLER go_event_handler->handle_hotspot_click FOR go_alv_grid_pos.
+
+    CALL METHOD go_alv_grid_pos->set_table_for_first_display
+      EXPORTING
+        is_layout       = gs_layout
+      CHANGING
+        it_outtab       = gt_alv_pos[]
+        it_fieldcatalog = gt_fcat_pos.
+  ELSE.
+
+    CALL METHOD go_alv_grid_pos->refresh_table_display
+      EXCEPTIONS
+        finished = 1
+        OTHERS   = 2.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FIELDCATALOG_POS
+*&---------------------------------------------------------------------*
+*       Catàleg de camps pel ALV2 Pantalla '0400'
+*----------------------------------------------------------------------*
+FORM fill_fieldcatalog_pos .
+
+  CALL FUNCTION 'LVC_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name       = 'ZTY_CERCA_DOCS'
+      i_internal_tabname     = 'GT_POS'
+    CHANGING
+      ct_fieldcat            = gt_fcat_pos
+    EXCEPTIONS
+      inconsistent_interface = 1
+      program_error          = 2
+      OTHERS                 = 3.
+
+  IF sy-subrc <> 0.
+    LEAVE TO SCREEN 0.
+  ELSE.
+    LOOP AT gt_fcat_pos ASSIGNING FIELD-SYMBOL(<fs_fcat>).
+
+      CASE <fs_fcat>-fieldname.
+
+        WHEN 'Z_PROC_ADJ' OR 'Z_DESCRIPCIO' OR 'SOCIETAT' OR 'Z_ESTAT' OR
+             'Z_USUARI_CREADOR' OR 'Z_DATA_CREACIO' OR 'Z_HORA_CREACIO' OR
+             'OBJECTID' OR 'DOCCLASS' OR 'OBJECTID_DOC' OR 'DOCCLASS_DOC' OR
+             'ANCHOR' OR 'VERSIO' OR 'TIP_DOC'.
+          <fs_fcat>-no_out = abap_true.
+        WHEN 'Z_DESCRIP_ABR'.
+          <fs_fcat>-coltext   = 'Descripció abreujada'(T20).
+          <fs_fcat>-scrtext_l = 'Descripció abreujada'(T20).
+          <fs_fcat>-scrtext_m = 'Descripció abreujada'(T20).
+          <fs_fcat>-scrtext_s = 'Descripció abreujada'(T20).
+          <fs_fcat>-outputlen = 40.
+        WHEN 'COD_EXP'.
+          <fs_fcat>-coltext   = 'Codi Expedient'(T17).
+          <fs_fcat>-scrtext_l = 'Codi Expedient'(T17).
+          <fs_fcat>-scrtext_m = 'Codi Expedient'(T17).
+          <fs_fcat>-scrtext_s = 'Codi Expedient'(T17).
+          <fs_fcat>-outputlen = 14.
+        WHEN 'CARPETA'.
+          <fs_fcat>-coltext = 'Carpeta'(T14).
+          <fs_fcat>-scrtext_l = 'Carpeta'(T14).
+          <fs_fcat>-scrtext_m = 'Carpeta'(T14).
+          <fs_fcat>-scrtext_s = 'Carpeta'(T14).
+          <fs_fcat>-outputlen = 25.
+        WHEN 'Z_NOM_DOCUMENT'.
+          <fs_fcat>-coltext   = 'Descripció del document'(T13).
+          <fs_fcat>-scrtext_l = 'Descripció del document'(T13).
+          <fs_fcat>-scrtext_m = 'Descripció del document'(T13).
+          <fs_fcat>-scrtext_s = 'Descripció del document'(T13).
+          <fs_fcat>-outputlen = 40.
+        WHEN 'Z_COD_DOC'.
+          <fs_fcat>-hotspot = abap_true.
+          <fs_fcat>-coltext   = 'Denominació univoca'(T15).
+          <fs_fcat>-scrtext_l = 'Denominació univoca'(T15).
+          <fs_fcat>-scrtext_m = 'Denominació univoca'(T15).
+          <fs_fcat>-scrtext_s = 'Denominació univoca'(T15).
+
+      ENDCASE.
+
+    ENDLOOP.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  FILL_LAYOUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM fill_layout .
+
+  gs_layout-zebra      = abap_true.
+  gs_layout-sel_mode   = 'A'.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  HANDLE_DOUBLE_CLICK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM handle_double_click  USING    p_row
+                                   p_column
+                                   p_row_no.
+
+  DATA: ls_docs_sel       TYPE zty_cerca_docs,
+        lt_element        TYPE TABLE OF  bapisrmrec_element,
+        lt_identification TYPE TABLE OF  bapisrmrec_element_ident,
+        lv_identificador  TYPE string.
+
+  READ TABLE gt_documents ASSIGNING FIELD-SYMBOL(<fs_documents>) INDEX p_row_no.
+  CHECK sy-subrc EQ 0.
+
+*  Comprobamos que el documento no esté en la pantalla principal o sea el documento seleccionado
+  READ TABLE gt_ac_gdg TRANSPORTING NO FIELDS
+  WITH KEY denominacio = <fs_documents>-z_cod_doc.
+  IF sy-subrc EQ 0 OR (
+     zrm_dt_docs_adj-docclass = <fs_documents>-docclass_doc AND
+     zrm_dt_docs_adj-objectid = <fs_documents>-objectid_doc ).
+    MESSAGE i020(zcctrms).
+*   Document ja afegit per a signatura
+  ELSE.
+*    NO se puede añadir 2 veces el mismo documento a la lista
+    READ TABLE gt_alv_pos TRANSPORTING NO FIELDS
+      WITH KEY z_cod_doc = <fs_documents>-z_cod_doc.
+    IF sy-subrc EQ 0.
+      MESSAGE i020(zcctrms).
+*   Document ja afegit per a signatura
+    ELSE.
+      APPEND <fs_documents> TO gt_alv_pos.
+    ENDIF.
+  ENDIF.
+
+  CALL METHOD go_alv_grid_pos->refresh_table_display
+    EXCEPTIONS
+      finished = 1
+      OTHERS   = 2.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  HANDLE_HOTSPOT_CLICK
+*&---------------------------------------------------------------------*
+*       Al clicar, visualitzar el document
+*----------------------------------------------------------------------*
+FORM handle_hotspot_click  USING    pe_row_id
+                                    pe_column_id
+                                    ps_row_no.
+
+  DATA: lv_version     TYPE bapisrmdoc-version,
+        lt_versio      TYPE TABLE OF bapidocvers,
+        lv_answer      TYPE c,
+        lv_dynpro_gral TYPE flag.
+
+  CLEAR lv_dynpro_gral.
+  PERFORM show_doc USING lv_dynpro_gral ps_row_no.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SELEC_DOC_EXPE
+*&---------------------------------------------------------------------*
+*       Documents de l'expedient
+*----------------------------------------------------------------------*
+FORM selec_doc_expe .
+
+  CLEAR gt_documents[].
+  CALL METHOD zcl_utils_docs=>cerca_expedient_docs
+    EXPORTING
+      im_docclass       = gs_sdok-class
+      im_objectid       = gs_sdok-objid
+*     it_ac_gdg         = gt_ac_gdg
+      iv_descripcio_abr = gv_descripcio_abr
+      iv_descripcio_uni = gv_descripcio_uni
+      iv_data_creacio   = gv_data_creacio
+    IMPORTING
+      et_llistat        = gt_documents.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  PROPIETATS_EXPEDIENT
+*&---------------------------------------------------------------------*
+*       Cerca propietats expedient per dynpro '0400'
+*----------------------------------------------------------------------*
+FORM propietats_expedient .
+
+* Propiedades del expediente
+  REFRESH gt_props.
+  CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+    EXPORTING
+      objectid       = gs_sdok-objid
+      documentclass  = gs_sdok-class
+      whole_document = 'X'
+    TABLES
+      properties     = gt_props.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHANGE_ATTR_0400
+*&---------------------------------------------------------------------*
+*       Tractament Atributs dels camps pantalla '0400'
+*----------------------------------------------------------------------*
+FORM change_attr_0400 .
+
+  "Depenen del GV_DOCUMENTO es protegiran o no els camps
+  CASE gv_documento.
+
+    WHEN ztpdo_c_tipus_doc-doc_lots OR
+         ztpdo_c_tipus_doc-doc_altr OR ztpdo_c_tipus_doc-doc_noex.
+      LOOP AT SCREEN.
+        IF screen-group1 EQ 'NPC'.
+          screen-input = 1.
+          MODIFY SCREEN.
+        ELSEIF screen-group1 EQ 'PC'.
+          screen-invisible = 1.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+    WHEN ztpdo_c_tipus_doc-doc_expe.
+      LOOP AT SCREEN.
+        IF screen-group1 EQ 'NPC'.
+          screen-input = 1.
+          MODIFY SCREEN.
+        ELSEIF screen-group1 EQ 'PC'.
+          screen-invisible = 1.
+          MODIFY SCREEN.
+        ENDIF.
+        IF screen-group2 EQ 'EXP'.
+          CLEAR gv_descripcio_uni.
+          screen-input = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+    WHEN ztpdo_c_tipus_doc-doc_pc.
+      LOOP AT SCREEN.
+        IF screen-group1 EQ 'NPC'.
+          screen-input = 0.
+          MODIFY SCREEN.
+        ELSEIF screen-group1 EQ 'PC'.
+          screen-invisible = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+      "Omplir el text següent
+      gv_text_pc = ztpdo_c_desc_pc.
+      CLEAR: gv_descripcio_uni, gv_descripcio_abr, gv_data_creacio.
+
+    WHEN OTHERS.
+
+  ENDCASE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SELEC_DOC_LOTS
+*&---------------------------------------------------------------------*
+*       Documents d'expedients relacionats (Lots)
+*----------------------------------------------------------------------*
+FORM selec_doc_lots .
+
+  CLEAR gt_documents[].
+  CALL METHOD zcl_utils_docs=>cerca_amb_expedient
+    EXPORTING
+      iv_descripcio_uni = gv_descripcio_uni
+      iv_descripcio_abr = gv_descripcio_abr
+      iv_data_creacio   = gv_data_creacio
+      iv_amb_lots       = abap_true
+    IMPORTING
+      et_llistat        = gt_documents.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SELEC_DOC_ALTR
+*&---------------------------------------------------------------------*
+*       Documents d'un altre expedient
+*----------------------------------------------------------------------*
+FORM selec_doc_altr .
+
+  CLEAR gt_documents[].
+  CALL METHOD zcl_utils_docs=>cerca_amb_expedient
+    EXPORTING
+      iv_descripcio_uni = gv_descripcio_uni
+      iv_descripcio_abr = gv_descripcio_abr
+      iv_data_creacio   = gv_data_creacio
+      iv_amb_lots       = abap_false
+    IMPORTING
+      et_llistat        = gt_documents.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SELEC_DOC_NOEX
+*&---------------------------------------------------------------------*
+*       Documents no vinculats a un expedient
+*----------------------------------------------------------------------*
+FORM selec_doc_noex .
+
+  CLEAR gt_documents[].
+  CALL METHOD zcl_utils_docs=>cerca_sense_expedient
+    EXPORTING
+      iv_descripcio_uni = gv_descripcio_uni
+      iv_descripcio_abr = gv_descripcio_abr
+      iv_data_creacio   = gv_data_creacio
+    IMPORTING
+      et_llistat        = gt_documents.
+
+  PERFORM carpeta_no_aplica.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SELEC_DOC_DOC_PC
+*&---------------------------------------------------------------------*
+*       Documents del meu PC
+*----------------------------------------------------------------------*
+FORM selec_doc_doc_pc .
+
+  CLEAR gt_documents[].
+  CALL METHOD zcl_utils_docs=>cargar_docs_pc
+    IMPORTING
+      et_llistat = gt_documents[].
+
+  PERFORM carpeta_no_aplica.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_BOTON
+*&---------------------------------------------------------------------*
+*       Botons pel segon ALV pantalla '0400'
+*----------------------------------------------------------------------*
+FORM f_boton  USING pi_object TYPE REF TO cl_alv_event_toolbar_set.
+
+  DATA: ls_button TYPE stb_button,
+        lv_text   TYPE stb_button-text.
+
+  "añadimos un separador a la barra
+  CLEAR ls_button.
+  ls_button-butn_type = ztpdo_c_button-btype_sep.
+  APPEND ls_button TO pi_object->mt_toolbar.
+
+  "añadimos el botón DELETE
+  CLEAR: lv_text, ls_button.
+  ls_button-function = ztpdo_c_button-func_d.
+  ls_button-quickinfo = ztpdo_c_button-info_d.
+  ls_button-icon = icon_delete_row.
+  ls_button-butn_type = ztpdo_c_button-btype_nor.
+  ls_button-text = lv_text.
+  APPEND ls_button TO pi_object->mt_toolbar.
+
+  "añadimos el botón: Passar els documents a la pantalla principal
+  CLEAR: lv_text, ls_button.
+  ls_button-function = ztpdo_c_button-func_b.
+  ls_button-quickinfo = ztpdo_c_button-info_b.
+  ls_button-icon = icon_execute_object.
+  ls_button-butn_type = ztpdo_c_button-btype_nor.
+  ls_button-text = ztpdo_c_button-info_b.
+  APPEND ls_button TO pi_object->mt_toolbar.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_ALVPOS_COMMAND
+*&---------------------------------------------------------------------*
+*       Tractament dels Botons pel segon ALV pantalla '0400'
+*----------------------------------------------------------------------*
+FORM f_alvpos_command  USING pi_ucomm.
+
+  " UserCommand pel Toolbar del ALV de posicions
+  CASE pi_ucomm.
+
+    WHEN 'SAVE'.    "Pasar Línea del ALV1 al ALV2
+      PERFORM f_baixar_linia.
+
+    WHEN 'DELETE'.   "Borrar Línia
+      PERFORM f_delete_0400.
+
+    WHEN 'BAIXAR'.     "Guardar Documents
+      PERFORM f_save_0400.
+
+    WHEN OTHERS.
+
+  ENDCASE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_DELETE_0400
+*&---------------------------------------------------------------------*
+*       Botó Borrar Linia pel segon ALV pantalla '0400'
+*----------------------------------------------------------------------*
+FORM f_delete_0400 .
+  DATA: lt_index_rows TYPE lvc_t_row,
+        lt_row_no     TYPE lvc_t_roid,
+        ls_row_no     TYPE lvc_s_roid.
+
+  CALL METHOD go_alv_grid_pos->get_selected_rows
+    IMPORTING
+      et_index_rows = lt_index_rows
+      et_row_no     = lt_row_no.
+
+*  Se ordenan las filas seleccionadas de mayor a menor porque sino se
+*  modificaría la posición de las filas posteriores.
+  SORT lt_row_no BY row_id DESCENDING.
+  LOOP AT lt_row_no INTO ls_row_no.
+    DELETE gt_alv_pos INDEX ls_row_no-row_id.
+  ENDLOOP.
+
+  CALL METHOD go_alv_grid_pos->refresh_table_display
+    EXCEPTIONS
+      finished = 1
+      OTHERS   = 2.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_SAVE_0400
+*&---------------------------------------------------------------------*
+*       Botó Desar Linia pel segon ALV pantalla '0400'
+*----------------------------------------------------------------------*
+FORM f_save_0400 .
+
+  DATA:
+    ls_docs_psig  TYPE ty_docs_sign_psig,
+    ls_docs_adj   TYPE zrm_dt_docs_adj,
+    ls_ac_gdg     TYPE ty_ac_gdg,
+    ls_alv_pos    TYPE zty_cerca_docs,
+    lt_ac_gdg_aux TYPE tt_ac_gdg,
+    lt_index_rows TYPE lvc_t_row,
+    lt_row_no     TYPE lvc_t_roid,
+    ls_row_no     TYPE lvc_s_roid.
+
+*  " Veure Files seccionades
+  " Añadimos los doumentos a la pantalla anterior y limpiamos la tabla
+  lt_ac_gdg_aux[] = gt_ac_gdg[].
+  SORT lt_ac_gdg_aux BY num_doc DESCENDING.
+  READ TABLE lt_ac_gdg_aux INTO ls_ac_gdg INDEX 1.
+
+  "Afegim els documents seleccionats
+  LOOP AT gt_alv_pos INTO ls_alv_pos.
+
+*  Comprovem que el document no sigui en la pantalla principal
+    READ TABLE lt_ac_gdg_aux[] TRANSPORTING NO FIELDS
+    WITH KEY denominacio = ls_alv_pos-z_cod_doc.
+    IF sy-subrc EQ 0.
+      MESSAGE i020(zcctrms).
+      CONTINUE.
+    ENDIF.
+
+*   Document ja afegit per a signatura
+    CLEAR ls_docs_psig.
+
+    ADD 1 TO ls_ac_gdg-num_doc.
+
+    ls_docs_psig-z_descripcio = ls_alv_pos-z_nom_document.
+    ls_docs_psig-carpeta      = ls_alv_pos-carpeta.
+    ls_docs_psig-denominacio  = ls_alv_pos-z_cod_doc.
+    ls_docs_psig-num_doc = ls_ac_gdg-num_doc.
+    APPEND ls_docs_psig TO gt_docs_psig.
+
+    CLEAR ls_docs_adj.
+    ls_docs_adj-docclass = ls_alv_pos-docclass_doc.
+    ls_docs_adj-objectid = ls_alv_pos-objectid_doc.
+    ls_docs_adj-z_num_doc = ls_docs_psig-num_doc.
+    APPEND ls_docs_adj TO gt_docs_adj_t.
+
+    CLEAR ls_ac_gdg.
+    ls_ac_gdg-z_descripcio = ls_alv_pos-z_nom_document.
+    ls_ac_gdg-carpeta      = ls_alv_pos-carpeta.
+    ls_ac_gdg-denominacio  = ls_alv_pos-z_cod_doc.
+    ls_ac_gdg-codi_exp     = ls_alv_pos-cod_exp.
+    ls_ac_gdg-descr_abr     = ls_alv_pos-z_descrip_abr.
+    ls_ac_gdg-num_doc = ls_docs_psig-num_doc.
+    APPEND ls_ac_gdg TO gt_ac_gdg.
+    APPEND ls_ac_gdg TO gt_ac_gdg_aux.
+
+  ENDLOOP.
+
+  LEAVE TO SCREEN 0.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  ADD_DOCS_ALTRE_EXP
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM add_docs_altre_exp .
+
+  DATA: ls_docs_anex  TYPE zrm_dt_doc_anex,
+        lt_docs_anex  TYPE TABLE OF zrm_dt_doc_anex,
+        ls_docs_psig  TYPE ty_docs_sign_psig,
+        ls_docs_adj   TYPE zrm_dt_docs_adj,
+        ls_ac_gdg     TYPE ty_ac_gdg,
+        lt_ac_gdg_aux TYPE tt_ac_gdg,
+        ls_props      TYPE bapiproptb,
+        lt_props      TYPE TABLE OF bapiproptb.
+
+  SELECT *
+  FROM zrm_dt_doc_anex
+  INTO TABLE @lt_docs_anex
+        WHERE docclass  EQ @gs_sdok-class
+        AND  objectid  EQ @gs_sdok-objid
+        AND  z_anchor  EQ @gv_anchor
+        AND  z_versio  EQ @gv_versio_sig.
+
+  lt_ac_gdg_aux[] = gt_ac_gdg[].
+  SORT lt_ac_gdg_aux BY num_doc DESCENDING.
+  READ TABLE lt_ac_gdg_aux INTO ls_ac_gdg INDEX 1.
+
+  LOOP AT lt_docs_anex INTO ls_docs_anex.
+    CLEAR ls_docs_psig.
+    CLEAR ls_docs_adj.
+
+    ADD 1 TO ls_ac_gdg-num_doc.
+    ls_docs_psig-num_doc = ls_ac_gdg-num_doc.
+
+    CLEAR ls_ac_gdg.
+
+    ls_docs_psig-carpeta      = ls_docs_anex-carpeta.
+    ls_docs_psig-denominacio  = ls_docs_anex-z_cod_doc.
+
+
+    ls_docs_adj-docclass = ls_docs_anex-docclass_doc.
+    ls_docs_adj-objectid = ls_docs_anex-objectid_doc.
+    ls_docs_adj-z_num_doc = ls_docs_psig-num_doc.
+
+    ls_ac_gdg-carpeta      = ls_docs_anex-carpeta.
+    ls_ac_gdg-denominacio  = ls_docs_anex-z_cod_doc.
+    ls_ac_gdg-codi_exp     = ls_docs_anex-z_codi_exp.
+    ls_ac_gdg-num_doc      = ls_docs_psig-num_doc.
+
+    CLEAR lt_props[].
+    CALL FUNCTION 'SRM_DOCUMENT_GETPROPERTIES'
+      EXPORTING
+        objectid          = ls_docs_anex-objectid_doc
+        documentclass     = ls_docs_anex-docclass_doc
+      TABLES
+        properties        = lt_props
+      EXCEPTIONS
+        internal_error    = 1
+        parameter_error   = 2
+        not_authorized    = 3
+        doc_not_found     = 4
+        variant_not_found = 5
+        version_not_found = 6
+        OTHERS            = 7.
+
+    READ TABLE lt_props INTO ls_props
+      WITH KEY name = 'DESCRIPTION'.
+    IF sy-subrc = 0.
+      ls_docs_psig-z_descripcio = ls_props-value.
+      ls_ac_gdg-z_descripcio = ls_props-value.
+    ENDIF.
+
+    CLEAR lt_props[].
+    CALL FUNCTION 'SRM_RECORD_GETPROPERTIES'
+      EXPORTING
+        objectid          = ls_docs_anex-objectid
+        documentclass     = ls_docs_anex-docclass
+        whole_document    = abap_true
+      TABLES
+        properties        = lt_props
+      EXCEPTIONS
+        internal_error    = 1
+        parameter_error   = 2
+        not_authorized    = 3
+        doc_not_found     = 4
+        variant_not_found = 5
+        version_not_found = 6
+        OTHERS            = 7.
+
+    READ TABLE lt_props INTO ls_props
+    WITH KEY name = 'DESCRIPTION'.
+    IF sy-subrc = 0.
+      ls_ac_gdg-descr_abr    = ls_props-value.
+    ENDIF.
+
+    APPEND ls_docs_psig TO gt_docs_psig.
+    APPEND ls_docs_adj TO gt_docs_adj_t.
+    APPEND ls_ac_gdg TO gt_ac_gdg.
+    APPEND ls_ac_gdg TO gt_ac_gdg_aux.
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_BUKRS_DOC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM get_bukrs_doc  USING    po_bukrs.
+
+  DATA: lt_props  TYPE TABLE OF bapiproptb,
+        ls_return TYPE bapiret2.
+
+*Propiedades del documento
+  CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+    EXPORTING
+      objectid       = zrm_dt_docs_adj-objectid
+      documentclass  = zrm_dt_docs_adj-docclass
+      whole_document = abap_true
+    IMPORTING
+      return         = ls_return
+    TABLES
+      properties     = lt_props.
+
+  READ TABLE lt_props ASSIGNING FIELD-SYMBOL(<fs_propi>)
+   WITH KEY name = 'Z_SOCIETAT'.
+  IF sy-subrc EQ 0.
+    po_bukrs = <fs_propi>-value.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CARPETA_NO_APLICA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM carpeta_no_aplica .
+
+  DATA: ls_documents TYPE zty_cerca_docs.
+
+* Si no hi ha la Ruta en la Carpeta, posar 'No Aplica'
+  LOOP AT gt_documents INTO ls_documents.
+
+    IF ls_documents-carpeta IS INITIAL.
+      ls_documents-carpeta = ztpdo_c_no_carpeta.
+      MODIFY gt_documents FROM ls_documents.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_BOTON_PRINC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_boton_princ   USING pi_object TYPE REF TO cl_alv_event_toolbar_set.
+
+  DATA: ls_button TYPE stb_button,
+        lv_text   TYPE stb_button-text.
+
+  "añadimos un separador a la barra
+  CLEAR ls_button.
+  ls_button-butn_type = ztpdo_c_button-btype_sep.
+  APPEND ls_button TO pi_object->mt_toolbar.
+
+  "añadimos el botón Pasar al ALV2 las líneas seleccionadas
+  CLEAR: lv_text, ls_button.
+  ls_button-function = ztpdo_c_button-func_s.
+  ls_button-quickinfo = ztpdo_c_button-info_s.
+  ls_button-icon = icon_system_save.
+  ls_button-butn_type = ztpdo_c_button-btype_nor.
+  ls_button-text = lv_text.
+  APPEND ls_button TO pi_object->mt_toolbar.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_BAIXAR_LÍNIA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_baixar_linia .
+
+  DATA: lt_index_rows TYPE lvc_t_row,
+        lt_row_no     TYPE lvc_t_roid,
+        ls_row_no     TYPE lvc_s_roid,
+        ls_documents  TYPE zty_cerca_docs,
+        ls_alv_pos    TYPE zty_cerca_docs,
+        ls_ac_gdg     TYPE ty_ac_gdg,
+        lt_ac_gdg_aux TYPE tt_ac_gdg.
+
+  DATA: BEGIN OF ls_messages,
+          cod_exp        TYPE char10,
+          z_nom_document TYPE znom_document,
+        END OF ls_messages,
+        lt_messages LIKE TABLE OF ls_messages.
+
+  CALL METHOD go_alv_grid_princ->get_selected_rows
+    IMPORTING
+      et_index_rows = lt_index_rows
+      et_row_no     = lt_row_no.
+
+  " Se ordenan las filas seleccionadas de mayor a menor porque sino se
+  " modificaría la posición de las filas posteriores.
+  SORT lt_row_no BY row_id DESCENDING.
+
+
+  " Es passen les línies seleccionades del ALV1 al ALV2
+  LOOP AT lt_row_no INTO ls_row_no.
+
+    READ TABLE gt_documents INTO ls_documents INDEX ls_row_no-row_id.
+    CHECK sy-subrc EQ 0.
+
+*  Comprobamos que el documento seleccionado no esté en la pantalla principal
+    READ TABLE gt_ac_gdg TRANSPORTING NO FIELDS
+    WITH KEY denominacio = ls_documents-z_cod_doc.
+    IF sy-subrc EQ 0 OR (
+       zrm_dt_docs_adj-docclass = ls_documents-docclass_doc AND
+       zrm_dt_docs_adj-objectid = ls_documents-objectid_doc ).
+*   Document ja afegit per a signatura
+
+      "Omplir taula de missatges d'error
+      MOVE-CORRESPONDING ls_documents TO ls_messages.
+      APPEND ls_messages TO lt_messages.
+
+    ELSE.
+
+*    NO se puede añadir 2 veces el mismo documento a la lista
+      READ TABLE gt_alv_pos TRANSPORTING NO FIELDS
+        WITH KEY z_cod_doc = ls_documents-z_cod_doc.
+      IF sy-subrc EQ 0.
+        "Document ja afegit per a signatura
+
+        "Omplir taula de missatges d'error
+        MOVE-CORRESPONDING ls_documents TO ls_messages.
+        APPEND ls_messages TO lt_messages.
+
+      ELSE.
+        "S'omple el ALV2
+        APPEND ls_documents TO gt_alv_pos.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.
+
+  IF lt_messages[] IS NOT INITIAL.
+    CALL FUNCTION 'POPUP_WITH_TABLE'
+      EXPORTING
+        endpos_col   = 80
+        endpos_row   = 10
+        startpos_col = 1
+        startpos_row = 1
+        titletext    = 'Documents ja afegits per a signatura'(E80)
+      TABLES
+        valuetab     = lt_messages
+      EXCEPTIONS
+        break_off    = 1
+        OTHERS       = 2.
+
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+  ENDIF.
+
+  CALL METHOD go_alv_grid_pos->refresh_table_display
+    EXCEPTIONS
+      finished = 1
+      OTHERS   = 2.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CLEAR_SIGNATURES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM clear_signatures . "SPEC-59583
+  DATA: lt_web_hash TYPE TABLE OF zgdg_web_hash,
+        lv_answ     TYPE c.
+  "Comprovar si hi ha un usuari extern i alguna posició per als usuaris actuals
+  "a la taula zgdg_web_hash.
+  READ TABLE gt_respons_psig WITH KEY z_tipus_carrec = 'E' TRANSPORTING NO FIELDS.
+  IF sy-subrc = 0."hi ha extern
+
+    SELECT * FROM zgdg_web_hash INTO TABLE lt_web_hash
+      FOR ALL ENTRIES IN gt_respons_psig
+      WHERE hash = gt_respons_psig-z_posicio_hash.
+
+    IF sy-subrc = 0.
+
+      "En aquest cas mostrar el missatge "S'ha detectat un responsable extern, per tant
+      "el document s'enviarà al Portasignatures Extern, les posicions ubicades es perdran.
+      "Vol continuar?" mitjançant la funció POPUP_TO_CONFIRM.
+
+      CALL FUNCTION 'POPUP_TO_CONFIRM'
+        EXPORTING
+          titlebar              = text-t21
+          text_question         = text-t22
+          text_button_1         = text-t10
+          icon_button_1         = 'ICON_OKAY'
+          text_button_2         = text-t11
+          icon_button_2         = 'ICON_CANCEL'
+          display_cancel_button = abap_false
+        IMPORTING
+          answer                = lv_answ
+        EXCEPTIONS
+          text_not_found        = 1
+          OTHERS                = 2.
+
+      IF lv_answ EQ '1'.
+
+        "Si clicken en Acceptar, s'esborraran totes les entrades per al hash
+        "(gt_respons_psig-Z_POSICIO_HASH) del document actual de la taula zgdg_web_hash.
+        "S'esborren directament de base de dades ja que l'actualització es fa cada cop
+        "que posicionen directament a bbdd mitjançant una rfc. S'haurà de crear una
+        "subrutina a la clase zcl_gdg per realitzar l'esborrat ja que es realitzarà des
+        "de diferents parts del codi (aquí i cada cop que modifiquen el document des de
+        "la finestra de signatura)
+
+        DELETE FROM zgdg_web_hash WHERE hash = gs_respons_psig-z_posicio_hash.
+
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_AUTH
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GS_RESPONS_PSIG_Z_RESPONSABLE  text
+*----------------------------------------------------------------------*
+FORM check_auth  USING    p_responsable
+                 CHANGING p_mitja_sig.
+
+  DATA: lv_pernr TYPE pernr_d,
+        lv_nomsg TYPE xfeld.
+
+  IF p_mitja_sig = 'NO AUT'.
+    lv_nomsg = abap_true.
+  ENDIF.
+
+  IF ( p_mitja_sig NE 'PSIG E').
+
+    lv_pernr = p_responsable.
+
+    CALL METHOD zcl_gdg=>get_autoritzacio
+      EXPORTING
+        iv_pernr  = lv_pernr
+      EXCEPTIONS
+        no_auth   = 1
+        no_userid = 2
+        OTHERS    = 3.
+    IF sy-subrc <> 0.
+      p_mitja_sig = 'NO AUT'.
+      IF lv_nomsg = abap_false.
+        CASE sy-subrc.
+          WHEN 1.
+            MESSAGE i013(zsignatura) WITH p_responsable.
+*   El responsable &1 no té autorització per signar, contacteu amb el CAU"
+          WHEN 2.
+            MESSAGE i014(zsignatura) WITH p_responsable.
+*   El responsable &1 no té usuari en SAP
+          WHEN OTHERS.
+        ENDCASE.
+      ENDIF.
+    ELSE.
+      CLEAR p_mitja_sig.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_MITJA_SIG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_GT_RESPONS_PSIG  text
+*----------------------------------------------------------------------*
+FORM get_mitja_sig  CHANGING pt_respons_psig TYPE ty_t_responsables_psig.
+  DATA: lv_pernr      TYPE pernr_d,
+        lv_userid     TYPE xubname,
+        lv_bname      TYPE bname,
+        lv_autoritzat TYPE abap_bool,
+        lv_mitja_sig  TYPE zmitja_sig.
+  FIELD-SYMBOLS <fs_resp> TYPE ty_responsables_psig.
+
+
+*  Si hay algún usuario externo se envia al portasignaturas externo y no tiene en
+*  cuenta las autorizaciones de gdg
+  READ TABLE pt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_r1>)
+    WITH KEY z_tipus_carrec = 'E'.
+  IF sy-subrc EQ 0.
+    IF <fs_r1>-z_responsable IS NOT INITIAL.
+      LOOP AT gt_respons_psig ASSIGNING <fs_resp>.
+        IF <fs_resp>-z_rol_dig = 'S'.
+          <fs_resp>-zmitja_sig = 'PSIG E'.
+        ELSEIF <fs_resp>-z_rol_dig = 'V'.
+          <fs_resp>-zmitja_sig = 'NO AUT'.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+  ELSE.
+
+
+
+    lv_mitja_sig = 'PSIG I/SAP'.
+    LOOP AT gt_respons_psig ASSIGNING <fs_resp>
+      WHERE z_rol_dig  EQ 'S'
+        AND z_responsable IS NOT INITIAL.
+
+*        Comprobamos si el usuario tiene permisos
+      PERFORM check_auth USING <fs_resp>-z_responsable
+      CHANGING <fs_resp>-zmitja_sig.
+
+      CHECK <fs_resp>-zmitja_sig NE 'NO AUT'.
+
+      lv_pernr = <fs_resp>-z_responsable.
+      CALL FUNCTION 'PTRV_CONVERT_PERNR_TO_USERID'
+        EXPORTING
+          personnel_number  = lv_pernr
+          validity_date     = sy-datum
+        IMPORTING
+          user_id           = lv_userid
+        EXCEPTIONS
+          user_id_not_found = 1
+          OTHERS            = 2.
+      IF sy-subrc EQ 0.
+        lv_bname = lv_userid.
+        CALL METHOD zcl_signatura_desatesa=>get_usuari_te_autoritzacio
+          EXPORTING
+            iv_bname       = lv_bname
+            iv_t_signatura = 'D' "DESATESA
+          RECEIVING
+            rv_autoritzat  = lv_autoritzat.
+
+        IF lv_autoritzat NE abap_true.
+          <fs_resp>-zmitja_sig = 'SAP'.
+        ELSE.
+          <fs_resp>-zmitja_sig = 'PSIG I/SAP'.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT  gt_respons_psig ASSIGNING <fs_resp>
+    WHERE z_rol_dig <> 'S'.
+
+      CLEAR <fs_resp>-zmitja_sig.
+    ENDLOOP.
+
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_DOC_TO_CONTENTSERVER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GV_CHANGED  text
+*      -->P_GT_BIN_CONTENT  text
+*      -->P_GT_COMPONENTS  text
+*----------------------------------------------------------------------*
+FORM save_doc_to_contentserver  USING    pv_changed TYPE xfeld
+                                         pt_bin_content TYPE bapidoccontentab
+                                         pt_components TYPE bapidoccompt.
+
+  IF gv_changed EQ abap_true.
+    CALL FUNCTION 'BAPI_SRM_DOC_CHECKIN_VIA_TAB'
+      EXPORTING
+        objectid       = zrm_dt_docs_adj-objectid
+        documentclass  = zrm_dt_docs_adj-docclass
+        as_new_version = abap_true
+      TABLES
+        components     = pt_components
+        bin_content    = pt_bin_content.
+
+  ENDIF.
+
+  CLEAR: gt_bin_content, gv_changed, gt_components, gt_web_hash.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DELETE_POSICIONS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM delete_posicions CHANGING pv_continue.
+  DATA: lv_answer TYPE c.
+
+  "Si ja haven posisionat signatures...
+  IF gt_web_hash IS NOT INITIAL.
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar              = 'Reset signaturas'
+        text_question         = 'S''han posicionat signatures si continua es perderan. Voleu continuar?'
+        text_button_1         = 'Continuar'
+        text_button_2         = 'Cancel·lar'
+        display_cancel_button = abap_false
+      IMPORTING
+        answer                = lv_answer
+      EXCEPTIONS
+        text_not_found        = 1
+        OTHERS                = 2.
+
+    CASE sy-ucomm.
+      WHEN 'OPT1'. "han acceptat
+
+        "Esborrem les entrades de la taula si hi han
+        READ TABLE gt_web_hash ASSIGNING FIELD-SYMBOL(<fs_web_hash>) INDEX 1.
+        IF sy-subrc EQ 0.
+          CALL FUNCTION 'ZGDG_SIGNA_WEB_RFC'
+            EXPORTING
+              hash    = <fs_web_hash>-hash
+              borrado = 'S'.
+        ENDIF.
+        CLEAR gt_web_hash[].
+
+        "Continuem amb el procés
+        pv_continue = abap_true.
+
+      WHEN 'OPT2'. "han cancellat
+
+        "NO Continuem amb el procés
+        pv_continue = abap_false.
+
+      WHEN OTHERS.
+    ENDCASE.
+
+  ELSE.
+    pv_continue = abap_true.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SEND_NOTIFICACIO_CAU
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GT_RESPONS_PSIG  text
+*----------------------------------------------------------------------*
+FORM send_notificacio_cau  USING    pt_respons_psig TYPE ty_t_responsables_psig.
+  DATA: lv_pernr TYPE catshr-pernr,
+        lv_user  TYPE syuname.
+
+
+  LOOP AT pt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_r>)
+    WHERE zmitja_sig = 'NO AUT'.
+
+    lv_pernr = <fs_r>-z_responsable.
+    CALL FUNCTION 'HR_GET_USER_FROM_EMPLOYEE'
+      EXPORTING
+        pernr = lv_pernr
+        begda = sy-datum
+        endda = sy-datum
+      IMPORTING
+        user  = lv_user.
+
+    "INI ECDRB SPEC-63311 - Unificar notificacions signatura
+
+    CALL METHOD zcl_utilitats_signa=>enviar_notificacions_global
+      EXPORTING
+        iv_tipus_correu = zcl_utilitats_signa=>co_mail_org_env_sign_no_aut
+        iv_iniciador    = lv_user
+      EXCEPTIONS
+        mail_not_found  = 1
+        OTHERS          = 2.
+
+    "FI ECDRB SPEC-63311
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_SIGNATARIS_MOD_AUT_BPM
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_signataris_mod_aut_bpm USING pv_hash
+                                CHANGING gt_respons_psig
+                                  TYPE ty_t_responsables_psig.
+  "SPEC-60538 - Document Modificació Autoritzada per desatesa
+  "Obtenir els signataris a partir dels responsables BPM
+
+  DATA: ls_respons_bpm  TYPE ty_responsables_bpm,
+        lt_respons_bpm  TYPE ty_t_responsables_bpm,
+        ls_respons_psig TYPE ty_responsables_psig.
+
+  "1. Recuperar els signataris fent una crida a la funció ZBPM_CO_FM_USUARIS_TASQUES
+  PERFORM obtenir_responsables_mod_aut CHANGING lt_respons_bpm.
+
+
+  "2. Per cada signatari recuperat de la funció anterior, emplenar les
+  "dades i fer un APPEND gs_respons_psig TO gt_respons_psig.
+  IF pv_hash IS INITIAL. "es posa el mateix hash a tots gt_respons_psig
+    CALL FUNCTION 'GENERAL_GET_RANDOM_STRING'
+      EXPORTING
+        number_chars  = 8
+      IMPORTING
+        random_string = pv_hash.
+  ENDIF.
+  "2b Validar si la posisicón 1 y 2 son la misma.
+  DATA l_resp1 TYPE ty_responsables_bpm.
+  DATA l_resp2 TYPE ty_responsables_bpm.
+  READ TABLE lt_respons_bpm INTO l_resp1 INDEX 1.
+  READ TABLE lt_respons_bpm INTO l_resp2 INDEX 2.
+
+  IF l_resp1-usuari = l_resp2-usuari.
+    DELETE lt_respons_bpm INDEX 1.
+  ENDIF.
+
+
+  LOOP AT lt_respons_bpm INTO ls_respons_bpm.
+
+    CLEAR gs_respons_psig.
+    ls_respons_psig-z_tipus_carrec = 'I'."Intern
+    ls_respons_psig-z_rol_dig = 'S'."Signatari
+    ls_respons_psig-docclass   = gs_sdok-class.
+    ls_respons_psig-objectid   = gs_sdok-objid.
+    ls_respons_psig-z_codi_exp = gv_codi_exp.
+    ls_respons_psig-z_posicio_hash = pv_hash.
+    ls_respons_psig-ordre    = sy-tabix.
+    ls_respons_psig-tasca_bpm_id = ls_respons_bpm-tasca_bpm_id.
+
+
+
+    "Recuperar pernr a partir del usuari
+    PERFORM recuperar_pernr USING ls_respons_bpm-usuari
+          CHANGING ls_respons_psig-z_responsable.
+
+    "Recuperar nif i nom a partir del pernr
+    PERFORM recuperar_nom_nif USING ls_respons_psig-z_responsable
+      CHANGING ls_respons_psig-z_nif_signatari ls_respons_psig-nom.
+
+    "Recuperar mail a partir del pernr
+    PERFORM recuperar_mail USING ls_respons_psig-z_responsable
+          CHANGING ls_respons_psig-z_correu_signatari.
+
+    "Recuperar mitjà signatura
+    PERFORM recuperar_mitja_sign USING ls_respons_psig-z_responsable
+      CHANGING ls_respons_psig-zmitja_sig.
+
+
+    APPEND ls_respons_psig TO gt_respons_psig.
+
+  ENDLOOP.
+
+ENDFORM.
+
+FORM recuperar_pernr USING pv_usuari_sap
+                     CHANGING pv_pernr.
+  SELECT SINGLE pernr
+   FROM pa0105
+     INTO pv_pernr
+       WHERE usrid EQ pv_usuari_sap AND
+            begda <= sy-datum AND
+            endda >= sy-datum.
+
+ENDFORM.
+
+FORM recuperar_username USING pv_pernr
+                              pv_usuari_sap.
+  SELECT SINGLE usrid
+   FROM pa0105
+     INTO pv_usuari_sap
+       WHERE pernr EQ pv_pernr AND
+            begda <= sy-datum AND
+            endda >= sy-datum.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  RECUPERAR_NIF
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_RESPONS_PSIG_Z_RESPONSABLE  text
+*      <--P_LS_RESPONS_PSIG_Z_NIF_SIGNATAR  text
+*----------------------------------------------------------------------*
+FORM recuperar_nom_nif  USING    pv_pernr
+                    CHANGING pv_nif
+                             pv_nom.
+
+  DATA: lv_pernr TYPE catshr-pernr,
+        lv_name  TYPE pernr_list_structure-ename.
+
+  IF pv_pernr IS NOT INITIAL.
+
+    lv_pernr = pv_pernr.
+    CALL FUNCTION 'CATS_GET_EMPLOYEE_NAME'
+      EXPORTING
+        pernr           = lv_pernr
+        date            = sy-datum
+      IMPORTING
+        name            = lv_name
+      EXCEPTIONS
+        pernr_not_found = 1
+        OTHERS          = 2.
+
+    pv_nom = lv_name.
+
+    SELECT SINGLE perid INTO pv_nif
+     FROM pa0002
+        WHERE pernr EQ pv_pernr.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  RECUPERAR_MAIL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_RESPONS_PSIG_Z_RESPONSABLE  text
+*      <--P_LS_RESPONS_PSIG_Z_CORREU_SIGNA  text
+*----------------------------------------------------------------------*
+FORM recuperar_mail  USING    pv_pernr
+                     CHANGING pv_mail.
+  DATA: lv_pern    TYPE pernr_d,
+        lv_syuname TYPE syuname,
+        lv_uname   TYPE bapibname-bapibname,
+        lv_address TYPE bapiaddr3,
+        lt_return  TYPE bapiret2_t.
+
+  IF pv_pernr IS NOT INITIAL.
+
+    CLEAR lv_syuname.
+    lv_pern = pv_pernr.
+    CALL FUNCTION 'HR_GET_USER_FROM_EMPLOYEE'
+      EXPORTING
+        pernr = lv_pern
+        begda = sy-datum
+        endda = sy-datum
+      IMPORTING
+        user  = lv_syuname.
+
+    lv_uname = lv_syuname.
+
+    CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+      EXPORTING
+        username = lv_uname
+      IMPORTING
+        address  = lv_address
+      TABLES
+        return   = lt_return.
+
+    IF lv_address-e_mail IS INITIAL.
+      MESSAGE e009(zrm_msg) WITH lv_uname .
+    ELSE.
+      pv_mail = lv_address-e_mail.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  OBTENIR_RESPONSABLES_MOD_AUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM obtenir_responsables_mod_aut CHANGING pt_respons_bpm
+                                  TYPE ty_t_responsables_bpm.
+  "SPEC-60538 Recuperar els responsables BPM
+
+  DATA: lv_per_cap_geren TYPE xubname,
+        lv_per_cap_div   TYPE xubname,
+        lv_per_cap_lici  TYPE xubname,
+        lv_per_dir_prod  TYPE xubname,
+        lv_per_presi     TYPE xubname,
+        lv_import10      TYPE char5.
+
+  DATA: lv_comanda  TYPE  ebeln,
+        lv_codi_exp TYPE z_codi_exp,
+        lv_periode  TYPE  zperiode.
+
+  DATA: ls_respons_bpm  TYPE ty_responsables_bpm.
+  DATA: result_abs         TYPE syst_subrc,
+        lv_pernr_resp_cont TYPE z_resp_cont,
+        lv_cap_divisio     TYPE xubname,
+        lv_resp_contracte  TYPE xubname,
+        lv_dir_produccio   TYPE xubname.
+
+  DATA: lv_text1 TYPE text150,
+        lv_text2 TYPE text150,
+        lv_txt1  TYPE text80,
+        lv_txt2  TYPE text80,
+        lv_txt3  TYPE text80,
+        lv_txt4  TYPE text80.
+
+
+  lv_codi_exp = gs_zbpm_dades_rv-z_comanda.
+  lv_periode = gs_zbpm_dades_rv-periode.
+
+  "Obtenir els responsables de les 5 tasques de Modificació Autoritzada de BPM
+  "Cap gerencia, cap divisio, cap licitacio, director produccio i president
+  CALL FUNCTION 'ZBPM_CO_FM_USUARIS_TASQUES2'
+    EXPORTING
+      societat       = gs_zbpm_dades_rv-societat
+      z_codi_exp     = lv_codi_exp
+      periode        = lv_periode
+      only_read      = 'X'
+    IMPORTING
+      resp_contracte = lv_per_cap_geren
+      cap_divisio    = lv_per_cap_div
+      cap_licitacio  = lv_per_cap_lici
+      dir_produccio  = lv_per_dir_prod
+      president      = lv_per_presi.
+
+  "Recuperar paràmetres: resp_Contracte, cap_Divisio, cap_licitacio,
+  "dir_produccio, president (només en el cas que la crida a la funció
+  "ZBPM_CO_FM_VAL_CONTRACTE retorni import_10 = KO)
+  lv_comanda = gs_zbpm_dades_rv-z_comanda.
+
+  CALL FUNCTION 'ZBPM_CO_FM_VAL_CONTRACTE'
+    EXPORTING
+      comanda   = lv_comanda
+      periode   = lv_periode
+      only_read = 'X'
+    IMPORTING
+      import_10 = lv_import10.
+
+
+*Obtenir usuaris susceptibles de substitució per vacances (cap gerencia i
+*cap divisio)
+
+*Obtenir cap gerencia
+  SELECT SINGLE z_responsable INTO lv_pernr_resp_cont
+    FROM zrm_dt_resp_cont
+    WHERE docclass     = gs_sdok-class
+    AND objectid     = gs_sdok-objid
+    AND z_carrec     = 'YN'
+    AND z_tipus_carrec = 'I'.
+
+  PERFORM recuperar_username USING lv_pernr_resp_cont
+                   lv_resp_contracte.
+
+*Obtenir cap divisio
+  CLEAR lv_pernr_resp_cont.
+  SELECT SINGLE z_responsable INTO lv_pernr_resp_cont
+    FROM zrm_dt_resp_cont
+    WHERE docclass     = gs_sdok-class
+    AND objectid     = gs_sdok-objid
+    AND z_carrec     = 'YW'
+    AND z_tipus_carrec = 'I'.
+
+
+  PERFORM recuperar_username USING lv_pernr_resp_cont
+                           lv_cap_divisio.
+
+*Obtenir director producció
+  CLEAR lv_pernr_resp_cont.
+  SELECT SINGLE z_responsable INTO lv_pernr_resp_cont
+    FROM zrm_dt_resp_cont
+    WHERE docclass     = gs_sdok-class
+    AND objectid     = gs_sdok-objid
+    AND z_carrec     = 'YC'
+    AND z_tipus_carrec = 'I'.
+
+
+  PERFORM recuperar_username USING lv_pernr_resp_cont
+                           lv_dir_produccio.
+
+
+*Obtenir cap divisio
+
+  IF lv_per_cap_geren IS NOT INITIAL.
+    CLEAR ls_respons_bpm.
+    ls_respons_bpm-usuari = lv_per_cap_geren.
+    ls_respons_bpm-tasca_bpm_id = 'TA008'.
+
+    "Calcular si el cap de gerència està de vacances
+    PERFORM comprovar_absencia(saplzbmp) USING lv_periode
+                     lv_resp_contracte
+                     result_abs.
+
+    IF result_abs = 0. "està absent
+      "Obtenir el pernr del que està absent i del substitut.
+      PERFORM recuperar_pernr USING lv_resp_contracte
+      CHANGING ls_respons_bpm-pernr.
+      "El substitut del cap de gerencia és el cap de divisio
+      PERFORM recuperar_pernr USING lv_cap_divisio
+      CHANGING ls_respons_bpm-pernr_substitut.
+      ls_respons_bpm-usuari = lv_per_cap_div.
+
+    ENDIF.
+
+    APPEND ls_respons_bpm TO pt_respons_bpm.
+  ENDIF.
+
+  IF lv_per_cap_div IS NOT INITIAL.
+    CLEAR ls_respons_bpm.
+    ls_respons_bpm-usuari = lv_per_cap_div.
+    ls_respons_bpm-tasca_bpm_id = 'TA009'.
+    "Calcular si el cap de divisió está de vacances té substitut
+    PERFORM comprovar_absencia(saplzbmp) USING lv_periode
+                     lv_cap_divisio
+                     result_abs.
+
+    IF result_abs = 0. "està absent
+      "Obtenir el pernr del que està absent i del substitut.
+      PERFORM recuperar_pernr USING lv_cap_divisio
+      CHANGING ls_respons_bpm-pernr.
+      "El substitut del cap de gerencia és el director de producció
+      PERFORM recuperar_pernr USING lv_dir_produccio
+      CHANGING ls_respons_bpm-pernr_substitut.
+      ls_respons_bpm-usuari = lv_per_dir_prod.
+
+    ENDIF.
+
+    APPEND ls_respons_bpm TO pt_respons_bpm.
+  ENDIF.
+
+  IF lv_per_cap_lici IS NOT INITIAL.
+    CLEAR ls_respons_bpm.
+    ls_respons_bpm-usuari = lv_per_cap_lici.
+    ls_respons_bpm-tasca_bpm_id = 'TA007'.
+    APPEND ls_respons_bpm TO pt_respons_bpm.
+  ENDIF.
+
+  IF lv_per_dir_prod IS NOT INITIAL.
+    CLEAR ls_respons_bpm.
+    ls_respons_bpm-usuari = lv_per_dir_prod.
+    ls_respons_bpm-tasca_bpm_id = 'TA010'.
+    APPEND ls_respons_bpm TO pt_respons_bpm.
+  ENDIF.
+
+  IF lv_per_presi IS NOT INITIAL AND lv_import10 = 'KO'.
+    CLEAR ls_respons_bpm.
+    ls_respons_bpm-usuari = lv_per_presi.
+    ls_respons_bpm-tasca_bpm_id = 'TA011'.
+    APPEND ls_respons_bpm TO pt_respons_bpm.
+  ENDIF.
+
+  "Si el cap de gerencia i/o el cap de divisió tenen absència
+  "mostrem missatge informatiu en popup
+
+  READ TABLE pt_respons_bpm INTO ls_respons_bpm WITH KEY tasca_bpm_id ='TA008'.
+  IF ls_respons_bpm-pernr_substitut IS NOT INITIAL.
+    lv_text1 = text-100 && ` ` && ls_respons_bpm-pernr_substitut
+    && ` ` && text-102 && ` ` && ls_respons_bpm-pernr && ` ` &&
+    text-103.
+  ENDIF.
+
+  READ TABLE pt_respons_bpm INTO ls_respons_bpm WITH KEY tasca_bpm_id ='TA009'.
+  IF ls_respons_bpm-pernr_substitut IS NOT INITIAL.
+    lv_text2 = text-101 && ` ` && ls_respons_bpm-pernr_substitut
+    && ` ` && text-102 && ` ` && ls_respons_bpm-pernr && ` ` &&
+    text-103.
+  ENDIF.
+  " Es talla en línies de 80 caràcters per que hi càpiga al popup standard
+  CALL FUNCTION 'RKD_WORD_WRAP'
+    EXPORTING
+      textline  = lv_text1
+      delimiter = ' '
+      outputlen = 80
+    IMPORTING
+      out_line1 = lv_txt1
+      out_line2 = lv_txt2.
+
+  " Es talla en línies de 80 caràcters per que hi càpiga al popup standard
+  CALL FUNCTION 'RKD_WORD_WRAP'
+    EXPORTING
+      textline  = lv_text2
+      delimiter = ' '
+      outputlen = 80
+    IMPORTING
+      out_line1 = lv_txt3
+      out_line2 = lv_txt4.
+
+  IF lv_text1 IS NOT INITIAL OR lv_text2 IS NOT INITIAL.
+    "Mostrar popup amb la informació de les absències
+    CALL FUNCTION 'POPUP_TO_INFORM'
+      EXPORTING
+        titel = 'Informació'
+        txt1  = lv_txt1
+        txt2  = lv_txt2
+        txt3  = lv_txt3
+        txt4  = lv_txt4.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  RECUPERAR_MITJA_SIGN
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_RESPONS_PSIG_Z_RESPONSABLE  text
+*      <--P_LS_RESPONS_PSIG_ZMITJA_SIG  text
+*----------------------------------------------------------------------*
+FORM recuperar_mitja_sign  USING    p_responsable
+                           CHANGING p_zmitja_sig.
+
+  DATA: lv_pernr      TYPE pernr_d,
+        lv_userid     TYPE xubname,
+        lv_bname      TYPE bname,
+        lv_autoritzat TYPE abap_bool.
+
+
+
+  CHECK p_responsable IS NOT INITIAL.
+
+* Comprobamos si el usuario tiene permisos
+  PERFORM check_auth(saplzrm_signa)
+     USING p_responsable
+    CHANGING p_zmitja_sig.
+
+  CHECK p_zmitja_sig NE 'NO AUT'.
+
+  lv_pernr = p_responsable.
+  CALL FUNCTION 'PTRV_CONVERT_PERNR_TO_USERID'
+    EXPORTING
+      personnel_number  = lv_pernr
+      validity_date     = sy-datum
+    IMPORTING
+      user_id           = lv_userid
+    EXCEPTIONS
+      user_id_not_found = 1
+      OTHERS            = 2.
+  IF sy-subrc EQ 0.
+    lv_bname = lv_userid.
+    CALL METHOD zcl_signatura_desatesa=>get_usuari_te_autoritzacio
+      EXPORTING
+        iv_bname       = lv_bname
+        iv_t_signatura = 'D' "DESATESA
+      RECEIVING
+        rv_autoritzat  = lv_autoritzat.
+
+    IF lv_autoritzat NE abap_true.
+      p_zmitja_sig = 'SAP'.
+    ELSE.
+      p_zmitja_sig = 'PSIG I/SAP'.
+    ENDIF.
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  COMPROVAR_MIDA_ANNEXES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_LV_ERROR_ANNEXES  text
+*      <--P_LV_NOM_DOCUMENT  text
+*----------------------------------------------------------------------*
+FORM comprovar_mida_annexes  CHANGING pv_error_annexes
+                                      pv_nom_document.
+  DATA: lt_comt TYPE TABLE OF bapidoccomp,
+        ls_comt TYPE          bapidoccomp,
+        lt_bin  TYPE TABLE OF bapiconten.
+
+  pv_error_annexes = abap_false.
+
+  LOOP AT gt_ac_gdg ASSIGNING FIELD-SYMBOL(<fs_docs_annexes>)
+  WHERE flag_a EQ abap_true OR flag_c EQ abap_true.
+
+    READ TABLE gt_docs_adj_t ASSIGNING FIELD-SYMBOL(<fs_annex>)
+                 WITH KEY z_num_doc = <fs_docs_annexes>-num_doc.
+    CHECK <fs_annex> IS ASSIGNED.
+
+    REFRESH: lt_comt, lt_bin.
+
+    CALL FUNCTION 'SRM_DOCUMENT_CHECKOUT_VIA_TAB'
+      EXPORTING
+        objectid        = <fs_annex>-objectid
+        documentclass   = <fs_annex>-docclass
+      TABLES
+        components      = lt_comt
+        bin_content     = lt_bin
+      EXCEPTIONS
+        internal_error  = 1
+        parameter_error = 2
+        not_authorized  = 3
+        doc_not_found   = 4
+        OTHERS          = 5.
+
+    READ TABLE lt_comt INTO ls_comt INDEX 1.
+    CHECK sy-subrc IS INITIAL.
+    IF NOT ls_comt-comp_size > 0.
+      pv_error_annexes = abap_true.
+      pv_nom_document = <fs_docs_annexes>-z_descripcio.
+      EXIT.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.

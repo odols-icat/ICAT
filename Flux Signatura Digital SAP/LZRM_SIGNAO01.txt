@@ -1,0 +1,612 @@
+*&---------------------------------------------------------------------*
+*&  Include           LZRM_SIGNAO01
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  selecciona_dades  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE selecciona_dades OUTPUT.
+  PERFORM selecciona_dades.
+ENDMODULE.                 " selecciona_dades  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  status_0100  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_0100 OUTPUT.
+  DATA: lv_lines TYPE i,
+        fcode    TYPE TABLE OF sy-ucomm.
+** >> INI MODIF ETODR 17/02/2016 SPEC-38374
+  DATA: l_total_count(2) TYPE n,
+        l_count_sign(2)  TYPE n.
+** << FI MODIF ETODR 17/02/2016 SPEC-38374
+  REFRESH fcode.
+
+  IF gv_edicio = space.
+    APPEND 'SUPER' TO fcode.
+  ENDIF.
+
+  IF gs_operacio-vis = 'X' OR
+     gs_operacio-env = 'X'.
+    APPEND 'SAVE' TO fcode.
+*      SET PF-STATUS 'PF100' EXCLUDING 'SAVE'.
+  ENDIF.
+
+*  ELSE.
+*    SET PF-STATUS 'PF100'.
+*  ENDIF.
+
+  SET PF-STATUS 'PF100' EXCLUDING fcode.
+
+  SET TITLEBAR 'MAIN'.
+
+  CASE 'X'.
+    WHEN gs_operacio-vis.
+      LOOP AT SCREEN.
+        IF screen-name <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF'.
+          screen-input = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+    WHEN gs_operacio-ger.
+      LOOP AT SCREEN.
+        IF screen-name   <> 'GS_VALID-FLAG_GERENCIA' AND
+           screen-name   <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF' AND
+           screen-group1 <> 'MOD' AND
+           screen-name   <> 'GS_DOCS_SIGN-MARCA'.
+          screen-input  = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+      DESCRIBE TABLE gt_docs_sign LINES lv_lines.
+      IF lv_lines = 0.
+        LOOP AT SCREEN.
+          IF screen-name CS 'GS_DOCS_SIGN-'.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+
+    WHEN gs_operacio-con.
+      LOOP AT SCREEN.
+        IF screen-name   <> 'GS_VALID-FLAG_CONTRACTACIO' AND
+           screen-name   <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF' AND
+           screen-group1 <> 'MOD' AND
+           screen-name   <> 'GS_DOCS_SIGN-MARCA'.
+          screen-input  = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+
+    WHEN gs_operacio-env.
+      LOOP AT SCREEN.
+        IF screen-name <> 'BOT_SIGNA' AND
+           screen-name <> 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF'.
+          screen-input  = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+  ENDCASE.
+
+* S'inhabilita el botó d'Enviament a Signatura si ja s'ha enviat.
+  LOOP AT SCREEN.
+    IF screen-name = 'BOT_SIGNA' AND gs_valid-flag_signa = 'X'.
+      screen-input  = 0.
+      MODIFY SCREEN.
+    ENDIF.
+    "INI SPEC-86568
+    IF ( screen-name = 'GV_DIES_EXPIRACIO_VIAFIRMA' OR screen-name = 'DIES_EXPIRACIO' ) AND gs_valid-flag_signa = 'X'.
+      screen-invisible = 1.
+      screen-input = 0.
+      MODIFY SCREEN.
+    ENDIF.
+    "FI SPEC-86568
+  ENDLOOP.
+
+  READ TABLE gt_docs_adj_t TRANSPORTING NO FIELDS
+                           WITH KEY z_eliminat    = 'X'
+                                    z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+  IF sy-subrc <> 0.
+    LOOP AT SCREEN.
+      IF screen-name = 'ZTC_DOCS2_INSERT'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  READ TABLE gt_docs_sign TRANSPORTING NO FIELDS
+                          INDEX 1.
+  IF sy-subrc <> 0.
+    LOOP AT SCREEN.
+      IF screen-name = 'ZTC_DOCS2_DELETE'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+** >> INI MODIF ETODR 17/02/2016 SPEC-38374
+  CLEAR: l_count_sign, l_total_count.
+  LOOP AT gt_respons_t TRANSPORTING NO FIELDS WHERE z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+    ADD 1 TO l_total_count.
+  ENDLOOP.
+*  DESCRIBE TABLE gt_respons_t LINES l_total_count.
+  LOOP AT gt_respons_t TRANSPORTING NO FIELDS WHERE z_carrec      = 'YC'
+                                                AND z_signat      = abap_on
+                                                AND z_princ_modif = zrm_dt_docs_adj-z_princ_modif.
+    ADD 1 TO l_count_sign.
+  ENDLOOP.
+  IF zrm_dt_contr-z_nou_psig_contr = abap_on.
+    LOOP AT SCREEN.
+      IF screen-name = 'BOT_SUBSA'.
+        screen-input  = 0.
+        IF gs_valid-flag_signa = 'X' AND gs_operacio-vis <> abap_on. "només es permet subsanar un cop enviat i no està en visualitzar
+          screen-input  = 1.
+          "Si el contracte no està signat per tots els actors es permet subsanar
+          IF l_count_sign = l_total_count.
+            screen-input  = 0.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDLOOP.
+  ELSE.
+* Es fa invisible el botó de subsanació si no es tracta amb el NOUPSIG
+    LOOP AT SCREEN.
+      IF screen-name = 'BOT_SUBSA'.
+        screen-invisible  = 1.
+        screen-input      = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+** << FI MODIF ETODR 17/02/2016 SPEC-38374
+
+ENDMODULE.                 " status_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  ZTC_DOCS_CHANGE_FIELD_ATTR  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE ztc_docs_change_field_attr OUTPUT.
+
+  MOVE gs_docs_sign TO zrm_dm_docs_sign.
+
+  IF gv_ult_p_mod <> zrm_dt_docs_adj-z_princ_modif.
+    LOOP AT SCREEN.
+      screen-input = 0.
+      MODIFY SCREEN.
+    ENDLOOP.
+  ELSE.
+    CHECK gs_operacio-sup IS INITIAL.
+    CASE 'X'.
+      WHEN gs_operacio-ger.
+        IF gs_docs_sign-z_resp_doc <> 'G'.
+          LOOP AT SCREEN.
+            IF screen-name = 'GS_DOCS_SIGN-FLAG' OR
+               screen-name = 'GS_DOCS_SIGN-MARCA'.
+              screen-input = 0.
+              MODIFY SCREEN.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+
+      WHEN gs_operacio-con.
+        IF gs_docs_sign-z_resp_doc <> 'A'.
+          LOOP AT SCREEN.
+            IF screen-name = 'GS_DOCS_SIGN-FLAG' OR
+               screen-name = 'GS_DOCS_SIGN-MARCA'.
+              screen-input = 0.
+              MODIFY SCREEN.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+
+      WHEN OTHERS.
+        LOOP AT SCREEN.
+          IF screen-name = 'GS_DOCS_SIGN-FLAG' OR
+             screen-name = 'GS_DOCS_SIGN-MARCA'.
+            screen-input = 0.
+            MODIFY SCREEN.
+          ENDIF.
+        ENDLOOP.
+    ENDCASE.
+  ENDIF.
+ENDMODULE.                 " ZTC_DOCS_CHANGE_FIELD_ATTR  OUTPUT
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZTC_RESP'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE ztc_resp_change_tc_attr OUTPUT.
+  DESCRIBE TABLE gt_respons LINES ztc_resp-lines.
+ENDMODULE.                    "ZTC_RESP_CHANGE_TC_ATTR OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  ztc_resp_change_field_attr  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE ztc_resp_change_field_attr OUTPUT.
+  MOVE gs_respons TO zrm_dt_resp_cont.
+ENDMODULE.                 " ztc_resp_change_field_attr  OUTPUT
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZTC_DOCS2'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: UPDATE LINES FOR EQUIVALENT SCROLLBAR
+MODULE ztc_docs2_change_tc_attr OUTPUT.
+  DESCRIBE TABLE gt_docs_sign LINES ztc_docs2-lines.
+ENDMODULE.                    "ZTC_DOCS2_CHANGE_TC_ATTR OUTPUT
+
+*&SPWIZARD: OUTPUT MODULE FOR TC 'ZTC_DOCS2'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: GET LINES OF TABLECONTROL
+MODULE ztc_docs2_get_lines OUTPUT.
+  g_ztc_docs2_lines = sy-loopc.
+ENDMODULE.                    "ZTC_DOCS2_GET_LINES OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  SELECCIONA_DADES_DOC  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE selecciona_dades_doc OUTPUT.
+
+  CLEAR:
+     gv_data_enviament,
+     gv_hora_enviament,
+     gv_usuari_enviament.
+
+  PERFORM selecciona_dades_doc.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE selecciona_dades_doc_gdg OUTPUT.
+
+  CLEAR:
+     gv_data_enviament,
+     gv_hora_enviament,
+     gv_usuari_enviament.
+
+  PERFORM selecciona_dades_doc_gdg.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE status_0200 OUTPUT.
+
+  PERFORM status_0200.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE ztc_docs_change_field_docs OUTPUT.
+
+  IF gs_valid-flag_signa EQ abap_true OR gv_versio_sig IS INITIAL OR ztc_docs3-lines IS INITIAL.
+    LOOP AT SCREEN.
+      IF screen-name = 'GS_DOCS_PSIG-FLAG'    OR
+         screen-name = 'GS_DOCS_PSIG-CARPETA' OR
+         screen-name = 'GS_DOCS_PSIG-MARCA'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE ztc_docs_change_field_docs_gdg OUTPUT.
+
+  IF gs_valid-flag_signa = abap_true OR
+     gv_versio_sig   IS INITIAL OR
+     ztc_ac-lines IS INITIAL    .
+*    gv_es_desatesa = abap_true . " spec-52934
+
+    LOOP AT SCREEN.
+      IF screen-name = 'GS_AC_GDG-FLAG_A'  OR
+         screen-name = 'GS_AC_GDG-FLAG_C'  OR
+         screen-name = 'GS_AC_GDG-CARPETA' OR
+         screen-name = 'GS_AC_GDG-MARCA'  .
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+  ENDIF.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE ztc_resp_change_field_docs OUTPUT.
+
+*  IF gs_respons_psig-z_tipus_carrec =  'E'.
+*    CLEAR gv_posicio.
+*  ENDIF.
+
+  IF gv_mod_aut_bpm = abap_false. "SPEC-60538 - Deshabilitar columnes pel document
+    "Mod.Aut. del flux BPM
+    IF gs_valid-flag_signa NE abap_true AND gv_versio_sig IS NOT INITIAL.
+      LOOP AT SCREEN.
+        IF screen-name = 'GS_RESPONS_PSIG-Z_CARREC'     OR
+           screen-name = 'GS_RESPONS_PSIG-Z_RESPONSABLE' OR
+           screen-name = 'GS_RESPONS_PSIG-Z_ROL_DIG'.
+          screen-input = 1.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+
+
+*  PERFORM get_respon_name USING gt_respons_psig  ztc_resp2-current_line ztc_resp2-lines gv_int_only.
+
+  IF gs_respons_psig-z_correu_signatari IS INITIAL AND gs_respons_psig-z_responsable IS NOT INITIAL.
+    CALL FUNCTION 'SAPGUI_SET_FUNCTIONCODE'
+      EXCEPTIONS
+        function_not_supported = 1
+        OTHERS                 = 2.
+  ENDIF.
+
+  DESCRIBE TABLE gt_respons_psig LINES ztc_resp3-lines.
+
+  CHECK gs_respons_psig IS NOT INITIAL.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ZTC_DOCS_MODIFY_DOC  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ztc_docs_modify_doc INPUT.
+
+  READ TABLE gt_docs_psig_t
+   ASSIGNING FIELD-SYMBOL(<fs_doc>)
+       WITH KEY num_doc = gs_docs_psig-num_doc.
+
+  CHECK sy-subrc EQ 0.
+
+  <fs_doc>-flag =  gs_docs_psig-flag.
+
+  READ TABLE gt_docs_psig
+   ASSIGNING FIELD-SYMBOL(<fs_doc_p>)
+   WITH KEY num_doc = <fs_doc>-num_doc.
+
+  CHECK sy-subrc EQ 0.
+
+  <fs_doc_p>-flag =  gs_docs_psig-flag.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE ztc_docs_modify_doc_gdg INPUT.
+
+  PERFORM add_doc.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE f4_help INPUT.
+  DATA:
+    lv_ans  TYPE c,
+    lv_shlp TYPE shlp_descr,
+    lt_ret  TYPE TABLE OF ddshretval.
+
+  CALL FUNCTION 'POPUP_WITH_2_BUTTONS_TO_CHOOSE'
+    EXPORTING
+      defaultoption = '1'
+      diagnosetext1 = ' '
+*     DIAGNOSETEXT2 = ' '
+*     DIAGNOSETEXT3 = ' '
+      textline1     = text-s01
+*     TEXTLINE2     = ' '
+*     TEXTLINE3     = ' '
+      text_option1  = text-s02
+      text_option2  = text-s03
+      titel         = text-s04
+    IMPORTING
+      answer        = lv_ans.
+
+  IF lv_ans EQ '1'. "Intern
+
+    CALL FUNCTION 'F4IF_FIELD_VALUE_REQUEST'
+      EXPORTING
+        tabname           = 'RP50G'
+        fieldname         = 'PERNR'
+        searchhelp        = 'PREM'
+      TABLES
+        return_tab        = lt_ret
+      EXCEPTIONS
+        field_not_found   = 1
+        no_help_for_field = 2
+        inconsistent_help = 3
+        no_values_found   = 4
+        OTHERS            = 5.
+  ELSE. "Extern
+    CALL FUNCTION 'F4IF_FIELD_VALUE_REQUEST'
+      EXPORTING
+        tabname           = 'LFBK'
+        fieldname         = 'LIFNR'
+        searchhelp        = 'ZKRED'            " Insert SPEC-58939 ETXGL
+      TABLES
+        return_tab        = lt_ret
+      EXCEPTIONS
+        field_not_found   = 1
+        no_help_for_field = 2
+        inconsistent_help = 3
+        no_values_found   = 4
+        OTHERS            = 5.
+  ENDIF.
+
+  IF lt_ret IS NOT INITIAL.
+    READ TABLE lt_ret ASSIGNING FIELD-SYMBOL(<fs_ret>) INDEX 1.
+    gs_respons_psig-z_responsable = <fs_ret>-fieldval.
+  ENDIF.
+
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  GET_SIGNATARIS  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE get_signataris OUTPUT.
+
+  PERFORM get_signataris.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  SET_SETCURSOR  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE set_setcursor OUTPUT.
+  SET CURSOR FIELD 'ZBOT1'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  GET_DESC  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE get_desc INPUT.
+
+  gs_grupo-z_grupo = zrm_signa_docu-z_grupo.
+
+  IF gs_grupo-z_grupo IS NOT INITIAL.
+    SELECT *
+      FROM zrm_signa_docu
+        UP TO 1 ROWS
+      INTO TABLE @DATA(lt_signa)
+     WHERE z_grupo  EQ @gs_grupo-z_grupo AND
+           z_anchor EQ @gs_grupo-z_anchor.
+
+    IF sy-subrc EQ 0.
+      READ TABLE lt_signa ASSIGNING FIELD-SYMBOL(<fs_signa>) INDEX 1.
+      gs_grupo-z_descripcio = <fs_signa>-z_descripcio.
+    ENDIF.
+  ELSE.
+    CLEAR gs_grupo-z_descripcio.
+  ENDIF.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  INI_CAMPOS  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ini_campos OUTPUT.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE status_300 OUTPUT.
+
+  PERFORM status_300.
+  SORT gt_respons_psig BY ordre.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE ocultar_campos_tc_responsable OUTPUT.
+
+*>> Ini  SPEC-52378  - ETMAE
+
+* Ocultar  Z_CARREC i ORDRE del table control de firmantes
+* Se a fijado el Group3 a 'HID' de los elementos a ocultar.
+
+  DATA:  ls_columna   LIKE LINE OF ztc_resp3-cols .
+
+  LOOP AT ztc_resp3-cols INTO ls_columna.
+    IF ls_columna-screen-group3 = 'HID'.
+      ls_columna-invisible = abap_true .
+      MODIFY ztc_resp3-cols FROM ls_columna.
+    ENDIF.
+  ENDLOOP.
+
+*<< Fi  SPEC-52378  - ETMAE
+
+
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0400  OUTPUT
+*&---------------------------------------------------------------------*
+*       Status pantalla '0400'
+*----------------------------------------------------------------------*
+MODULE status_0400 OUTPUT.
+  SET PF-STATUS 'PF400'.
+  SET TITLEBAR 'DOC'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  SHOW_ALV  OUTPUT
+*&---------------------------------------------------------------------*
+*       Mostrar les subscreens de ALV
+*----------------------------------------------------------------------*
+MODULE show_alv OUTPUT.
+  PERFORM show_alv_prin.
+  PERFORM show_alv_sec.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  CHANGE_ATTR_0400  OUTPUT
+*&---------------------------------------------------------------------*
+*       Tractament Atributs dels camps de la Dynpro 0400
+*----------------------------------------------------------------------*
+MODULE change_attr_0400 OUTPUT.
+  PERFORM change_attr_0400.
+ENDMODULE.
+
+MODULE clear_signatures OUTPUT. "SPEC-59583
+  PERFORM clear_signatures.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0210  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_0210 OUTPUT.
+  SET PF-STATUS 'PF210'.
+
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Module  OCULTAR_TC_DOCS  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ocultar_tc_docs OUTPUT.
+  "SPEC-60538 Si és un document de Modificació Autoritzada BPM, fer invisible
+  "el table control de Documents
+  IF gv_mod_aut_bpm = abap_true.
+    ztc_ac-invisible = 'X'.
+  ELSE.
+    ztc_ac-invisible = ''.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  OCULTAR_BOTONERA  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ocultar_botonera OUTPUT.
+  "SPEC-60538 Si és un document de Modificació Autoritzada BPM, fer invisible
+  "la botonera que hi ha sota la taula de signataris
+  IF gv_mod_aut_bpm = abap_true.
+    LOOP AT SCREEN.
+      IF screen-name = 'SUBIR'  OR
+         screen-name = 'INS_LIN'  OR
+         screen-name = 'DEL_LIN' OR
+         screen-name = 'DOWN'  OR
+        screen-name = 'GV_SIGNATARIS'  OR
+        screen-name = 'ADD_EMPLOY'  OR
+        screen-name = 'GV_PARALLEL' .
+        "screen-input = 0.
+        screen-invisible = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDMODULE.

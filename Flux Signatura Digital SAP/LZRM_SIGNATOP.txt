@@ -1,0 +1,270 @@
+FUNCTION-POOL zrm_signa.                    "MESSAGE-ID ..
+
+TYPE-POOLS: vrm, zsign ,
+            ztpdo.    "SPEC-56971 - ECTRP
+
+TABLES: zrm_signa_docu.
+
+CONSTANTS: co_carrec_int TYPE z_tipus_carrec VALUE 'I',
+           co_carrec_ext TYPE z_tipus_carrec VALUE 'E',
+           co_resp_ger   TYPE z_resp_doc VALUE 'G',
+           co_resp_con   TYPE z_resp_doc VALUE 'A',
+           gc_cancel     TYPE char1      VALUE 'C' ,   " SPEC-49453
+           gc_pnd        TYPE char3      VALUE 'PND' . " SPEC-52934
+
+CONSTANTS: BEGIN OF co_un_org,
+             cont     TYPE actorid VALUE '50000039',
+             ger_gisa TYPE actorid VALUE '50000031',
+             ger_regs TYPE actorid VALUE '50000239',
+             ger_ifer TYPE actorid VALUE '50000245',
+           END OF co_un_org,
+           BEGIN OF gc_princ_modif,
+             principal TYPE z_princ_modif VALUE 'P',
+             credit    TYPE z_princ_modif VALUE 'C',
+             tots      TYPE z_princ_modif VALUE space,
+           END OF gc_princ_modif,
+           c_true           TYPE xfeld VALUE 'X',
+           c_metodic        TYPE prps-zzmetod VALUE 'IC',
+           c_ifer           TYPE t001-bukrs VALUE 'IFER',
+           c_zsi            TYPE zrm_dt_contr-z_estat VALUE 'ZSI',
+*  ">>>  SPEC-76534 Inici Modificació ECAGE
+           c_limit_resp_ext TYPE i VALUE 10.
+*  "<<<  SPEC-76534 Final Modificació ECAGE
+
+TYPES: gty_tt_docs_doc TYPE TABLE OF zrm_dt_docs_doc.
+
+TYPES: BEGIN OF ty_operacio,
+         vis TYPE flag,
+         ger TYPE flag,
+         con TYPE flag,
+         env TYPE flag,
+         sup TYPE flag,
+       END OF ty_operacio.
+
+TYPES: BEGIN OF ty_docs_sign.
+         INCLUDE TYPE zrm_dm_docs_sign.
+         TYPES:   flag          TYPE flag,
+         data_env_sign TYPE dats,
+         marca         TYPE flag,
+       END OF ty_docs_sign,
+       ty_t_docs_sign TYPE TABLE OF ty_docs_sign.
+* INI ETLJS typo documentos firmados para psig
+TYPES: BEGIN OF ty_docs_sign_psig.
+         INCLUDE TYPE zrm_dm_docs_sign.
+         TYPES:   flag          TYPE flag,
+         data_env_sign TYPE dats,
+         marca         TYPE flag,
+         is_main       TYPE flag,
+         versio        TYPE z_versio,
+         carpeta       TYPE string,
+         denominacio   TYPE string,
+         num_doc       TYPE char5,
+       END OF ty_docs_sign_psig,
+       ty_t_docs_sign_psig TYPE TABLE OF ty_docs_sign_psig.
+
+* FIN ETLJS typo documentos firmados para psig
+TYPES: BEGIN OF ty_responsables.
+         INCLUDE TYPE zrm_dt_resp_cont.
+         TYPES:   nom TYPE text80,
+       END OF ty_responsables,
+       ty_t_responsables TYPE TABLE OF ty_responsables.
+
+* Tipo responsables para psig
+
+TYPES: BEGIN OF ty_responsables_psig.
+         INCLUDE TYPE zrm_dt_resp_doc.
+         TYPES:   nom          TYPE text80,
+         ordre        TYPE i,
+*         z_codi_exp TYPE z_codi_exp,
+         marca        TYPE flag,
+         marcador     TYPE char20,
+*  ">>>  SPEC-76534 Inici Modificació ECAGE
+*         correlativo  TYPE numc1 ,  " SPEC-52378
+         correlativo  TYPE i,
+*  "<<<  SPEC-76534 Final Modificació ECAGE
+         tasca_bpm_id TYPE ztasca_bpm_id, "SPEC-60538
+       END OF ty_responsables_psig,
+       ty_t_responsables_psig TYPE TABLE OF ty_responsables_psig.
+
+TYPES: BEGIN OF ty_valid,
+         flag_gerencia     TYPE flag,
+         data_gerencia     TYPE dats,
+         flag_contractacio TYPE flag,
+         data_contractacio TYPE dats,
+         flag_signa        TYPE flag,
+         data_signa        TYPE dats,
+       END OF ty_valid.
+
+
+TABLES: zrm_dm_docs_sign, zrm_dt_contr, zrm_dt_resp_cont,
+        zrm_dt_docs_adj.
+
+DATA: ok_code                    TYPE sy-ucomm,
+      gv_edicio                  TYPE flag,
+*** INI SPEC-49142
+*      gv_codi_exp         TYPE z_codi_exp,
+      gv_codi_exp                TYPE z_codi_exp2,
+*** FIN SPEC-49142
+      gv_descr_abr               TYPE z_descrip_abr,
+      gv_num_cont_tip            TYPE z_num_cont_tip,
+      gv_num_cont_ti             TYPE z_num_cont_tip,
+      gv_ult_p_mod               TYPE z_princ_modif,
+      gs_operacio                TYPE ty_operacio,
+      gs_sdok                    TYPE sdokobject,
+      gs_docs_sign               TYPE ty_docs_sign,
+      gs_valid                   TYPE ty_valid,
+      gs_valid_ini               TYPE ty_valid,
+      gs_modificat               TYPE zrm_dt_modificat,
+      gt_modificat               TYPE TABLE OF zrm_dt_modificat,
+      gs_respons                 TYPE ty_responsables,
+      gs_respons_psig            TYPE ty_responsables_psig,
+      ">>>SPEC:69974, Inici modificació - ECJMS
+      gs_respons_psig_2          TYPE ty_responsables_psig,
+      "<<<SPEC:69974, Final modificació - ECJMS
+      gt_respons                 TYPE ty_t_responsables,
+      gt_respons_t               TYPE ty_t_responsables,
+      gt_respons_psig            TYPE ty_t_responsables_psig,
+      gt_bin_content             TYPE bapidoccontentab,
+      gt_components              TYPE bapidoccompt,
+      gv_changed                 TYPE xfeld,
+      gt_web_hash                TYPE ztt_web_hash,
+      gt_messages                TYPE bapirettab,
+      gt_val_mod                 TYPE vrm_values,
+*      ETLJS
+      gv_anchor                  TYPE z_anchor,
+      gv_versio                  TYPE z_versio,
+      gv_versio_sig              TYPE z_versio,
+      gv_descripcio              TYPE zdescripcio,
+      gv_desc_text               TYPE zdescripcio,
+      gv_data_sign               TYPE string,
+      gv_repetido                TYPE flag,
+      gv_bukrs                   TYPE bukrs,
+      gt_signataris              TYPE TABLE OF zrm_signa_docu,
+      gv_signataris              TYPE z_grupo,
+      gs_grupo                   TYPE zrm_signa_docu,
+      gv_parallel                TYPE z_parallel,
+*      gv_posicio          TYPE z_posicio, "SPEC-59583 ja no s'utilitzarà el flag
+      gv_int_only                TYPE flag,
+      gv_data_enviament          TYPE sy-datum,
+      gv_hora_enviament          TYPE sy-uzeit,
+      gv_usuari_enviament        TYPE sy-uname,
+      gt_docs                    TYPE TABLE OF zgdg_docs,
+      gv_mod_aut_bpm             TYPE boolean, "SPEC-60538 nova variable per saber si el
+      "document de Modificació Autoritzada pertany a un flux bpm
+      gs_zbpm_dades_rv           TYPE zbpm_dades_rv, "SPEC-60538 nova variable per guardar
+      gv_dies_expiracio_viafirma TYPE zvf_expire. "SPEC-86568
+"la estructura amb les dades del flux bpm
+
+* portaSignatura
+DATA: gt_docs_sign   TYPE ty_t_docs_sign,
+      gt_docs_sign_t TYPE ty_t_docs_sign,
+      gt_docs_psig   TYPE ty_t_docs_sign_psig,
+      gt_docs_psig_t TYPE ty_t_docs_sign_psig,
+      gs_docs_psig   TYPE ty_docs_sign_psig . " work area de anexos PortaSignatura
+
+DATA: gt_docs_adj   TYPE TABLE OF zrm_dt_docs_adj,
+      gt_docs_adj_t TYPE TABLE OF zrm_dt_docs_adj.
+
+
+">>> SPEC-51771, Inici Modificació - ECTRP  08062020
+* ADD DOCUMENT - Dybpro '0400'
+DATA: gv_documento      TYPE char50,
+      gv_descripcio_uni TYPE char27,
+      gv_descripcio_abr TYPE char40,
+      gv_data_creacio   TYPE datum,
+      gv_text_pc        TYPE char50,
+      gt_documents      TYPE ztty_cerca_docs,
+      gv_cont(2)        TYPE n,
+      go_alv_grid_princ TYPE REF TO cl_gui_alv_grid,
+      go_alv_grid_pos   TYPE REF TO cl_gui_alv_grid,
+      go_container_prin TYPE REF TO cl_gui_custom_container,
+      go_container_pos  TYPE REF TO cl_gui_custom_container,
+      gt_props          TYPE TABLE OF bapiproptb,
+      gt_alv_pos        TYPE ztty_cerca_docs,         "Conté tota l'informació d'ALV Posicions
+      gt_fcat_princ     TYPE lvc_t_fcat,              "Fieldcatalog llistat ALV Principal
+      gt_fcat_pos       TYPE lvc_t_fcat,              "Fieldcatalog llistat ALV Posicions
+      gs_layout         TYPE lvc_s_layo,              "Layout llistat ALV Principal
+      gs_layout_pos     TYPE lvc_s_layo.              "Layout llistat ALV Posicions
+">>> SPEC-51771, Final Modificació - ECTRP  08062020
+
+* GDG
+
+TYPES: BEGIN OF ty_ac_gdg. " Anexos y Consultas GDG
+         INCLUDE TYPE zrm_dm_docs_sign.
+         TYPES:   flag_a        TYPE flag,  " Anexo
+         flag_c        TYPE flag,  " Consulta
+         data_env_sign TYPE dats,
+         marca         TYPE flag,
+         is_main       TYPE flag,
+         versio        TYPE z_versio,
+         carpeta       TYPE text128, " string,
+         denominacio   TYPE text128, " string,
+         num_doc       TYPE char5,
+         is_attach     TYPE xfeld, "ETLJS SPEC-49751
+         codi_exp      TYPE z_codi_exp,   "ECTRP SPEC-51771
+         descr_abr     TYPE z_descrip_abr, "ECTRP SPEC-51771
+       END OF ty_ac_gdg.
+
+TYPES: tt_ac_gdg TYPE TABLE OF ty_ac_gdg.
+
+DATA: gs_ac_gdg     TYPE ty_ac_gdg , " Docs. Anexos y Consultas GDG - WA
+      gt_ac_gdg     TYPE tt_ac_gdg , " Docs. Anexos y Consultas GDG - Tabla
+      gt_ac_gdg_aux TYPE tt_ac_gdg.  " SPEC-51771 - ECTRP
+
+***>>> INICI Insert SPEC-48397 ETXGL
+DATA: wa_pa0002           TYPE pa0002,
+      wa_lfa1_responsable TYPE lfa1,
+      wa_adr6_responsable TYPE adr6.
+DATA: lv_lifnr TYPE lfa1-lifnr.
+***<<< FI Insert SPEC-48397 ETXGL
+
+FIELD-SYMBOLS: <fs_doc_adj>   TYPE zrm_dt_docs_adj,
+               <fs_docs_sign> TYPE ty_docs_sign.
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZTC_DOCS' ITSELF
+CONTROLS: ztc_docs TYPE TABLEVIEW USING SCREEN 0100.
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZTC_RESP' ITSELF
+CONTROLS: ztc_resp TYPE TABLEVIEW USING SCREEN 0100.
+CONTROLS: ztc_resp2 TYPE TABLEVIEW USING SCREEN 0200.
+CONTROLS: ztc_resp3 TYPE TABLEVIEW USING SCREEN 0300.
+
+*&SPWIZARD: DECLARATION OF TABLECONTROL 'ZTC_DOCS2' ITSELF
+CONTROLS: ztc_docs2 TYPE TABLEVIEW USING SCREEN 0100.
+CONTROLS: ztc_docs3 TYPE TABLEVIEW USING SCREEN 0200.
+CONTROLS: ztc_ac    TYPE TABLEVIEW USING SCREEN 0300.
+
+*&SPWIZARD: LINES OF TABLECONTROL 'ZTC_DOCS2'
+DATA:     g_ztc_docs2_lines  LIKE sy-loopc.
+
+*DATA: FLAG_EXCLUSIO TYPE flag.
+
+*data: gv_total_bytes type i .
+
+DATA: gv_max_len    TYPE i  VALUE '10000000', " 10 MB
+      gs_main_doc   TYPE ty_docs_sign_psig,
+      gv_te_annexos TYPE flag.
+
+DATA: gv_bookmark    TYPE zbookmark_sign , " spec-52934
+      gv_es_desatesa TYPE flag ,           " spec-52934
+      gv_crear_pdf   TYPE flag .           " spec-52934
+
+
+"SPEC-60538
+TYPES: BEGIN OF ty_responsables_bpm.
+TYPES: usuari          TYPE xubname,
+       pernr           TYPE pernr_d,
+       pernr_substitut TYPE pernr_d,
+       tasca_bpm_id    TYPE ztasca_bpm_id,
+       END OF ty_responsables_bpm,
+       ty_t_responsables_bpm TYPE TABLE OF ty_responsables_bpm.
+
+
+"SPEC-61773 - Documents restringits
+DATA: g_doc_restringit TYPE char2,
+      g_codi_clas      TYPE z_codi,
+      g_societat       TYPE z_societat.
+
+">> SPEC-75465, Inici Modificació - ETODR
+DATA: gv_annexes_to_pdf TYPE xfeld.
+"<< SPEC-75465, Final Modificació - ETODR

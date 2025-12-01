@@ -1,0 +1,67 @@
+*&---------------------------------------------------------------------*
+*&  Include           LZRM_SIGNAOBJ
+*&---------------------------------------------------------------------*
+* Objetos ALV (SPEC-51771 - ECTRP)
+*----------------------------------------------------------------------*
+*       CLASS lcl_event_handler DEFINITION
+*----------------------------------------------------------------------*
+* Definició de classe controladora d'events del llistat ALV principal
+*----------------------------------------------------------------------*
+
+CLASS lcl_event_handler DEFINITION.
+  PUBLIC SECTION .
+    METHODS: handle_double_click                          "Double click control
+                  FOR EVENT double_click OF cl_gui_alv_grid
+      IMPORTING e_row
+                  e_column
+                  es_row_no,
+
+      handle_hotspot_click                          "Hotspot click control
+                    FOR EVENT hotspot_click OF cl_gui_alv_grid
+        IMPORTING e_row_id e_column_id es_row_no.
+
+    METHODS:
+      m_toolbar FOR EVENT toolbar OF cl_gui_alv_grid
+        IMPORTING e_object e_interactive,
+
+      princ_toolbar FOR EVENT toolbar OF cl_gui_alv_grid
+        IMPORTING e_object e_interactive,
+
+      m_user_command  FOR EVENT user_command OF cl_gui_alv_grid
+        IMPORTING e_ucomm.
+
+ENDCLASS.                    "lcl_event_handler DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_event_handler IMPLEMENTATION
+*----------------------------------------------------------------------*
+* Implementació de classe controladora d'events del llistat ALV principal
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler IMPLEMENTATION.
+  METHOD handle_double_click.
+    PERFORM handle_double_click
+      USING e_row
+            e_column
+            es_row_no-row_id.
+  ENDMETHOD.                                "handle_double_click
+
+  METHOD handle_hotspot_click .
+    PERFORM handle_hotspot_click
+      USING e_row_id e_column_id es_row_no-row_id.
+  ENDMETHOD.                                "handle_hotspot_click
+
+  METHOD m_toolbar.
+    PERFORM f_boton USING e_object.
+  ENDMETHOD.                                "m_toolbar.
+
+  METHOD princ_toolbar.
+    PERFORM f_boton_princ USING e_object.
+  ENDMETHOD.                                "princ_toolbar.
+
+  METHOD m_user_command.
+    PERFORM f_alvpos_command USING e_ucomm.
+  ENDMETHOD.                                "m_user_command.
+
+ENDCLASS.                    "lcl_event_handler IMPLEMENTATION
+
+DATA go_event_handler TYPE REF TO lcl_event_handler.

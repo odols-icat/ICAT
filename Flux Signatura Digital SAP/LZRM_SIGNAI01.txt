@@ -1,0 +1,1737 @@
+*&---------------------------------------------------------------------*
+*&  Include           LZRM_SIGNAI01
+*&---------------------------------------------------------------------*
+DATA ls_doc_adj TYPE zrm_dt_docs_adj.
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZTC_DOCS'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE ztc_docs_modify INPUT.
+  MODIFY gt_docs_sign FROM gs_docs_sign
+                      INDEX ztc_docs2-current_line.
+  READ TABLE gt_docs_sign INDEX ztc_docs2-current_line
+                          ASSIGNING <fs_docs_sign>.
+  READ TABLE gt_docs_adj_t WITH KEY z_princ_modif = zrm_dt_docs_adj-z_princ_modif
+                                    z_num_doc     = <fs_docs_sign>-z_num_doc_sign
+                           ASSIGNING <fs_doc_adj>.
+  IF sy-subrc = 0.
+    <fs_doc_adj>-z_doc_adjuntat = 'X'.
+  ELSE.
+    MOVE: gs_sdok-class                 TO ls_doc_adj-docclass,
+          gs_sdok-objid                 TO ls_doc_adj-objectid,
+          zrm_dt_docs_adj-z_princ_modif TO ls_doc_adj-z_princ_modif,
+          <fs_docs_sign>-z_num_doc_sign TO ls_doc_adj-z_num_doc,
+          'X'                           TO ls_doc_adj-z_doc_adjuntat.
+    APPEND ls_doc_adj TO gt_docs_adj_t.
+  ENDIF.
+ENDMODULE.                    "ZTC_DOCS_MODIFY INPUT
+*&---------------------------------------------------------------------*
+*&      Module  user_command_0100  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_0100 INPUT.
+
+  DATA: lv_sortir   TYPE flag,
+        lv_answer   TYPE char1,
+        lv_resp_doc TYPE z_resp_doc,
+        ls_return   TYPE bapireturn,
+        lt_return   TYPE isi_bapireturn_tt,
+        l_okcode    TYPE sy-ucomm,
+        l_tipus     TYPE z_tipus. "INI MODIF ETODR 17.02.2016 SPEC-38374
+
+  DATA: it_element TYPE TABLE OF bapipropelement,
+        wa_element TYPE bapipropelement.
+
+  DATA: lt_text_popup TYPE catsxt_longtext_itab,
+        ls_text_popup TYPE txline,
+        lv_text_popup TYPE string.
+
+  CLEAR: lv_sortir, wa_element.
+  REFRESH: it_element.
+
+  l_okcode = ok_code .
+  CLEAR ok_code .
+
+  IF l_okcode = 'SAVE'.
+    CASE 'X'.
+      WHEN gs_operacio-ger.
+        IF NOT gs_valid-flag_gerencia IS INITIAL.
+          lv_resp_doc = co_resp_ger.
+        ENDIF.
+      WHEN gs_operacio-con.
+        IF NOT gs_valid-flag_contractacio IS INITIAL.
+          lv_resp_doc = co_resp_con.
+        ENDIF.
+    ENDCASE.
+    IF NOT lv_resp_doc IS INITIAL.
+      READ TABLE gt_docs_sign TRANSPORTING NO FIELDS
+                              WITH KEY flag       = space
+                                       z_resp_doc = lv_resp_doc.
+      IF sy-subrc = 0.
+        CALL FUNCTION 'POPUP_CONTINUE_YES_NO'
+          EXPORTING
+            textline1 = text-002
+            textline2 = text-003
+            titel     = text-001
+          IMPORTING
+            answer    = lv_answer.
+        IF lv_answer = 'N'.
+          CLEAR l_okcode.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+**    >> INI 22.02.2016 ETODR SPEC-38314
+  CLEAR: lt_return[].
+**    << FI 22.02.2016 ETODR SPEC-38314
+
+  CASE l_okcode.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      lv_sortir = 'X'.
+
+    WHEN 'SIGNA'.
+      CHECK zrm_dt_docs_adj-z_princ_modif = gv_ult_p_mod.
+      IF zrm_dt_contr-ebeln IS INITIAL .
+        MESSAGE i233(zrm_errors) DISPLAY LIKE 'E'.
+        EXIT .
+      ENDIF .
+*<< IMPLANTACIÓ PORTASIGNATURES  - EDDMP
+**    >> INI 15.02.2016 ETODR SPEC-38314
+      PERFORM check_if_nou_psig USING    gs_sdok-class
+                                         gs_sdok-objid
+                                CHANGING zrm_dt_contr.
+      IF zrm_dt_contr-z_nou_psig_contr = abap_on.
+** >> INICI SPEC-39710 ETRFV, afegir authority-check
+        AUTHORITY-CHECK OBJECT 'ZPSIG_SUB'
+          ID 'ACTVT'  FIELD '01'.
+        "Si l'usuari no té autorització mostrem missatge d'error.
+        IF sy-subrc <> 0.
+          MESSAGE 'No té permisos per executar aquest procés.' TYPE 'E'.
+        ENDIF.
+** << FINAL SPEC-39710 ETRFV, afegir authority-check
+
+        CALL FUNCTION 'ZPSIGNA_SDAC_NOU'
+          EXPORTING
+            i_objectid       = gs_sdok-objid
+            i_docclass       = gs_sdok-class
+            i_princ_modif    = zrm_dt_docs_adj-z_princ_modif
+            i_dies_expiracio = gv_dies_expiracio_viafirma "SPEC-86568
+          IMPORTING
+            pt_return        = lt_return.
+      ELSE.
+**    << FI 15.02.2016 ETODR SPEC-38314
+        CALL FUNCTION 'ZPSIGNA_SDAC'
+          EXPORTING
+            i_objectid    = gs_sdok-objid
+            i_docclass    = gs_sdok-class
+            i_princ_modif = zrm_dt_docs_adj-z_princ_modif
+          IMPORTING
+            pt_return     = lt_return.
+      ENDIF.
+      READ TABLE lt_return INTO ls_return INDEX 1.
+      IF sy-subrc = 0. "MODIF SPEC ETODR 38314
+        MESSAGE ls_return-message TYPE ls_return-type.
+      ENDIF.
+*>> IMPLANTACIÓ PORTASIGNATURES  - EDDMP
+
+      lv_sortir = 'X'.
+
+    WHEN 'SAVE'.
+      CHECK zrm_dt_docs_adj-z_princ_modif = gv_ult_p_mod.
+
+      DELETE FROM zrm_dt_docs_adj WHERE docclass = gs_sdok-class
+                                    AND objectid = gs_sdok-objid.
+      MODIFY zrm_dt_docs_adj FROM TABLE gt_docs_adj_t.
+
+      CASE 'X'.
+        WHEN gs_operacio-ger.
+          IF NOT gs_valid-flag_gerencia IS INITIAL.
+            IF zrm_dt_docs_adj-z_princ_modif = gc_princ_modif-principal.
+              UPDATE zrm_dt_contr SET z_data_val_ger = sy-datum
+                                  WHERE docclass = gs_sdok-class
+                                    AND objectid = gs_sdok-objid.
+            ELSE.
+              UPDATE zrm_dt_modificat SET z_data_val_ger = sy-datum
+                                      WHERE docclass    = gs_sdok-class
+                                        AND objectid    = gs_sdok-objid
+                                        AND z_num_modif = gv_ult_p_mod.
+            ENDIF.
+            PERFORM enviar_mail.
+          ENDIF.
+          lv_sortir = 'X'.
+
+        WHEN gs_operacio-con.
+          IF NOT gs_valid-flag_contractacio IS INITIAL.
+            IF zrm_dt_docs_adj-z_princ_modif = gc_princ_modif-principal.
+              UPDATE zrm_dt_contr SET z_data_val_con = sy-datum
+                                  WHERE docclass = gs_sdok-class
+                                    AND objectid = gs_sdok-objid.
+            ELSE.
+              UPDATE zrm_dt_modificat SET z_data_val_con = sy-datum
+                                      WHERE docclass    = gs_sdok-class
+                                        AND objectid    = gs_sdok-objid
+                                        AND z_num_modif = gv_ult_p_mod.
+            ENDIF.
+            PERFORM enviar_mail.
+            CLEAR gs_operacio.
+            gs_operacio-env = 'X'.
+          ELSE.
+            lv_sortir = 'X'.
+          ENDIF.
+
+        WHEN gs_operacio-sup.
+          IF gs_valid-flag_gerencia IS NOT INITIAL AND
+             gs_valid_ini-flag_gerencia IS INITIAL.
+            IF zrm_dt_docs_adj-z_princ_modif = gc_princ_modif-principal.
+              UPDATE zrm_dt_contr SET z_data_val_ger = sy-datum
+                                  WHERE docclass = gs_sdok-class
+                                    AND objectid = gs_sdok-objid.
+            ELSE.
+              UPDATE zrm_dt_modificat SET z_data_val_ger = sy-datum
+                                      WHERE docclass    = gs_sdok-class
+                                        AND objectid    = gs_sdok-objid
+                                        AND z_num_modif = gv_ult_p_mod.
+            ENDIF.
+            gs_operacio-ger = 'X'.
+            PERFORM enviar_mail.
+            CLEAR gs_operacio-ger.
+          ENDIF.
+          IF gs_valid-flag_contractacio IS NOT INITIAL AND
+             gs_valid_ini-flag_contractacio IS INITIAL.
+            IF zrm_dt_docs_adj-z_princ_modif = gc_princ_modif-principal.
+              UPDATE zrm_dt_contr SET z_data_val_con = sy-datum
+                                  WHERE docclass = gs_sdok-class
+                                    AND objectid = gs_sdok-objid.
+            ELSE.
+              UPDATE zrm_dt_modificat SET z_data_val_con = sy-datum
+                                      WHERE docclass    = gs_sdok-class
+                                        AND objectid    = gs_sdok-objid
+                                        AND z_num_modif = gv_ult_p_mod.
+            ENDIF.
+            gs_operacio-con = 'X'.
+            PERFORM enviar_mail.
+            CLEAR gs_operacio-con.
+          ENDIF.
+      ENDCASE.
+      lv_sortir = 'X'.
+      MESSAGE i013(zrm_errors).
+
+
+    WHEN 'SUPER'.
+      CLEAR gs_operacio.
+      gs_operacio-sup = 'X'.
+** >> INI MODIF ETODR 17.02.2016 SPEC-38374
+    WHEN 'SUBSA'.
+      l_tipus = zrm_dt_docs_adj-z_princ_modif.
+      IF zrm_dt_docs_adj-z_princ_modif <> gc_princ_modif-principal AND zrm_dt_docs_adj-z_princ_modif <> gc_princ_modif-credit.
+        l_tipus = 'M'.
+      ENDIF.
+** >> INICI SPEC-39710 ETRFV, afegir authority-check
+      AUTHORITY-CHECK OBJECT 'ZPSIG_SUB'
+        ID 'ACTVT'  FIELD '01'.
+      "Si l'usuari no té autorització mostrem missatge d'error.
+      IF sy-subrc <> 0.
+        MESSAGE 'No té permisos per executar aquest procés.' TYPE 'E'.
+      ENDIF.
+** << FINAL SPEC-39710 ETRFV, afegir authority-check
+      "INI SPEC-86568 Popup motiu rebuig
+      CALL FUNCTION 'CATSXT_SIMPLE_TEXT_EDITOR'
+        EXPORTING
+          im_title = 'Motiu de rebuig'
+        CHANGING
+          ch_text  = lt_text_popup.
+
+      LOOP AT lt_text_popup INTO ls_text_popup.
+        lv_text_popup = lv_text_popup && ` ` && ls_text_popup.
+      ENDLOOP.
+      "FI SPEC-86568
+
+      CALL FUNCTION 'ZPSIG_SUBSANACIO_NOU'
+        EXPORTING
+          ebeln         = zrm_dt_contr-ebeln
+          z_tipus       = l_tipus "'P' "principal 'M' Modificat 'C' Credit
+          z_princ_modif = zrm_dt_docs_adj-z_princ_modif "'P' o número de modificat
+          i_motiu       = lv_text_popup
+        CHANGING
+          return        = lt_return.
+      READ TABLE lt_return INTO ls_return INDEX 1.
+      IF sy-subrc = 0.
+        MESSAGE ls_return-message TYPE ls_return-type.
+      ENDIF.
+      lv_sortir = 'X'.
+** << FI MODIF ETODR 17.02.2016 SPEC-38374
+
+*>> Ini  SPEC-60158  - ETMAE
+
+    WHEN 'DBCLICK'.
+*     Tratamiento de direccionamiento de interlocutor a dar doble click.
+      PERFORM tratar_doble_click_resp.
+
+*<< Fi  SPEC-60158  - ETMAE
+
+  ENDCASE.
+
+  CHECK NOT lv_sortir IS INITIAL.
+  SET SCREEN 0.
+  LEAVE SCREEN.
+ENDMODULE.                 " user_command_0100  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  f4_princ_modif  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_princ_modif INPUT.
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = 'ZRM_DT_DOCS_ADJ-Z_PRINC_MODIF'
+      values = gt_val_mod.
+ENDMODULE.                 " f4_princ_modif  INPUT
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZTC_DOCS2'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MODIFY TABLE
+MODULE ztc_docs2_modify INPUT.
+  MODIFY gt_docs_sign
+    FROM gs_docs_sign
+    INDEX ztc_docs2-current_line.
+ENDMODULE.                    "ZTC_DOCS2_MODIFY INPUT
+
+*&SPWIZARD: INPUT MODUL FOR TC 'ZTC_DOCS2'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: MARK TABLE
+MODULE ztc_docs2_mark INPUT.
+  DATA: g_ztc_docs2_wa2 LIKE LINE OF gt_docs_sign.
+  IF ztc_docs2-line_sel_mode = 1
+  AND gs_docs_sign-marca = 'X'.
+    LOOP AT gt_docs_sign INTO g_ztc_docs2_wa2
+      WHERE marca = 'X'.
+      g_ztc_docs2_wa2-marca = ''.
+      MODIFY gt_docs_sign
+        FROM g_ztc_docs2_wa2
+        TRANSPORTING marca.
+    ENDLOOP.
+  ENDIF.
+  MODIFY gt_docs_sign
+    FROM gs_docs_sign
+    INDEX ztc_docs2-current_line
+    TRANSPORTING marca.
+ENDMODULE.                    "ZTC_DOCS2_MARK INPUT
+
+*&SPWIZARD: INPUT MODULE FOR TC 'ZTC_DOCS2'. DO NOT CHANGE THIS LINE!
+*&SPWIZARD: PROCESS USER COMMAND
+MODULE ztc_docs2_user_command INPUT.
+  ok_code = sy-ucomm.
+  PERFORM user_ok_tc USING    'ZTC_DOCS2'
+                              'GT_DOCS_SIGN'
+                              'MARCA'
+                     CHANGING ok_code.
+  sy-ucomm = ok_code.
+ENDMODULE.                    "ZTC_DOCS2_USER_COMMAND INPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0200  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0200 INPUT.
+
+
+  DATA: wa_signataris TYPE zrm_signa_docu.
+
+  DATA: s_zgdg_docs  TYPE zgdg_docs,
+        lv_callstack TYPE abap_callstack,
+        lr_gdg       TYPE REF TO   zcl_gdg.
+
+  CLEAR lv_answer.
+
+  CASE sy-ucomm.
+    WHEN 'SIGNA'.
+
+      AUTHORITY-CHECK OBJECT 'ZPSIG_DOC'
+        ID 'ACTVT'  FIELD '01'.
+      "Si l'usuari no té autorització mostrem missatge d'error.
+      IF sy-subrc <> 0.
+        MESSAGE 'No té permisos per executar aquest procés.' TYPE 'E'.
+      ENDIF.
+
+      REFRESH lt_return.
+      CLEAR ls_return.
+
+      PERFORM check_mail.
+      PERFORM save_docs_signa.
+
+      CALL FUNCTION 'ZPSIGNA_DOCUMENTS'
+        EXPORTING
+          i_objectid   = gs_sdok-objid
+          i_docclass   = gs_sdok-class
+          i_anchor     = gv_anchor
+          i_descripcio = gv_desc_text
+          i_codi_exp   = gv_codi_exp
+          i_versio     = gv_versio_sig
+        IMPORTING
+          pt_return    = lt_return.
+
+      READ TABLE lt_return INTO ls_return INDEX 1.
+      IF sy-subrc = 0.
+        MESSAGE ls_return-message TYPE ls_return-type.
+        IF ls_return-type NE 'E'.
+          SET SCREEN 0.
+          LEAVE SCREEN.
+        ENDIF.
+      ELSE.
+        MESSAGE 'Document enviat a signatura digital' TYPE 'S'.
+        SET PARAMETER ID 'ZRM_LOCKED' FIELD abap_true.
+        SET SCREEN 0.
+        LEAVE SCREEN.
+
+      ENDIF.
+
+    WHEN 'SIGNA_G'.
+
+      PERFORM check_mail.
+      PERFORM convert_pdf.
+      PERFORM save_docs_signa.
+
+      PERFORM send_notificacio USING gt_docs.
+*      PERFORM send_notificacio USING lt_docs_doc.
+      MESSAGE 'Document enviat a signar' TYPE 'S'.
+      SET PARAMETER ID 'ZRM_LOCKED' FIELD abap_true.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+
+
+    WHEN 'BACK'.
+
+      DATA lv_answ TYPE c.
+
+      IF  gs_valid-flag_signa IS INITIAL AND sy-datar EQ abap_true.
+        CALL FUNCTION 'POPUP_TO_CONFIRM'
+          EXPORTING
+            titlebar              = 'Desar'
+            text_question         = 'Desitja guardar els canvis realitzats?'
+            text_button_1         = 'Desar'
+            icon_button_1         = 'ICON_SYSTEM_SAVE'
+            text_button_2         = 'Sortir'
+*           icon_button_2         = 'ICON_CANCEL'
+            display_cancel_button = 'X'
+          IMPORTING
+            answer                = lv_answ
+          EXCEPTIONS
+            text_not_found        = 1
+            OTHERS                = 2.
+
+        CASE lv_answ.
+          WHEN '1'.
+            PERFORM save_docs_signa.
+            MESSAGE text-e06 TYPE 'S'.
+            SET SCREEN 0.
+            LEAVE SCREEN.
+          WHEN '2'.
+            SET SCREEN 0.
+            LEAVE SCREEN.
+          WHEN 'A'.
+        ENDCASE.
+      ELSE.
+        SET SCREEN 0.
+        LEAVE SCREEN.
+      ENDIF.
+
+    WHEN 'EXIT' OR 'CANCEL'.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+    WHEN 'SAVE'.
+      PERFORM save_docs_signa.
+      MESSAGE text-e06 TYPE 'S'.
+    WHEN 'SUBSA'.
+
+      AUTHORITY-CHECK OBJECT 'ZPSIG_DOC'
+        ID 'ACTVT'  FIELD '01'.
+      "Si l'usuari no té autorització mostrem missatge d'error.
+      IF sy-subrc <> 0.
+        MESSAGE 'No té permisos per executar aquest procés.' TYPE 'E'.
+      ENDIF.
+
+      REFRESH lt_return.
+      CLEAR ls_return.
+
+      CALL FUNCTION 'ZPSIG_SUBSANACIO_DOCUMENT'
+        EXPORTING
+          i_codi_exp = gv_codi_exp
+          i_anchor   = gv_anchor
+          i_versio   = gv_versio_sig
+          i_doc_ret  = ''
+          i_bukrs    = gv_bukrs
+        CHANGING
+          return     = lt_return.
+
+      READ TABLE lt_return INTO ls_return INDEX 1.
+      IF sy-subrc = 0.
+        MESSAGE ls_return-message TYPE ls_return-type.
+        IF ls_return-type NE 'E'.
+          SET SCREEN 0.
+          LEAVE SCREEN.
+        ENDIF.
+      ELSE.
+
+        UPDATE zrm_dt_resp_doc  SET z_subsanat      = abap_on
+                             z_data_subsanacio   = sy-datum
+                             z_hora_subsanacio   = sy-uzeit
+                             z_usuari_subsanacio = sy-uname
+                             WHERE docclass      = gs_sdok-class   AND
+                                   objectid      = gs_sdok-objid   AND
+                                   z_anchor      = gv_anchor       AND
+                                   z_versio      = gv_versio_sig.
+
+        MESSAGE 'Document subsanat correctament' TYPE 'S'.
+        DATA
+        lt_seqg3  TYPE TABLE OF seqg3.
+        SET PARAMETER ID 'ZRM_LOCKED' FIELD abap_true.
+        SET SCREEN 0.
+        LEAVE SCREEN.
+      ENDIF.
+
+    WHEN 'SUBSA_G'.
+      DATA lv_aux3 TYPE char50.
+      lv_aux3 = gv_versio_sig.
+      UPDATE zgdg_docs
+*         SET status        = 'RF'
+         SET status        = gc_cancel
+             accions       = ''
+             motiu_rebutj  = 'Subsanat'
+             data_rebutj   = sy-datum
+             hora_rebutj   = sy-uzeit
+       WHERE docclass      EQ zrm_dt_docs_adj-docclass   AND
+             objectid      EQ zrm_dt_docs_adj-objectid   AND
+             aux3          EQ lv_aux3.
+
+      ">>>SPEC:SPEC-56163, Inici modificació  - <ECDRB>
+      IF sy-subrc IS NOT INITIAL.
+
+        CREATE OBJECT lr_gdg
+          EXPORTING
+            zgdg_tipus         = 'U'
+          EXCEPTIONS
+            z_accion_cancelada = 1.
+
+        CALL FUNCTION 'SYSTEM_CALLSTACK'
+          IMPORTING
+            callstack = lv_callstack.
+
+
+        MOVE-CORRESPONDING zrm_dt_docs_adj TO s_zgdg_docs.
+        CALL METHOD lr_gdg->guardar_log_zgdg_docs
+          EXPORTING
+            is_zgdg_docs      = s_zgdg_docs
+            is_abap_callstack = lv_callstack.
+
+      ENDIF.
+      "<<<SPEC:SPEC-56163, Final modificació - <ECDRB>
+
+      UPDATE zrm_dt_resp_doc
+         SET z_subsanat          = abap_on
+             z_data_subsanacio   = sy-datum
+             z_hora_subsanacio   = sy-uzeit
+             z_usuari_subsanacio = sy-uname
+       WHERE docclass      = gs_sdok-class   AND
+             objectid      = gs_sdok-objid   AND
+             z_anchor      = gv_anchor       AND
+             z_versio      = gv_versio_sig.
+
+      IF sy-subrc EQ 0.
+
+        MESSAGE 'Document subsanat' TYPE 'S'.
+        SET PARAMETER ID 'ZRM_LOCKED' FIELD abap_true.
+        SET SCREEN 0.
+        LEAVE SCREEN.
+      ENDIF.
+    WHEN 'ADD_EMPLOY'.
+
+      CLEAR sy-ucomm.
+
+      gs_grupo-z_anchor = gv_anchor.
+
+      CALL SCREEN '0210'
+         STARTING AT 23 8
+           ENDING AT 85 16.
+
+  ENDCASE.
+
+  CLEAR sy-ucomm.
+
+
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Module  ZTC_DOCS_DOC_CHANGE_TC_ATTR  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ztc_docs_doc_change_tc_attr OUTPUT.
+
+  DESCRIBE TABLE gt_docs_psig_t LINES ztc_docs3-lines.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE ztc_resp2_change_tc_attr OUTPUT.
+
+  IF gv_parallel EQ abap_true.
+    LOOP AT ztc_resp2-cols ASSIGNING FIELD-SYMBOL(<fs_cols>).
+      IF <fs_cols>-index = 2.
+        <fs_cols>-invisible = 1.
+      ENDIF.
+    ENDLOOP.
+    LOOP AT SCREEN.
+      IF screen-name EQ 'SUBIR' OR screen-name EQ 'DOWN'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    LOOP AT ztc_resp2-cols ASSIGNING <fs_cols>.
+      IF <fs_cols>-index = 2.
+        <fs_cols>-invisible = 0.
+      ENDIF.
+    ENDLOOP.
+    LOOP AT SCREEN.
+      IF screen-name EQ 'SUBIR' OR screen-name EQ 'DOWN'.
+        screen-input = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+  DESCRIBE TABLE gt_respons LINES ztc_resp2-lines.
+
+ENDMODULE.
+*----------------------------------------------------------------------*
+*
+MODULE ztc_resp3_change_tc_attr OUTPUT.
+
+  IF gv_parallel EQ abap_true.
+    LOOP AT ztc_resp3-cols ASSIGNING <fs_cols>.
+      ">>>SPEC:SPEC-57264, Inici modificació  - ECFA
+      IF <fs_cols>-index = 3.
+        "<<<SPEC:SPEC-57264, Final modificació - ECFA
+        <fs_cols>-invisible = 1.
+      ENDIF.
+    ENDLOOP.
+    LOOP AT SCREEN.
+      IF screen-name EQ 'SUBIR' OR screen-name EQ 'DOWN'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    LOOP AT ztc_resp3-cols ASSIGNING <fs_cols>.
+      ">>>SPEC:57264, Inici modificació  - ECFA
+      IF <fs_cols>-index = 3.
+        "<<<SPEC:57264, Final modificació - ECFA
+        <fs_cols>-invisible = 0.
+      ENDIF.
+    ENDLOOP.
+    LOOP AT SCREEN.
+      IF screen-name EQ 'SUBIR' OR screen-name EQ 'DOWN'.
+        screen-input = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+  DESCRIBE TABLE gt_respons LINES ztc_resp3-lines.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  DEL_ROW  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE del_row INPUT.
+
+  IF gv_parallel EQ abap_true.
+    READ TABLE gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_resp2>) INDEX ztc_resp2-current_line.
+    IF <fs_resp2> IS ASSIGNED.
+      <fs_resp2>-z_parallel = abap_true.
+    ENDIF.
+  ELSE.
+    READ TABLE gt_respons_psig ASSIGNING <fs_resp2> INDEX ztc_resp2-current_line.
+    IF <fs_resp2> IS ASSIGNED.
+      <fs_resp2>-z_parallel = abap_false.
+    ENDIF.
+  ENDIF.
+
+  CASE sy-ucomm.
+    WHEN 'EXIT' OR 'CANCEL'.
+      CLEAR sy-ucomm.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+    WHEN 'DEL'.
+      CHECK gs_respons_psig-marca EQ abap_true.
+      IF ztc_resp2-lines GT 1.
+        DELETE gt_respons_psig INDEX ztc_resp2-current_line.
+        DESCRIBE TABLE gt_respons_psig LINES ztc_resp2-lines.
+        LOOP AT gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_respon>) WHERE ordre GT ztc_resp2-current_line.
+          SUBTRACT 1 FROM <fs_respon>-ordre.
+        ENDLOOP.
+      ELSE.
+        CLEAR gs_respons_psig-z_responsable.
+        CLEAR gs_respons_psig-nom.
+        CLEAR gs_respons_psig-z_nif_signatari.
+        MODIFY gt_respons_psig FROM gs_respons_psig INDEX 1.
+      ENDIF.
+    WHEN 'ADD'.
+      CHECK gs_respons_psig-marca EQ abap_true.
+      IF ztc_resp2-lines LT 20.
+        CLEAR ok_code.
+        READ TABLE gt_respons_psig ASSIGNING <fs_respon> INDEX 1.
+        IF sy-subrc EQ 0.
+          gs_respons_psig-z_posicio_hash = <fs_respon>-z_posicio_hash.
+        ENDIF.
+        ztc_resp2-lines            = ztc_resp2-lines + 1. " This will make one row of table control Editable
+        CLEAR gs_respons_psig.
+        gs_respons_psig-docclass   = gs_sdok-class.
+        gs_respons_psig-objectid   = gs_sdok-objid.
+        gs_respons_psig-z_codi_exp = gv_codi_exp.
+        gs_respons_psig-ordre      = ztc_resp2-current_line + 1.
+        gs_respons_psig-z_parallel = gv_parallel.
+        LOOP AT gt_respons_psig ASSIGNING <fs_respon> WHERE ordre GT ztc_resp2-current_line.
+          ADD 1 TO <fs_respon>-ordre.
+        ENDLOOP.
+        APPEND gs_respons_psig TO gt_respons_psig.
+      ENDIF.
+    WHEN 'UP'.
+      CHECK gs_respons_psig-marca EQ abap_true.
+      CHECK ztc_resp2-lines GT 0.
+      SUBTRACT 1 FROM gs_respons_psig-ordre.
+      CLEAR gs_respons_psig-marca.
+      MODIFY gt_respons_psig FROM gs_respons_psig INDEX ztc_resp2-current_line.
+      READ TABLE gt_respons_psig ASSIGNING <fs_respon> INDEX ztc_resp2-current_line - 1.
+      IF <fs_respon> IS ASSIGNED.
+        ADD 1 TO <fs_respon>-ordre.
+      ENDIF.
+    WHEN 'DOWN'.
+      CHECK gs_respons_psig-marca EQ abap_true.
+      CHECK ztc_resp2-current_line LT ztc_resp2-lines.
+      ADD 1 TO gs_respons_psig-ordre.
+      CLEAR gs_respons_psig-marca.
+      MODIFY gt_respons_psig FROM gs_respons_psig INDEX ztc_resp2-current_line.
+      READ TABLE gt_respons_psig ASSIGNING <fs_respon> INDEX ztc_resp2-current_line + 1.
+      IF <fs_respon> IS ASSIGNED.
+        SUBTRACT 1 FROM <fs_respon>-ordre.
+      ENDIF.
+    WHEN OTHERS.
+      DATA(lv_tabix) = ztc_resp2-current_line.
+      PERFORM respons_repe USING ztc_resp2-current_line.
+      PERFORM get_respon_name USING gt_respons_psig  lv_tabix ztc_resp2-lines gv_int_only.
+  ENDCASE.
+
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  DEL_ROW  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE del_row_300 INPUT.
+
+  DATA: lv_continue          TYPE xfeld,
+        lv_prev_ok_code      TYPE syucomm,
+        ls_responsables_psig TYPE ty_responsables_psig,
+*  ">>>  SPEC-76534 Inici Modificació ECAGE
+        lv_value             TYPE zsap_de_value,
+        lv_num_resp          TYPE i,
+        lv_lines_res         TYPE i,
+        lv_index_resp        TYPE i,
+*        ls_respon_del        TYPE ty_responsables_psig,
+        lt_respons_psig_aux  TYPE ty_t_responsables_psig,
+        ls_respons_psig_aux  TYPE ty_responsables_psig.
+*  "<<<  SPEC-76534 Final Modificació ECAGE
+
+  "---------------------------------------------------------
+  "Si afegim o eliminem signataris, hem de mostrar popup abans,
+  "per avisar que esborrarem les ubicacions
+  "---------------------------------------------------------
+  IF sy-ucomm = 'DEL' OR sy-ucomm = 'ADD' OR sy-ucomm = 'ROL'
+                      OR sy-ucomm = 'UP' OR sy-ucomm = 'DOWN'.
+
+    IF sy-ucomm = 'ROL'.
+      lv_tabix = ztc_resp3-current_line.
+
+      "Si ha canviat alguna cosa, hem d'esborrar les ubicacions
+      "Carreguem la posició actual
+      READ TABLE gt_respons_psig INTO ls_responsables_psig INDEX lv_tabix.
+
+      CHECK ls_responsables_psig-z_rol_dig NE gs_respons_psig-z_rol_dig.
+    ENDIF.
+
+    "Ens guardem la primera acció per si accepten despès.
+    lv_prev_ok_code = sy-ucomm.
+
+    "Esborrem o no les posisionc depenet del popup
+    PERFORM delete_posicions CHANGING lv_continue.
+
+    "Si accepten continuar, seguim amb l'acció anterior
+    IF lv_continue = abap_false.
+      CLEAR sy-ucomm.
+    ELSE.
+      sy-ucomm = lv_prev_ok_code.
+    ENDIF.
+    CHECK lv_continue = abap_true.
+
+  ENDIF.
+  "---------------------------------------------------------
+
+  CASE sy-ucomm.
+    WHEN 'EXIT' OR 'CANCEL'.
+      CLEAR sy-ucomm.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+    WHEN 'DEL'.
+      CHECK gs_respons_psig-marca EQ abap_true.
+      IF ztc_resp3-lines GT 1.
+        DELETE gt_respons_psig INDEX ztc_resp3-current_line.
+        DESCRIBE TABLE gt_respons_psig LINES ztc_resp3-lines.
+        LOOP AT gt_respons_psig ASSIGNING <fs_respon> WHERE ordre GT ztc_resp3-current_line.
+          SUBTRACT 1 FROM <fs_respon>-ordre.
+        ENDLOOP.
+      ELSE.
+        CLEAR gs_respons_psig-z_responsable.
+        CLEAR gs_respons_psig-nom.
+        MODIFY gt_respons_psig FROM gs_respons_psig INDEX 1.
+      ENDIF.
+    WHEN 'ADD'.
+      CHECK gs_respons_psig-marca EQ abap_true.
+*  ">>>  SPEC-76534 Inici Modificació ECAGE
+      READ TABLE gt_respons_psig ASSIGNING <fs_respon> WITH KEY z_tipus_carrec = 'E'.
+      IF sy-subrc = 0.
+        lv_num_resp = c_limit_resp_ext. "10.
+      ELSE.
+* No hia cap signatari extern
+        SELECT SINGLE value FROM zsap_dt_param_hc INTO lv_value
+          WHERE repid = sy-repid
+            AND langu = sy-langu
+            AND field_info = 'LIMIT_RESP'.
+        lv_num_resp = lv_value.
+      ENDIF.
+      IF ztc_resp3-lines LT lv_num_resp.
+*      IF ztc_resp3-lines LT 20.
+*  "<<<  SPEC-76534 Final Modificació ECAGE
+        CLEAR ok_code.
+        ztc_resp3-lines            = ztc_resp3-lines + 1. " This will make one row of table control Editable
+        CLEAR gs_respons_psig.
+
+        READ TABLE gt_respons_psig ASSIGNING <fs_respon> INDEX 1.
+        IF sy-subrc EQ 0.
+          gs_respons_psig-z_posicio_hash = <fs_respon>-z_posicio_hash.
+        ENDIF.
+
+        gs_respons_psig-docclass   = gs_sdok-class.
+        gs_respons_psig-objectid   = gs_sdok-objid.
+        gs_respons_psig-z_codi_exp = gv_codi_exp.
+        gs_respons_psig-ordre      = ztc_resp3-current_line + 1.
+        gs_respons_psig-z_parallel = gv_parallel.
+        LOOP AT gt_respons_psig ASSIGNING <fs_respon> WHERE ordre GT ztc_resp3-current_line.
+          ADD 1 TO <fs_respon>-ordre.
+        ENDLOOP.
+        APPEND gs_respons_psig TO gt_respons_psig.
+      ENDIF.
+
+    WHEN 'UP'.
+      "Pujar la fila en l'ordre
+      CHECK gs_respons_psig-marca EQ abap_true.
+      CHECK ztc_resp3-lines GT 0.
+      CHECK gs_respons_psig-ordre > 1.
+      SUBTRACT 1 FROM gs_respons_psig-ordre.
+      CLEAR gs_respons_psig-marca.
+      MODIFY gt_respons_psig FROM gs_respons_psig INDEX ztc_resp3-current_line.
+      READ TABLE gt_respons_psig ASSIGNING <fs_respon> INDEX ztc_resp3-current_line - 1.
+      IF <fs_respon> IS ASSIGNED.
+        ADD 1 TO <fs_respon>-ordre.
+      ENDIF.
+    WHEN 'DOWN'.
+      "Baixar la fila en l'ordre
+      CHECK gs_respons_psig-marca EQ abap_true.
+      CHECK ztc_resp3-current_line LT ztc_resp3-lines.
+      ADD 1 TO gs_respons_psig-ordre.
+      CLEAR gs_respons_psig-marca.
+      MODIFY gt_respons_psig FROM gs_respons_psig INDEX ztc_resp3-current_line.
+      READ TABLE gt_respons_psig ASSIGNING <fs_respon> INDEX ztc_resp3-current_line + 1.
+      IF <fs_respon> IS ASSIGNED.
+        SUBTRACT 1 FROM <fs_respon>-ordre.
+      ENDIF.
+
+    WHEN OTHERS.
+
+      CLEAR lv_continue.
+
+      lv_tabix = ztc_resp3-current_line.
+      "Per que no pari sempre el procés encara que no hi hagi posicions ubicades
+      lv_continue = abap_true.
+
+      "Si ha canviat alguna cosa, hem d'esborrar les ubicacions
+      "Carreguem la posició actual
+      READ TABLE gt_respons_psig INTO ls_responsables_psig INDEX lv_tabix.
+
+      "Comparem la posició que tenim a memoria amb la posició actual
+      IF gs_respons_psig-z_responsable <> ls_responsables_psig-z_responsable.
+        PERFORM delete_posicions CHANGING lv_continue.
+      ENDIF.
+
+      "Sols continuem si escolleixen continuar.
+      CHECK lv_continue = abap_true.
+
+      "INI SPEC-60538 Si és un document de Modificació Autoritzada BPM, no fer la
+      "validació de responsables repetits
+      IF gv_mod_aut_bpm = abap_false.
+        "FIN SPEC-60538
+        PERFORM respons_repe USING ztc_resp3-current_line.
+      ENDIF.
+      PERFORM get_respon_name USING gt_respons_psig  lv_tabix ztc_resp3-current_line gv_int_only.
+
+*  ">>>  SPEC-58939 Inici Modificació ETXGL
+      IF gs_respons_psig-z_responsable IS NOT INITIAL
+           AND gs_respons_psig-z_tipus_carrec = 'E'.
+        PERFORM check_proveidor_extern_valid USING gs_respons_psig-z_responsable.
+      ENDIF.
+*  "<<<  SPEC-58939 Final Modificació ETXGL
+
+*  ">>>  SPEC-76534 Inici Modificació ECAGE
+      IF gs_respons_psig-z_responsable IS NOT INITIAL
+     AND gs_respons_psig-z_tipus_carrec = 'E'.
+        CLEAR lv_index_resp.
+        DESCRIBE TABLE gt_respons_psig LINES lv_lines_res.
+        IF lv_lines_res > c_limit_resp_ext.
+          lt_respons_psig_aux = gt_respons_psig.
+          REFRESH gt_respons_psig.
+          LOOP AT  lt_respons_psig_aux  INTO ls_respons_psig_aux
+            WHERE z_tipus_carrec = 'E'.
+            lv_index_resp = lv_index_resp + 1.
+            IF lv_index_resp <= c_limit_resp_ext.
+              APPEND ls_respons_psig_aux TO gt_respons_psig.
+            ENDIF.
+          ENDLOOP.
+          LOOP AT  lt_respons_psig_aux  INTO ls_respons_psig_aux
+            WHERE z_tipus_carrec <> 'E'.
+            lv_index_resp = lv_index_resp + 1.
+            IF lv_index_resp <= c_limit_resp_ext.
+              APPEND ls_respons_psig_aux TO gt_respons_psig.
+            ENDIF.
+          ENDLOOP.
+* Actualitzem els camps d'ordre i correlativo
+          CLEAR lv_index_resp.
+          LOOP AT gt_respons_psig INTO ls_respons_psig_aux.
+            lv_index_resp = lv_index_resp + 1.
+            ls_respons_psig_aux-ordre = ls_respons_psig_aux-correlativo = lv_index_resp.
+            MODIFY gt_respons_psig FROM ls_respons_psig_aux.
+          ENDLOOP.
+          MESSAGE i027(zrm_msg).
+        ENDIF.
+      ENDIF.
+*  "<<<  SPEC-76534 Final Modificació ECAGE
+
+      PERFORM get_mail CHANGING gs_respons_psig.
+  ENDCASE.
+
+  ">>>SPEC:SPEC-57264, Inici modificació  - ECFA
+  "Ena aquesta subrutina es replica el valor del camp 'ordre' amb el camp
+  " 'correlativo' també es modifica la numenclatura del nom del 'marcador' fen
+  "que acabi amb el valor que té el camp 'ordre'.
+  PERFORM sincronitzar_ordre  CHANGING gt_respons_psig.
+  "<<<SPEC:SPEC-57264, Final modificació - ECFA
+
+
+
+  DATA ls_bapiret TYPE bapiret2 .
+  DATA lt_props TYPE TABLE OF bapiproptb.
+  DATA ls_props TYPE  bapiproptb.
+
+  IF g_doc_restringit IS INITIAL.
+    CALL FUNCTION 'SRM_DOCUMENT_GETPROPERTIES'
+      EXPORTING
+        objectid          = zrm_dt_docs_adj-objectid
+        documentclass     = zrm_dt_docs_adj-docclass
+        whole_document    = 'X'
+      TABLES
+        properties        = lt_props
+      EXCEPTIONS
+        internal_error    = 1
+        parameter_error   = 2
+        not_authorized    = 3
+        doc_not_found     = 4
+        variant_not_found = 5
+        version_not_found = 6
+        OTHERS            = 7.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+    CLEAR ls_props.
+    READ TABLE lt_props INTO ls_props WITH KEY name = 'ZDOC_RESTRINGIT'.
+    IF ls_props-value = 'X'.
+      g_doc_restringit = 'SI'.
+    ELSE.
+      g_doc_restringit = 'NO'.
+    ENDIF.
+    CLEAR ls_props.
+    READ TABLE lt_props INTO ls_props WITH KEY name = 'ZDOC_CODI_CLAS'.
+    IF sy-subrc = 0.
+      g_codi_clas = ls_props-value.
+    ENDIF.
+    READ TABLE lt_props INTO ls_props WITH KEY name = 'Z_SOCIETAT'.
+    IF sy-subrc = 0.
+      g_societat = ls_props-value.
+    ENDIF.
+  ENDIF.
+
+  IF g_doc_restringit = 'SI'.
+
+    DATA l_ok TYPE srmyesno.
+    DATA l_pernr TYPE pernr_d.
+    FIELD-SYMBOLS <fs_responsables> TYPE LINE OF ty_t_responsables_psig.
+    LOOP AT gt_respons_psig ASSIGNING <fs_responsables>.
+
+      l_pernr = <fs_responsables>-z_responsable.
+
+      CALL METHOD zcl_gd_restriccio_doc=>its_authorized
+        EXPORTING
+          i_societat   = g_societat
+          i_codi_clas  = g_codi_clas
+          i_restringit = 'X'
+          i_pernr      = l_pernr
+        RECEIVING
+          check_ok     = l_ok.
+      IF l_ok EQ abap_false.
+        CLEAR <fs_responsables>-z_responsable.
+        MESSAGE `Document restringit: l'usuari indicat no té permisos per veure el document` TYPE 'I'.
+      ENDIF.
+
+    ENDLOOP.
+  ENDIF.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  GET_SIGNATARIS  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  CARGA_SIGNATARIS  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE carga_signataris INPUT.
+
+  DATA: lv_prev_okcode TYPE sy-ucomm.
+
+  "Neteges inicials
+  CLEAR: lv_continue, lv_answer.
+
+  "Sols continuem si estem recarregant la llista de signataris
+  CHECK sy-ucomm EQ 'LISTBOX'." AND gv_signataris IS NOT INITIAL. ***ETOVB SPEC-74165
+
+  "Ens quedem el primer OKCODE perque no s'esborri amb el del popup
+  lv_prev_okcode = sy-ucomm.
+
+  "Si anem a cambiar els signataris i tenim signatures ubicades,
+  "haurem d'eliminar aquestes ubicacions
+  PERFORM delete_posicions CHANGING lv_continue.
+
+  "Sols seguim si hem escollit continuar
+  CHECK lv_continue = abap_true.
+
+  "Tornem a passar l'OKCODE original
+  sy-ucomm = lv_prev_okcode.
+
+  "Si hi ha signataris, avisem que s'esborran
+  IF gt_respons_psig IS NOT INITIAL.
+
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar       = 'Signataris per defecte'
+        text_question  = text-t02
+        text_button_1  = 'Si'
+        text_button_2  = 'No'
+      IMPORTING
+        answer         = lv_answer
+      EXCEPTIONS
+        text_not_found = 1
+        OTHERS         = 2.
+  ENDIF.
+
+  IF lv_answer EQ '1'.
+
+    REFRESH gt_respons_psig.
+***ETOVB INI SPEC-74165
+    DATA(lv_lin) = sy-tabix.
+    IF gv_signataris IS INITIAL.
+*          CLEAR gs_respons_psig.
+      CLEAR: gs_respons_psig-z_carrec , gs_respons_psig-z_responsable, gs_respons_psig-z_rol_dig.
+      gs_respons_psig-ordre      = 1.
+
+      APPEND gs_respons_psig TO gt_respons_psig.
+      DESCRIBE TABLE gt_respons_psig LINES lv_lin.
+    ELSE.
+***ETOVB FI SPEC-74165
+      LOOP AT gt_signataris ASSIGNING FIELD-SYMBOL(<fs_sing>)
+         WHERE z_grupo EQ gv_signataris.
+
+        gs_respons_psig-ordre         = <fs_sing>-z_ordre.
+        gs_respons_psig-z_carrec      = <fs_sing>-z_carrec.
+        gs_respons_psig-z_responsable = <fs_sing>-z_responsable.
+        gs_respons_psig-z_rol_dig     = <fs_sing>-z_rol_dig.
+        APPEND gs_respons_psig TO gt_respons_psig.
+        DESCRIBE TABLE gt_respons_psig LINES lv_lin.
+      ENDLOOP.
+
+      "INI DATAMON 2025.04 - SPEC-91592 - Problemes amb Signatures a DACI
+      LOOP AT gt_respons_psig INTO gs_respons_psig .
+        PERFORM get_respon_name USING gt_respons_psig  sy-tabix '' ''.
+      ENDLOOP.
+      "FIN DATAMON 2025.04 - SPEC-91592 - Problemes amb Signatures a DACI
+
+***ETOVB INI SPEC-74165
+    ENDIF.
+***ETOVB FI SPEC-74165
+  ENDIF.
+
+  CALL FUNCTION 'SAPGUI_SET_FUNCTIONCODE'
+    EXCEPTIONS
+      function_not_supported = 1
+      OTHERS                 = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0210  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0210 INPUT.
+  DATA lv_an TYPE c.
+  CASE sy-ucomm.
+    WHEN 'OK'.
+      IF gs_grupo-z_grupo IS INITIAL OR gs_grupo-z_descripcio IS INITIAL.
+        MESSAGE ID 'ZCCTRMS' TYPE 'I' NUMBER 009 DISPLAY LIKE 'E'.
+*        MESSAGE e009(zcctrms) TYPE 'I' DISPLAY LIKE 'E'.
+      ELSE.
+
+        CLEAR gt_signataris.
+        LOOP AT gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_resp>).
+
+          gv_signataris = gs_grupo-z_grupo.
+          wa_signataris-bukrs = gv_bukrs.
+          wa_signataris-z_anchor      = gs_grupo-z_anchor.
+          wa_signataris-z_grupo       = gs_grupo-z_grupo.
+          wa_signataris-z_ordre       = <fs_resp>-z_ordre.
+          wa_signataris-z_carrec      = <fs_resp>-z_carrec.
+          wa_signataris-z_responsable = <fs_resp>-z_responsable.
+          wa_signataris-z_descripcio  = gs_grupo-z_descripcio.
+          wa_signataris-z_rol_dig     = <fs_resp>-z_rol_dig.
+
+          APPEND wa_signataris TO gt_signataris.
+
+        ENDLOOP.
+
+        SELECT COUNT(*)
+        FROM zrm_signa_docu
+        WHERE z_grupo  EQ @gs_grupo-z_grupo AND
+              z_anchor EQ @gs_grupo-z_anchor.
+
+        IF sy-subrc EQ 0.
+
+          CLEAR lv_an.
+
+          CALL FUNCTION 'POPUP_TO_DECIDE'
+            EXPORTING
+              defaultoption  = 'C'
+              textline1      = text-t03
+              textline2      = text-t04
+              textline3      = text-t05
+              text_option1   = 'Si'
+              text_option2   = 'No'
+              titel          = 'Desar grup'
+              cancel_display = 'X'
+            IMPORTING
+              answer         = lv_an.
+          IF lv_an EQ '1'.
+            DELETE FROM zrm_signa_docu WHERE z_grupo = gs_grupo-z_grupo AND
+                                        z_descripcio = gs_grupo-z_descripcio.
+
+            MODIFY zrm_signa_docu FROM TABLE gt_signataris.
+            LEAVE TO SCREEN 0.
+            CLEAR: gs_grupo-z_grupo,
+                   gs_grupo-z_descripcio.
+          ENDIF.
+        ELSE.
+          MODIFY zrm_signa_docu FROM TABLE gt_signataris.
+          LEAVE TO SCREEN 0.
+          CLEAR: gs_grupo-z_grupo,
+                 gs_grupo-z_descripcio.
+        ENDIF.
+      ENDIF.
+    WHEN 'CANCEL' OR 'GCANC'.
+      CLEAR: gs_grupo-z_grupo,
+             gs_grupo-z_descripcio.
+      LEAVE TO SCREEN 0.
+    WHEN OTHERS.
+  ENDCASE.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  INIT_DATA  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE init_data OUTPUT.
+  zrm_signa_docu-z_anchor = gv_anchor.
+  zrm_signa_docu-bukrs    = gv_bukrs.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  F4_HELP_GDG  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_help_gdg INPUT.
+
+
+  CLEAR lt_ret.
+
+  CALL FUNCTION 'F4IF_FIELD_VALUE_REQUEST'
+    EXPORTING
+      tabname           = 'RP50G'
+      fieldname         = 'PERNR'
+      searchhelp        = 'PREM'
+    TABLES
+      return_tab        = lt_ret
+    EXCEPTIONS
+      field_not_found   = 1
+      no_help_for_field = 2
+      inconsistent_help = 3
+      no_values_found   = 4
+      OTHERS            = 5.
+
+  CHECK lt_ret IS NOT INITIAL.
+
+  READ TABLE lt_ret ASSIGNING <fs_ret> INDEX 1.
+
+  gs_respons_psig-z_responsable = <fs_ret>-fieldval.
+
+
+
+ENDMODULE.
+
+MODULE user_command_300 INPUT.
+
+**DATA: wa_signataris TYPE zrm_signa_docu.
+  "lv_tabix    LIKE sy-tabix.
+  DATA: lv_sel_line  LIKE sy-loopc,
+        lv_error_ver TYPE abap_bool,
+        lv_error     TYPE xfeld.
+  DATA: lt_info         TYPE STANDARD TABLE OF bapidoccomp,
+        wa_info         TYPE bapidoccomp,
+        lv_tipus_correc TYPE flag,
+        lv_msg          TYPE string,
+        lv_error_rc     TYPE syst_subrc,
+        lv_patron       TYPE string,
+        lv_bukrs        TYPE bukrs, "SPEC-56971 - ECTRP
+        lv_dynpro_gral  TYPE flag,  "SPEC-51771 - ECTRP
+        lv_row_no       TYPE int4.  "SPEC-51771 - ECTRP
+
+  DATA: ls_respons_psig  TYPE ty_responsables_psig,
+        ls_zgdg_web_hash TYPE zgdg_web_hash, "SPEC-59583
+        lv_changed       TYPE xfeld.
+  DATA: lv_version LIKE zgdg_docs-version,
+        lv_rc      TYPE sysubrc,
+        lt_errors  TYPE z_ty_t_gdg_alv.
+  DATA: lt_properties    TYPE TABLE OF bapiproptb,
+        ls_properties    TYPE bapiproptb,
+        lv_error_annexes TYPE xfeld,
+        lv_text          TYPE string,
+        lv_nom_document  TYPE ty_ac_gdg-z_descripcio.
+
+  CLEAR: lt_info, lv_answer, wa_signataris, lv_tabix, lv_error_annexes.
+
+  CALL FUNCTION 'SRM_DOCUMENT_GET_COMP_INFO'
+    EXPORTING
+      objectid        = zrm_dt_docs_adj-objectid
+      documentclass   = zrm_dt_docs_adj-docclass
+    TABLES
+      component_info  = lt_info
+    EXCEPTIONS
+      internal_error  = 1
+      parameter_error = 2
+      not_authorized  = 3
+      doc_not_found   = 4
+      OTHERS          = 5.
+
+  CHECK sy-subrc EQ 0 AND lt_info IS NOT INITIAL.
+
+  READ TABLE lt_info INTO wa_info INDEX 1.
+
+  GET CURSOR LINE lv_sel_line.
+  lv_tabix = ztc_ac-top_line + ( lv_sel_line - 1 ).
+  READ TABLE gt_ac_gdg INTO gs_ac_gdg  INDEX lv_tabix.
+
+  CASE sy-ucomm.
+
+    WHEN 'CHK_ANEXO'.
+      IF gs_ac_gdg-flag_a = abap_true.
+        gs_ac_gdg-flag_c = abap_false.
+        MODIFY gt_ac_gdg  FROM gs_ac_gdg INDEX lv_tabix TRANSPORTING flag_c.
+      ENDIF.
+    WHEN 'CHK_CONSULTA'.
+      IF gs_ac_gdg-flag_c = abap_true.
+        gs_ac_gdg-flag_a = abap_false.
+        MODIFY gt_ac_gdg  FROM gs_ac_gdg INDEX lv_tabix TRANSPORTING flag_a.
+      ENDIF.
+
+    WHEN 'CMD_SIGNA_GDG'.
+
+      "ECJSA - SPEC-SPEC-52079 "No apareix una signatura en
+      "-------------------------------------------------------------------------
+      "l'Acta de reunió Mesa Contractació i Comissió de la licitació CT1071315
+      "Per evitar que en dues finestres diferents s'enviï a signar
+      "la mateixa versió de document, fet que guardaria unicament les dades de
+      "l'ultim que enviés a signar, es comprova que la versió a enviar no s'hagi
+      "enviat previament, es a dir si en dues finestres la versió es la '4',
+      "la finestra que enviï més trat, no podrà enviar aquella versió, perque ja
+      "s'ha enviat amb anterioritat.
+      CLEAR lv_error_ver.
+      PERFORM comprova_versio USING     gv_versio_sig
+                              CHANGING  lv_error_ver.
+
+      "Si la versió ja ha estat enviada, error i sortim
+      IF lv_error_ver IS NOT INITIAL.
+        MESSAGE 'Aquesta versió del document ja ha estat enviada anteriorment'(VEN) TYPE 'I'.
+        LEAVE TO SCREEN 0..
+      ENDIF.
+      "-------------------------------------------------------------------------
+
+
+      CLEAR lv_error.
+      READ TABLE gt_respons_psig TRANSPORTING NO FIELDS WITH KEY z_responsable = ''.
+      IF sy-subrc EQ 0.
+        MESSAGE 'Empleni tots els responsables' TYPE 'I'.
+        lv_error = abap_true.
+      ENDIF.
+      READ TABLE gt_respons_psig TRANSPORTING NO FIELDS WITH KEY z_rol_dig = ''.
+      IF sy-subrc EQ 0.
+        MESSAGE 'Empleni tots els rols' TYPE 'I'.
+        lv_error = abap_true.
+      ENDIF.
+      READ TABLE gt_respons_psig TRANSPORTING NO FIELDS WITH KEY z_tipus_carrec = 'E'.
+      IF sy-subrc NE 0.
+
+        "INI SPEC-59583 - Validar si estan posicionades totes les signatures
+        LOOP AT gt_respons_psig INTO ls_respons_psig
+          WHERE z_rol_dig = 'S'.
+          READ TABLE gt_web_hash ASSIGNING FIELD-SYMBOL(<fs_web_hash>)
+            WITH KEY hash = ls_respons_psig-z_posicio_hash
+                     pos  = ls_respons_psig-z_ordre.
+          IF sy-subrc NE 0.
+            MESSAGE text-e50 TYPE 'I'.
+            lv_error = abap_true.
+            EXIT.
+          ENDIF.
+        ENDLOOP.
+        "FIN SPEC-59583
+
+        ">>> SPEC-56971, Inici Modificació - ECTRP
+        CLEAR lv_bukrs.
+        IF gv_bukrs IS INITIAL.
+          "Cercar la Societat del Document
+          PERFORM get_bukrs_doc USING lv_bukrs.
+        ELSE.
+          lv_bukrs = gv_bukrs.
+        ENDIF.
+        ">>> SPEC-56971, Final Modificació - ECTRP
+
+        CLEAR: lt_errors.
+        ">>>spec:61562, inici modificació  - ecfa
+        "Validem el nom del document seleccionat i els annexos seleccionats.
+        PERFORM validar_documents USING gt_ac_gdg
+                                        gt_docs_adj_t
+                                        zrm_dt_docs_adj
+                                        lv_bukrs
+                               CHANGING lt_errors.
+
+        "si hi ha erros cridem la funció d'ALV
+        IF lt_errors IS NOT INITIAL.
+
+          CALL FUNCTION 'Z_CREATE_ALV_GDG_POPUP'
+            CHANGING
+              ch_t_erros = lt_errors.
+
+          lv_error = abap_true.
+
+        ENDIF.
+
+        CHECK lv_error IS INITIAL.
+
+        "<<<SPEC:61562, Final modificació - ECFA
+        "----------------------------------------------------------------
+        "Enviar documents a Signatura digital
+        "----------------------------------------------------------------
+        PERFORM boton_signa_gdg. " * * * * *
+        "----------------------------------------------------------------
+
+      ELSE.
+
+        IF gv_bukrs IS INITIAL.
+          REFRESH lt_properties.
+          CLEAR ls_properties.
+          CALL FUNCTION 'SRM_DOCUMENT_GETPROPERTIES'
+            EXPORTING
+              objectid       = zrm_dt_docs_adj-objectid
+              documentclass  = zrm_dt_docs_adj-docclass
+              whole_document = 'X'
+            TABLES
+              properties     = lt_properties.
+
+          READ TABLE lt_properties INTO ls_properties WITH KEY name = 'Z_SOCIETAT'.
+          gv_bukrs = ls_properties-value.
+
+        ENDIF.
+
+        CALL METHOD zcl_gdg=>check_mimetype
+          EXPORTING
+            iv_mimetype = wa_info-mimetype
+            iv_sistema  = 'PSIG'
+            iv_bukrs    = gv_bukrs
+            iv_sysid    = sy-sysid
+          RECEIVING
+            rv_valid    = lv_tipus_correc.
+
+        IF lv_tipus_correc NE abap_true.
+***INI SPEC-61314
+
+          MESSAGE 'Aquest document s''ha d''enviar al Portasignatures Extern, ja que hi ha responsables signataris externs. Per tant, el document principal ha de ser un Word (.doc).' TYPE 'I'.
+***FIN SPEC-61314
+          lv_error = abap_true.
+        ENDIF.
+
+        READ TABLE gt_respons_psig TRANSPORTING NO FIELDS WITH KEY z_rol_dig = 'V'.
+        IF sy-subrc EQ 0.
+          MESSAGE 'Aquest document s''ha d''enviar al Portasignatures Extern, ja que hi ha responsables signataris externs. Per tant, no es poden afegir responsables validadors.' TYPE 'I'.
+          lv_error = abap_true.
+        ENDIF.
+
+        READ TABLE gt_ac_gdg TRANSPORTING NO FIELDS WITH KEY flag_c = 'X'.
+        IF sy-subrc EQ 0.
+          MESSAGE 'Aquest document s''ha d''enviar al Portasignatures Extern, ja que hi ha responsables signataris externs. Per tant, no es poden afegir documents de Consulta.' TYPE 'I'.
+          lv_error = abap_true.
+        ENDIF.
+
+        IF gv_parallel EQ abap_true.
+          MESSAGE 'Aquest document s''ha d''enviar al Portasignatures Extern, ja que hi ha responsables signataris externs. Per tant, els responsables no poden signar en paral·lel.' TYPE 'I'.
+          lv_error = abap_true.
+        ENDIF.
+
+        "INI SPEC-86568
+        "Comprovar si algun dels documents annexes té mida 0
+        PERFORM comprovar_mida_annexes CHANGING lv_error_annexes lv_nom_document.
+        IF lv_error_annexes EQ abap_true.
+          lv_text = text-i03.
+          REPLACE '&1' WITH lv_nom_document INTO lv_text.
+          CONDENSE lv_text.
+          MESSAGE lv_text  TYPE 'I'.
+          lv_error = abap_true.
+        ENDIF.
+        "FI SPEC-86568
+
+        CHECK lv_error IS INITIAL.
+        PERFORM boton_signa_psig.
+      ENDIF.
+
+    WHEN 'BACK'.
+      PERFORM boton_back.
+
+    WHEN 'EXIT' OR 'CANCEL'.
+
+      CLEAR: gt_bin_content, gv_changed, gt_components.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+
+    WHEN 'SAVE'.
+*  si ha habido cambios en el documento de la graella se guardan en el content server
+      PERFORM save_doc_to_contentserver USING gv_changed gt_bin_content gt_components.
+      PERFORM save_docs_signa_gdg. " Añadir firmantes tabla Z
+      MESSAGE text-e06 TYPE 'S'.
+
+    WHEN 'CMD_SUBSANACIO'.
+
+      READ TABLE gt_respons_psig TRANSPORTING NO FIELDS WITH KEY z_tipus_carrec = 'E'.
+      IF sy-subrc NE 0.
+
+        "INI SPEC-59583 - Cridar al nou mètode encapsulat ZCL_GDG-subsanar_doc
+
+        lv_version = gv_versio_sig.
+        CALL METHOD zcl_gdg=>subsanar_doc
+          EXPORTING
+            iv_objectid      = zrm_dt_docs_adj-objectid
+            iv_documentclass = zrm_dt_docs_adj-docclass
+            iv_version       = lv_version
+            iv_codi_exp      = gv_codi_exp
+            iv_anchor        = gv_anchor
+          RECEIVING
+            ev_rc            = lv_rc.
+
+        IF lv_rc EQ 0. "si ha anat bé, sortim de la pantalla
+          CLEAR: gt_bin_content, gv_changed, gt_components, gt_web_hash.
+          SET SCREEN 0.
+          LEAVE SCREEN.
+        ENDIF.
+
+        "FIN SPEC-59583
+
+      ELSE.
+        IF gv_bukrs IS INITIAL.
+          REFRESH lt_properties.
+          CLEAR ls_properties.
+          CALL FUNCTION 'SRM_DOCUMENT_GETPROPERTIES'
+            EXPORTING
+              objectid       = zrm_dt_docs_adj-objectid
+              documentclass  = zrm_dt_docs_adj-docclass
+              whole_document = 'X'
+            TABLES
+              properties     = lt_properties.
+
+          READ TABLE lt_properties INTO ls_properties WITH KEY name = 'Z_SOCIETAT'.
+          gv_bukrs = ls_properties-value.
+
+        ENDIF.
+        PERFORM boton_subsancaio_psig.
+      ENDIF.
+
+    WHEN 'ADD_EMPLOY'.
+      CLEAR sy-ucomm.
+*** INI SPEC-63296
+      SEARCH gv_anchor FOR 'GESTDOC'.
+      IF sy-subrc EQ 0.
+        gs_grupo-z_anchor = 'GESTDOC'.
+      ELSE.
+*** FIN SPEC-63296
+        gs_grupo-z_anchor = gv_anchor.
+*** INI SPEC-63296
+      ENDIF.
+*** FIN SPEC-63296
+      CALL SCREEN '0210'
+         STARTING AT 23 8
+           ENDING AT 85 16.
+
+      ">>> SPEC-51771, Inici Modificació - ECTRP  08062020
+    WHEN 'ADD2'.
+      CLEAR: gv_documento, gv_descripcio_uni, gv_descripcio_abr,
+             gv_data_creacio, gv_text_pc, gt_documents, gt_alv_pos.
+      REFRESH: gt_documents[], gt_alv_pos[].
+      "Cercar documents a signar
+      PERFORM button_add_document.
+
+    WHEN   'PICK'.
+      "Mostrar el document seleccionat amb el doubleclick
+      DATA : field1(30).
+      GET CURSOR FIELD field1.
+      IF field1 CS 'GS_RESPONS_PSIG'. "Hacer el show_doc cuando el doble click se haga en el table control de arriba
+      ELSE.
+        lv_dynpro_gral = abap_true.
+        PERFORM show_doc USING lv_dynpro_gral lv_row_no.
+      ENDIF.
+      ">>> SPEC-51771, Final Modificació - ECTRP  08062020
+
+    WHEN 'UBI_SIGN'. "SPEC-59583 nou botó posicionar signatures
+
+      DATA: lt_graella_signataris TYPE TABLE OF zsigna_des_s_signants,
+            ls_graella_signatari  TYPE zsigna_des_s_signants,
+            lv_graella_versio     TYPE bapisrmdoc-version,
+            lv_nombre             TYPE string,
+            lv_apellido           TYPE string.
+
+      "El primer de tot que hem de fer es mirar si hi ha algún usuari
+      " sense autorització per signar al sistema(ni zsigna ni portasig intern).
+      "Si hi ha algún, no deixem ubicar les signatures.
+
+      PERFORM delete_posicions CHANGING lv_continue.
+
+      CHECK lv_continue = abap_true.
+
+      lv_graella_versio = gv_versio_sig.
+      CLEAR lt_graella_signataris.
+      ">> SPEC-77378, Inici Modificació - ETODR
+      PERFORM check_exist_hash CHANGING gt_respons_psig.
+      "<< SPEC-77378, Final Modificació - ETODR
+      LOOP AT gt_respons_psig ASSIGNING FIELD-SYMBOL(<fs_respons_psig>)
+        WHERE z_responsable IS NOT INITIAL
+          AND z_rol_dig     = 'S'.
+        ">> SPEC-77378, Inici Modificació - ETODR
+        CLEAR: ls_graella_signatari.
+        "<< SPEC-77378, Final Modificació - ETODR
+        SELECT SINGLE usrid INTO ls_graella_signatari-zsignatari
+          FROM  pa0105
+          WHERE pernr  =  <fs_respons_psig>-z_responsable
+          AND   usrty  =  '0001'
+          AND   begda <=  sy-datum
+          AND   endda >=  sy-datum.
+
+        ls_graella_signatari-zhash = <fs_respons_psig>-z_posicio_hash.
+        ls_graella_signatari-z_ordre = <fs_respons_psig>-z_ordre.
+
+        SPLIT <fs_respons_psig>-nom AT ',' INTO lv_apellido lv_nombre.
+        CONCATENATE lv_nombre lv_apellido INTO ls_graella_signatari-nom SEPARATED BY space.
+        APPEND ls_graella_signatari TO lt_graella_signataris.
+      ENDLOOP.
+      IF lt_graella_signataris IS INITIAL.
+        "Seleccione com a mínim un signatari per enviar el document a signar
+        MESSAGE text-e53 TYPE 'I'.
+      ELSE.
+
+        READ TABLE gt_respons_psig TRANSPORTING NO FIELDS WITH KEY z_tipus_carrec = 'E'.
+        IF sy-subrc EQ 0.
+          MESSAGE text-e52 TYPE 'I'.
+        ELSE.
+          "Cridar a la funció que mostra la graella de posicionar signatures
+          CALL FUNCTION 'ZSIGNA_DES_GRAELLA'
+            EXPORTING
+              iv_objectid      = zrm_dt_docs_adj-objectid
+              iv_documentclass = zrm_dt_docs_adj-docclass
+              iv_version       = lv_graella_versio
+              iv_extern        = ''
+              it_signataris    = lt_graella_signataris
+              it_bin_content   = gt_bin_content
+              it_components    = gt_components
+            IMPORTING
+              et_bin_content   = gt_bin_content
+              et_web_hash      = gt_web_hash
+              et_components    = gt_components
+              ev_changed       = lv_changed.
+
+          IF lv_changed = abap_true.
+            gv_changed = abap_true.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+  ENDCASE.
+
+  CLEAR sy-ucomm.
+
+ENDMODULE. " user_command_300 INPUT.
+*
+*----------------------------------------------------------------------*
+*
+MODULE exit_screen_300 INPUT.
+
+  CASE sy-ucomm.
+    WHEN 'EXIT' OR 'CANCEL'.
+      CLEAR sy-ucomm.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+  ENDCASE.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+*&---------------------------------------------------------------------*
+*&      Module  VALIDATIONS  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE validations INPUT.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  SET_PARARELL  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE set_pararell INPUT.
+  PERFORM set_pararell CHANGING gt_respons_psig.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  CLEAR_MESSAGES  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE clear_messages INPUT.
+  CLEAR gt_messages.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  CLEAR_LINE  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE clear_line INPUT.
+
+  CLEAR: gs_respons_psig-z_correu_signatari,
+         gs_respons_psig-nom,
+         gs_respons_psig-z_nif_signatari.
+
+  MODIFY gt_respons_psig FROM gs_respons_psig INDEX ztc_resp3-current_line TRANSPORTING z_correu_signatari nom z_nif_signatari.
+
+ENDMODULE.
+
+">>>SPEC:57264, Inici modificació  - ECJSA
+"Anem a igualar: l'ordre i el correlativo i anem a recalcular els marcadors
+"de totes les files de signataris, per això es un loop
+FORM sincronitzar_ordre  CHANGING p_gt_respons_psig.
+
+  DATA: lv_ordret_char2 TYPE numc2.
+  FIELD-SYMBOLS: <fs_respon> TYPE ty_responsables_psig.
+
+  "recorrem la taula de responsables
+  LOOP AT gt_respons_psig ASSIGNING <fs_respon>.
+
+    IF <fs_respon> IS ASSIGNED.
+      "Igualem el valor del camp 'correlativo' amb el camp 'ordre'.
+      <fs_respon>-correlativo = <fs_respon>-ordre.
+      <fs_respon>-z_ordre     = <fs_respon>-ordre."ADD DATAMON 2025.04 - SPEC-91592 - Problemes amb Signatures a DACI
+      "El nomenclatura del nom del marcador també es canvia fen la concatenació
+      "entre el valor fixa "ZSIGNA" amb l'ordre
+      lv_ordret_char2 = <fs_respon>-ordre.
+      CONCATENATE 'ZSIGNA_' lv_ordret_char2 INTO <fs_respon>-marcador.
+
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+"<<<SPEC:57264, Final modificació - ECJSA
+*&---------------------------------------------------------------------*
+*&      Module  F4_TIPUS_DOCUMENTS  INPUT
+*&---------------------------------------------------------------------*
+*     Desplegable Tipos Documento para la Dynpro '0400'
+*----------------------------------------------------------------------*
+MODULE f4_tipus_documents INPUT.
+
+  PERFORM f4_tipus_documents.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0400  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0400 INPUT.
+
+  PERFORM user_command_0400.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_SCREEN_400  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE exit_screen_400 INPUT.
+
+  CASE sy-ucomm.
+    WHEN 'BACK' OR 'EXIT' OR 'CANCEL'.
+      CLEAR sy-ucomm.
+      SET SCREEN 0.
+      LEAVE SCREEN.
+  ENDCASE.
+
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Module  GET_MITJA_SIG  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE get_mitja_sig INPUT.
+
+  PERFORM get_mitja_sig CHANGING gt_respons_psig.
+
+ENDMODULE.

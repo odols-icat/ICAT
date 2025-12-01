@@ -1,0 +1,313 @@
+*&---------------------------------------------------------------------*
+*&  Include           LZRM_SIGNAF03
+*&---------------------------------------------------------------------*
+*
+*------------------------------------------------------------------------------
+*
+*>> Ini  SPEC-60158  - ETMAE
+*
+* Tratamiento de direccionamiento de interlocutor a dar doble click.
+*
+FORM tratar_doble_click_resp.
+
+  DATA: lv_field TYPE fieldname,
+        lv_linea TYPE i,
+        ls_resp  TYPE ty_responsables,
+        lv_tipo  TYPE z_tipus_carrec.
+
+  GET CURSOR FIELD lv_field.
+
+  CHECK lv_field = 'GS_RESPONS-Z_RESPONSABLE'.
+
+  GET CURSOR LINE lv_linea.
+
+  READ TABLE gt_respons INTO ls_resp INDEX lv_linea.
+
+  CHECK sy-subrc IS INITIAL.
+
+  lv_tipo = ls_resp-z_tipus_carrec.
+
+  CASE lv_tipo .
+    WHEN 'I'.   " Interno
+      SET PARAMETER ID 'PER' FIELD ls_resp-z_responsable.
+      CALL TRANSACTION 'PA20'.
+
+    WHEN 'E'.   " Externo
+      SET PARAMETER ID 'LIF' FIELD ls_resp-z_responsable .
+      SET PARAMETER ID 'BUK' FIELD zrm_dt_contr-societat .
+      SET PARAMETER ID 'EKO' FIELD 'GISA' .
+      CALL TRANSACTION 'XK03' .
+
+  ENDCASE.
+
+
+ENDFORM.
+*
+*<< Fi  SPEC-60158  - ETMAE
+*
+*------------------------------------------------------------------------------
+*
+*&---------------------------------------------------------------------*
+*&      Form  VALIDAR_DOCUMENTS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GT_AC_GDG  text
+*      -->P_GT_DOCS_ADJ_T  text
+*      -->P_WA_INFO  text
+*      -->P_LV_BUKRS  text
+*      <--P_LT_ERRORS  text
+*----------------------------------------------------------------------*
+FORM validar_documents  USING    p_gt_ac_gdg          TYPE tt_ac_gdg
+                                 p_gt_docs_adj_t      TYPE zrm_tt_dt_docs_adj
+                                 p_ls_zrm_dt_docs_adj TYPE zrm_dt_docs_adj
+                                 p_lv_bukrs           TYPE bukrs
+                        CHANGING p_lt_errors          TYPE z_ty_t_gdg_alv.
+
+  CONSTANTS: lc_report_zrm_signa TYPE repid VALUE 'ZRM_SIGNA'.
+
+  DATA: "lt_chars      TYPE TABLE OF zsap_dt_param_hc,
+*        lt_components TYPE TABLE OF bapiproptb,
+*        ls_component  TYPE bapiproptb.
+    ls_msg_err TYPE zts_gdg_alv,
+    ls_ac_gdg  TYPE ty_ac_gdg,
+    ls_doc     TYPE zrm_dt_docs_adj.
+
+  "si no hi ha cap caràcter especial, verifiquem si el document es valid.
+  PERFORM   validar_tipus_doc USING p_lv_bukrs
+                                    p_ls_zrm_dt_docs_adj-docclass
+                                    p_ls_zrm_dt_docs_adj-objectid
+                           CHANGING ls_msg_err.
+  "Si hi ha error, ho afegim a la taula.
+  IF ls_msg_err IS NOT INITIAL.
+
+    APPEND ls_msg_err TO p_lt_errors.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  VALIDAR_NOM_TIPUS_DOC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LT_CHARS  text
+*      -->P_P_LV_BUKRS  text
+*      -->P_LS_BAPIDOCCOMP  text
+*      <--P_LV_CHAR_ESP  text
+*----------------------------------------------------------------------*
+FORM validar_nom_doc  USING   pt_chars_param TYPE zsap_tt_param_hc
+                              ps_doccomp     TYPE bapiproptb
+                     CHANGING ps_msg_err     TYPE zts_gdg_alv.
+
+  DATA: ls_char_param   TYPE zsap_dt_param_hc,
+        lv_tipus_correc TYPE flag,
+        lv_char_esp     TYPE string,
+        lv_char         TYPE string.
+
+  "Verifiquem que el nom del document principal no tingui ningún caràcter especial
+  LOOP AT pt_chars_param INTO ls_char_param.
+
+    "Verifiquem que contengui el caracter especial de ls_char_param-value
+    IF ps_doccomp-value CS ls_char_param-value.
+
+      CONCATENATE lv_char_esp ls_char_param-value INTO lv_char_esp.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  "si la variable conte dades, ho afegim a la taula d'errors.
+  IF lv_char_esp IS NOT INITIAL.
+
+    "li trim els espais en blanc
+    CONDENSE lv_char_esp NO-GAPS.
+
+    CONCATENATE text-t24 lv_char_esp INTO ps_msg_err-error.
+
+    ps_msg_err-name_file = ps_doccomp-value.
+
+  ENDIF.
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  VALIDAR_TIPUS_DOC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LT_CHARS  text
+*      -->P_P_LV_BUKRS  text
+*      -->P_DOCCLASS  text
+*      -->P_OBJECTID  text
+*      <--P_LS_MSG_ERR  text
+*----------------------------------------------------------------------*
+FORM validar_tipus_doc  USING    pv_bukrs       TYPE bukrs
+                                 p_docclass     TYPE bapidclass
+                                 p_objectid     TYPE bapiguid
+                        CHANGING ps_msg_err     TYPE zts_gdg_alv.
+
+  DATA: lt_info_comps    TYPE TABLE OF bapidoccomp,
+        ls_info_comp     TYPE bapidoccomp,
+        lv_tipus_correc  TYPE flag,
+        lv_char_esp      TYPE string,
+        lv_extension     TYPE sdok_fnext,
+        lv_extension_aux TYPE string,
+        lv_name_aux      TYPE string,
+        lv_name          TYPE c,
+        lv_mimetype      TYPE w3conttype.
+
+
+  "obtenim dades dels components del document
+  CALL FUNCTION 'SRM_DOCUMENT_GET_COMP_INFO'
+    EXPORTING
+      objectid        = p_objectid
+      documentclass   = p_docclass
+    TABLES
+      component_info  = lt_info
+    EXCEPTIONS
+      internal_error  = 1
+      parameter_error = 2
+      not_authorized  = 3
+      doc_not_found   = 4
+      OTHERS          = 5.
+
+  CHECK lt_info IS NOT INITIAL
+    AND sy-subrc EQ 0.
+
+
+  "Llegim la taula que conté informació dels components del document
+  READ TABLE lt_info INTO ls_info_comp
+    INDEX 1.
+
+  "Verifiquem que el tipus de document sigui valid.
+  CALL METHOD zcl_gdg=>check_mimetype
+    EXPORTING
+      iv_mimetype = ls_info_comp-mimetype
+      iv_sistema  = 'GDGS'
+      iv_bukrs    = pv_bukrs
+      iv_sysid    = sy-sysid
+    RECEIVING
+      rv_valid    = lv_tipus_correc.
+
+  "si no es valid, afegim el següent text.
+  IF lv_tipus_correc <> abap_true .
+
+    "Tornem a fer la validació, ja que en la transacció ZGD01 defenia erròniament
+    "el tipus de document.
+    CALL FUNCTION 'CRM_IC_WZ_SPLIT_FILE_EXTENSION'
+      EXPORTING
+        iv_filename_with_ext = ls_info_comp-comp_id
+      IMPORTING
+        ev_filename          = lv_name_aux
+        ev_extension         = lv_extension_aux.
+
+    "Passem el contingut de la variable a l'altre per compatibilitat.
+    lv_extension = lv_extension_aux.
+    lv_name      = lv_name_aux.
+
+    CALL FUNCTION 'SDOK_MIMETYPE_GET'
+      EXPORTING
+        extension = lv_extension
+      IMPORTING
+        mimetype  = lv_mimetype.
+
+    CLEAR lv_tipus_correc.
+    "Verifiquem que el tipus de document sigui valid.
+    CALL METHOD zcl_gdg=>check_mimetype
+      EXPORTING
+        iv_mimetype = lv_mimetype
+        iv_sistema  = 'GDGS'
+        iv_bukrs    = pv_bukrs
+        iv_sysid    = sy-sysid
+      RECEIVING
+        rv_valid    = lv_tipus_correc.
+
+    IF lv_tipus_correc <> abap_true .
+      "text: Reviseu el nom del document. No pot tenir caràcters especials
+      ps_msg_err-error = text-t23.
+      ps_msg_err-name_file = ls_info_comp-comp_id.
+    ENDIF.
+
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_EXIST_HASH
+*&---------------------------------------------------------------------*
+* En alguns casos, no sabem quan, es perd el hash o directament no es guarda bé.
+* Per evitar problemes, aquí sempre l'hem de tenir, així que si no hi és,
+* el tornem a calcular, i també si no coincideix entre tots els signataris
+*----------------------------------------------------------------------*
+FORM check_exist_hash  CHANGING ct_respons_psig TYPE ty_t_responsables_psig.
+
+  DATA: lo_log_global    TYPE REF TO zcl_log_global,
+        lv_resultat      TYPE zproc_result,
+        lv_docclass      TYPE zrm_dt_resp_doc-docclass,
+        lv_objectid      TYPE zrm_dt_resp_doc-objectid,
+        lv_versio        TYPE zrm_dt_resp_doc-z_versio,
+        lv_error_hash    TYPE abap_bool,
+        lv_random_string TYPE string,
+        lv_new_hash      TYPE zrm_dt_resp_doc-z_posicio_hash.
+
+  CLEAR: lv_random_string, lv_error_hash, lv_new_hash, lv_docclass, lv_objectid, lv_versio.
+
+  READ TABLE ct_respons_psig INTO DATA(ls_respons_psig) INDEX 1.
+  IF sy-subrc = 0.
+    lv_docclass = ls_respons_psig-docclass.
+    lv_objectid = ls_respons_psig-objectid.
+    lv_versio   = ls_respons_psig-z_versio.
+  ENDIF.
+
+
+
+  LOOP AT ct_respons_psig TRANSPORTING NO FIELDS WHERE z_posicio_hash IS INITIAL.
+    lv_error_hash = abap_true.
+    EXIT.
+  ENDLOOP.
+
+  DATA(lt_respons_psig) = ct_respons_psig.
+  SORT lt_respons_psig BY z_posicio_hash.
+  DELETE ADJACENT DUPLICATES FROM lt_respons_psig COMPARING z_posicio_hash.
+  IF lines( lt_respons_psig ) > 1.
+    lv_error_hash = abap_true.
+  ENDIF.
+
+  IF lv_error_hash = abap_true.
+
+    IF lo_log_global IS INITIAL.
+      lo_log_global =  zcl_log_global=>get_instancia( ).
+    ENDIF.
+
+    CALL FUNCTION 'GENERAL_GET_RANDOM_STRING'
+      EXPORTING
+        number_chars  = 8
+      IMPORTING
+        random_string = lv_random_string.
+    lv_new_hash = lv_random_string.
+    IF lv_new_hash IS NOT INITIAL.
+      LOOP AT ct_respons_psig ASSIGNING FIELD-SYMBOL(<fs_respons_psig>).
+        <fs_respons_psig>-z_posicio_hash = lv_new_hash.
+      ENDLOOP.
+      gs_respons_psig-z_posicio_hash = lv_new_hash.
+      lv_resultat = zglog_resultat_ok.
+    ELSE.
+      lv_resultat = zglog_resultat_ko.
+    ENDIF.
+    IF lo_log_global IS BOUND.
+      lo_log_global->crea_clau( EXPORTING iv_docclass       = lv_docclass
+                                          iv_objectid       = lv_objectid
+                                          iv_version        = lv_versio
+                                          iv_z_posicio_hash = lv_new_hash
+                                IMPORTING es_log_clau   = DATA(ls_log_clau) ).
+
+    ENDIF.
+    lo_log_global->afegir_entrada( EXPORTING  iv_tasca    = zglog_tasca_check_hash
+                                              iv_resultat = lv_resultat
+                                              is_clau     = ls_log_clau
+                                   EXCEPTIONS OTHERS      = 0 ).
+  ENDIF.
+
+ENDFORM.
