@@ -1,0 +1,392 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESO02.
+*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0500  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_0500 OUTPUT.
+**    gs_dyn_0500-gv_crit_punt
+*    SET PF-STATUS 'STATUS_0500'.
+***INI MOD ETJHG - SPEC-46407
+  DATA: lt_punt_rec TYPE STANDARD TABLE OF zrm_dt_punt_rec.
+
+  DATA: lv_lines       TYPE z_compta_rec,
+        lv_line        TYPE z_compta_rec,
+        lv_descripcio  TYPE z_descrip120,
+        lv_save        TYPE boolean,
+        lv_compta_rec  TYPE z_compta_rec,
+        lv_compta_equi TYPE z_compta_equip.
+
+  FIELD-SYMBOLS: <punt_rec> LIKE LINE OF lt_punt_rec.
+
+  "Tabla con todos los registros que podremos visualizar en el momento
+  READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING FIELD-SYMBOL(<fs_puntofer_actual>)
+    WITH KEY is_actual = abap_on.
+*  lv_compta_rec = <fs_puntofer_actual>-z_compta_rec.
+  "Entra en el caso que no le demos a Base o vayamos a guardar - ETJHG
+  IF gs_dyn_0500-g_show_all EQ abap_false OR gv_ucomm EQ 'SAVE'.
+    CASE gv_ucomm.
+      WHEN 'BACK'.
+        lv_compta_rec = gs_dyn_0500-gs_punt_rec-z_comptador_recurs.
+
+        PERFORM puntuar USING gs_dyn_0500-gt_puntuacio_ori
+                              lv_compta_rec
+                     CHANGING gs_dyn_0500-gt_puntuacio.
+
+**>> INI SPEC-49499 ETJMD 11.06.2018
+*        IF gs_dyn_0500-g_is_llei91017 EQ 'X'.
+        PERFORM guardar_zrm_dt_punt_rec2 USING gs_dyn_0500-gt_puntuacio_ori
+                                               gs_dyn_0500-gs_punt_rec.
+*        ELSE.
+*          PERFORM guardar_zrm_dt_punt_rec USING gs_dyn_0500-gt_puntuacio_ori
+*                                                gs_dyn_0500-gs_punt_rec.
+*        ENDIF.
+**<< FIN SPEC-49499 ETJMD 11.06.2018
+
+        PERFORM liberar_objetos_punt USING gs_dyn_0500-gv_alv_puntuacio
+                                           gs_dyn_0500-gv_cont_puntuacio.
+
+        lv_line = lv_line - 1.
+        READ TABLE lt_punt_rec INTO gs_dyn_0500-gs_punt_rec INDEX lv_line.
+*******************
+*******************        lv_descripcio = gs_dyn_0500-gs_punt_rec-z_descripcio.
+        gv_toolbar = 'X'.
+
+        "Mostramos los botones necesarios dependiendo de que entrada es
+        IF lv_line EQ 1.
+          gv_next = 'X'.
+        ELSE.
+          gv_back = 'X'.
+          gv_next = 'X'.
+        ENDIF.
+      WHEN 'NEXT'.
+        lv_compta_rec = gs_dyn_0500-gs_punt_rec-z_comptador_recurs.
+
+        PERFORM puntuar USING gs_dyn_0500-gt_puntuacio_ori
+                              lv_compta_rec
+                     CHANGING gs_dyn_0500-gt_puntuacio.
+
+**>> INI SPEC-49499 ETJMD 11.06.2018
+*        IF gs_dyn_0500-g_is_llei91017 EQ 'X'.
+        PERFORM guardar_zrm_dt_punt_rec2 USING gs_dyn_0500-gt_puntuacio_ori
+                                               gs_dyn_0500-gs_punt_rec.
+*        ELSE.
+*          PERFORM guardar_zrm_dt_punt_rec USING gs_dyn_0500-gt_puntuacio_ori
+*                                                gs_dyn_0500-gs_punt_rec.
+*        ENDIF.
+**<< FIN SPEC-49499 ETJMD 11.06.2018
+
+        PERFORM liberar_objetos_punt USING gs_dyn_0500-gv_alv_puntuacio
+                                           gs_dyn_0500-gv_cont_puntuacio.
+
+        ADD 1 TO lv_line.
+        READ TABLE lt_punt_rec INTO gs_dyn_0500-gs_punt_rec INDEX lv_line.
+************
+************        lv_descripcio = gs_dyn_0500-gs_punt_rec-z_descripcio.
+        gv_toolbar = 'X'.
+
+        "Mostramos los botones necesarios dependiendo de que entrada es
+        IF lv_line EQ lv_lines.
+          gv_back = 'X'.
+        ELSE.
+          gv_back = 'X'.
+          gv_next = 'X'.
+        ENDIF.
+      WHEN ' '.
+        "La primera vez que entramos mostramos la entrada correspondiente
+        SELECT *
+          FROM zrm_dt_punt_rec
+          INTO TABLE lt_punt_rec
+            WHERE docclass          EQ <fs_puntofer_actual>-docclass          "g_docclass
+              AND objectid          EQ <fs_puntofer_actual>-objectid          "g_objectid
+              AND z_num_ofer        EQ <fs_puntofer_actual>-z_num_ofer        "gs_dyn_0500-gs_punt_ofer-z_num_ofer
+              AND z_mod_crit_punt   EQ <fs_puntofer_actual>-z_mod_crit_punt   "gs_dyn_0500-gs_punt_ofer-z_mod_crit_punt
+              AND z_codi_crit_punt  EQ <fs_puntofer_actual>-z_codi_crit_punt. "gs_dyn_0500-gs_punt_ofer-z_codi_crit_punt.
+
+*        SELECT *
+*          FROM zrm_dt_punt_rec
+*          INTO TABLE lt_punt_rec
+*          FOR ALL ENTRIES IN gs_dyn_0500-gt_puntuacio
+*            WHERE docclass          EQ g_docclass
+*              AND objectid          EQ g_objectid
+*              AND z_num_ofer        EQ gs_dyn_0500-gt_puntuacio-z_num_ofer
+*              AND z_mod_crit_punt   EQ gs_dyn_0500-gv_mod_punt
+*              AND z_codi_crit_punt  EQ gs_dyn_0500-gt_puntuacio-z_codi_crit_punt.
+
+        IF sy-subrc EQ 0.
+          DESCRIBE TABLE lt_punt_rec LINES lv_lines.
+          IF lv_lines EQ 1.
+            READ TABLE lt_punt_rec INTO gs_dyn_0500-gs_punt_rec INDEX 1.
+**************            lv_descripcio = gs_dyn_0500-gs_punt_rec-z_descripcio.
+            CLEAR: gv_back, gv_next.
+          ELSE.
+            READ TABLE lt_punt_rec INTO gs_dyn_0500-gs_punt_rec INDEX 1.
+**************            lv_descripcio = gs_dyn_0500-gs_punt_rec-z_descripcio.
+            gv_toolbar = 'X'.
+            gv_next = 'X'.
+            CLEAR: gv_back.
+          ENDIF.
+          lv_line = 1.
+        ENDIF.
+      WHEN 'SAVE'.
+        "Guardamos las entradas procesadas en la tabla zrm_dt_punt_rec
+        PERFORM grabar_zrm_dt_punt_rec.
+        CLEAR: gv_ucomm.
+        LEAVE TO SCREEN 0.
+    ENDCASE.
+  ENDIF.
+
+**  >> INI MODIF ETODR SPEC-49921 Serveix per tal que guardi bé els recursos a la taula ZRM_DT_PUNT_SEL (una altra bunyol més a la funció!)
+  IF <fs_puntofer_actual> IS ASSIGNED.
+    IF lt_punt_rec[] IS INITIAL.
+      SELECT *
+        FROM zrm_dt_punt_rec
+        INTO TABLE lt_punt_rec
+          WHERE docclass          EQ <fs_puntofer_actual>-docclass
+            AND objectid          EQ <fs_puntofer_actual>-objectid
+            AND z_num_ofer        EQ <fs_puntofer_actual>-z_num_ofer
+            AND z_mod_crit_punt   EQ <fs_puntofer_actual>-z_mod_crit_punt
+            AND z_codi_crit_punt  EQ <fs_puntofer_actual>-z_codi_crit_punt.
+    ENDIF.
+    READ TABLE lt_punt_rec INTO gs_dyn_0500-gs_punt_rec WITH KEY z_comptador_recurs = <fs_puntofer_actual>-z_compta_rec.
+  ENDIF.
+**  << FI MODIF ETODR SPEC-49921
+
+  "Entra en el caso que le demos a Base
+  IF gs_dyn_0500-g_show_all = abap_on AND gv_ucomm NE abap_true.
+**  >> INI MODIF ETODR SPEC-49075
+*    IF <fs> IS ASSIGNED.
+*      lv_compta_rec = <fs>-z_compta_rec.
+*
+*      PERFORM puntuar USING gs_dyn_0500-gt_puntuacio_ori
+*                      lv_compta_rec
+*             CHANGING gs_dyn_0500-gt_puntuacio.
+*
+*      PERFORM guardar_zrm_dt_punt_rec USING gs_dyn_0500-gt_puntuacio
+*                                            gs_dyn_0500-gs_punt_rec.
+*
+*      PERFORM liberar_objetos_punt USING gs_dyn_0500-gv_alv_puntuacio
+*                                         gs_dyn_0500-gv_cont_puntuacio.
+*    ENDIF.
+**  << FI MODIF ETODR SPEC-49075
+    gv_toolbar = 'X'.
+    IF <fs_puntofer_actual>-is_first = abap_on.
+      CLEAR: gv_back.
+      gv_next = 'X'.
+    ENDIF.
+    IF <fs_puntofer_actual>-is_last = abap_on.
+      CLEAR: gv_next.
+      gv_back = 'X'.
+    ENDIF.
+    IF <fs_puntofer_actual>-is_last <> abap_on AND <fs_puntofer_actual>-is_first <> abap_on.
+      gv_next = 'X'.
+      gv_back = 'X'.
+    ENDIF.
+  ENDIF.
+
+**>> INI MODIF ETODR SPEC-49075
+  IF <fs_puntofer_actual> IS ASSIGNED.
+    IF gs_dyn_0500-g_show_all EQ abap_on OR <fs_puntofer_actual>-z_mult_rec EQ abap_on.
+      CLEAR: gv_toolbar, gv_back, gv_next.
+      gv_toolbar = 'X'.
+      IF <fs_puntofer_actual>-is_first = abap_on.
+        CLEAR: gv_back.
+        gv_next = 'X'.
+      ENDIF.
+      IF <fs_puntofer_actual>-is_last = abap_on.
+        CLEAR: gv_next.
+        gv_back = 'X'.
+      ENDIF.
+      IF <fs_puntofer_actual>-is_last <> abap_on AND <fs_puntofer_actual>-is_first <> abap_on.
+        gv_next = 'X'.
+        gv_back = 'X'.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+**<< FI MODIF ETODR SPEC-49075
+
+  CLEAR: gv_ucomm.
+***FIN MOD ETJHG - SPEC-46407
+  SET PF-STATUS 'STATUS_0500'.
+
+  PERFORM get_descripcio_crit USING    <fs_puntofer_actual>
+                              CHANGING lv_descripcio.
+
+*  IF gs_dyn_0500-g_show_all EQ abap_false.
+*    SET TITLEBAR  'TITLE_0500' WITH gs_dyn_0500-gs_punt_ofer-z_codi_subapar_punt lv_descripcio.
+*  ELSE.
+  SET TITLEBAR  'TITLE_0500' WITH <fs_puntofer_actual>-z_codi_crit_punt <fs_puntofer_actual>-z_descripcio <fs_puntofer_actual>-z_nom_prov.
+*  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  SCREEN_0500  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE screen_0500 OUTPUT.
+
+  DATA: wa_punt_ofer_actual TYPE zrm_dt_punt_ofer.
+
+  READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING <fs> WITH KEY is_actual = abap_on.
+  IF sy-subrc = 0.
+    CLEAR: wa_punt_ofer_actual.
+    MOVE-CORRESPONDING <fs> TO wa_punt_ofer_actual.
+
+    lv_compta_rec  = <fs>-z_compta_rec. "MOD ETJHG - SPEC-46407
+    lv_compta_equi = <fs>-z_comptador_equip. "ETODR SPEC-49500
+
+    IF gs_dyn_0500-gv_alv_puntuacio IS INITIAL.
+      PERFORM cargar_dades_puntuacio  USING      wa_punt_ofer_actual
+                                                 gs_dyn_0500-gt_puntuacio
+                                                 lv_compta_rec
+                                                 <fs>-z_mult_rec
+                                                 lv_compta_equi
+                                                 <fs>-z_mult_equip
+                                                 <fs>-z_experiencia
+                                      CHANGING   gs_dyn_0500-gt_puntuacio_ori.
+
+      PERFORM instanciar_objectes_punt CHANGING gs_dyn_0500-gv_cont_puntuacio
+                                                gs_dyn_0500-gv_alv_puntuacio.
+
+      CLEAR: gs_dyn_0500-gt_fcat[].
+
+      PERFORM crear_catalogo_punt      USING      gs_dyn_0500-gt_puntuacio_ori
+                                       CHANGING   gs_dyn_0500-gt_fcat.
+
+      PERFORM crear_layout_punt       CHANGING    gs_dyn_0500-gv_layout.
+
+      PERFORM mostrar_alv_punt       USING  gs_dyn_0500-gt_puntuacio_ori
+                                            gs_dyn_0500-gv_alv_puntuacio
+                                            gs_dyn_0500-gt_fcat
+                                            gs_dyn_0500-gv_layout.
+
+      <fs>-puntuacio_inicial = gs_dyn_0500-gt_puntuacio_ori.
+    ELSE.
+      IF gv_back EQ 'X' AND gv_next EQ 'X'.
+        SET HANDLER lcl_event_handler=>handle_toolbar_0500 FOR gs_dyn_0500-gv_alv_puntuacio.
+      ELSEIF gv_back EQ 'X' AND gv_next EQ ' '.
+        SET HANDLER lcl_event_handler=>handle_toolbar_back FOR gs_dyn_0500-gv_alv_puntuacio.
+      ELSEIF gv_next EQ 'X' AND gv_back EQ ' '.
+        SET HANDLER lcl_event_handler=>handle_toolbar_next FOR gs_dyn_0500-gv_alv_puntuacio.
+      ENDIF.
+      CLEAR: gv_next, gv_back.
+**    >> INI MODIF ETODR SPEC-49075
+      gs_dyn_0500-gv_alv_puntuacio->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                                es_col_id = DATA(ls_col_id)
+                                                                es_row_no = DATA(ls_row_no) ).
+**    << FI MODIF ETODR SPEC-49075
+      gs_dyn_0500-gv_alv_puntuacio->refresh_table_display( ).
+**    >> INI MODIF ETODR SPEC-49075
+      gs_dyn_0500-gv_alv_puntuacio->set_current_cell_via_id( EXPORTING "IS_ROW_ID    = ls_row_id
+                                                                       is_column_id = ls_col_id
+                                                                       is_row_no    = ls_row_no ).
+**    << FI MODIF ETODR SPEC-49075
+    ENDIF.
+    <fs>-puntuacio = gs_dyn_0500-gt_puntuacio_ori.
+  ENDIF.
+
+*  DATA: lv_tabix      TYPE sy-tabix.
+*
+*  DATA: wa_punt_ofer_actual TYPE zrm_dt_punt_ofer.
+*
+*  DESCRIBE TABLE gs_dyn_0500-gt_punt_ofer_alv LINES lv_tabix.
+*
+*  IF lv_tabix NE 1 AND gs_dyn_0500-g_show_all EQ abap_true.
+***  IF gs_dyn_0500-g_show_all IS NOT INITIAL.
+*
+*    READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING <fs> WITH KEY is_actual = abap_on.
+*
+*    IF sy-subrc = 0.
+*      CLEAR: wa_punt_ofer_actual.
+*      MOVE-CORRESPONDING <fs> TO wa_punt_ofer_actual.
+*
+*      lv_compta_rec = <fs>-z_compta_rec. "MOD ETJHG - SPEC-46407
+*
+*      IF gs_dyn_0500-gv_alv_puntuacio IS INITIAL.
+*        PERFORM cargar_dades_puntuacio  USING      wa_punt_ofer_actual
+*                                                   gs_dyn_0500-gt_puntuacio
+*                                                   lv_compta_rec
+*                                        CHANGING   gs_dyn_0500-gt_puntuacio_ori.
+*
+*        PERFORM instanciar_objectes_punt CHANGING gs_dyn_0500-gv_cont_puntuacio
+**                                                  <fs>-alv_puntuacio.
+*                                                gs_dyn_0500-gv_alv_puntuacio.
+*
+*        CLEAR: gs_dyn_0500-gt_fcat[].
+*
+*        PERFORM crear_catalogo_punt      USING      gs_dyn_0500-gt_puntuacio
+*                                         CHANGING   gs_dyn_0500-gt_fcat.
+*
+*        PERFORM crear_layout_punt       CHANGING    gs_dyn_0500-gv_layout.
+*
+*        PERFORM mostrar_alv_punt       USING  gs_dyn_0500-gt_puntuacio_ori
+**                                              <fs>-alv_puntuacio
+*                                              gs_dyn_0500-gv_alv_puntuacio
+*                                              gs_dyn_0500-gt_fcat
+*                                              gs_dyn_0500-gv_layout.
+*
+*        <fs>-puntuacio_inicial = gs_dyn_0500-gt_puntuacio_ori.
+*      ELSE.
+*        IF gv_back EQ 'X' AND gv_next EQ 'X'.
+*          SET HANDLER lcl_event_handler=>handle_toolbar_0500 FOR gs_dyn_0500-gv_alv_puntuacio.
+*        ELSEIF gv_back EQ 'X' AND gv_next EQ ' '.
+*          SET HANDLER lcl_event_handler=>handle_toolbar_back FOR gs_dyn_0500-gv_alv_puntuacio.
+*        ELSEIF gv_next EQ 'X' AND gv_back EQ ' '.
+*          SET HANDLER lcl_event_handler=>handle_toolbar_next FOR gs_dyn_0500-gv_alv_puntuacio.
+*        ENDIF.
+*        CLEAR: gv_next, gv_back.
+*
+*        gs_dyn_0500-gv_alv_puntuacio->refresh_table_display( ).
+*      ENDIF.
+*      <fs>-puntuacio = gs_dyn_0500-gt_puntuacio_ori.
+*    ENDIF.
+***    *gt_puntuacio_ori[] = gs_dyn_0500-gt_puntuacio_ori[].
+*  ELSE.
+*    IF gs_dyn_0500-gv_alv_puntuacio IS INITIAL.
+*
+*      lv_compta_rec = gs_dyn_0500-gs_punt_rec-z_comptador_recurs.
+*
+*      PERFORM cargar_dades_puntuacio  USING      gs_dyn_0500-gs_punt_ofer
+*                                                 gs_dyn_0500-gt_puntuacio
+*                                                 lv_compta_rec
+*                                      CHANGING   gs_dyn_0500-gt_puntuacio_ori.
+*
+*      *gt_puntuacio_ori[] = gs_dyn_0500-gt_puntuacio_ori[].
+*
+*      PERFORM instanciar_objectes_punt CHANGING gs_dyn_0500-gv_cont_puntuacio
+*                                                gs_dyn_0500-gv_alv_puntuacio.
+*
+*      CLEAR: gs_dyn_0500-gt_fcat[].
+*
+*      PERFORM crear_catalogo_punt      USING      gs_dyn_0500-gt_puntuacio
+*                                       CHANGING   gs_dyn_0500-gt_fcat.
+*
+*      PERFORM crear_layout_punt       CHANGING    gs_dyn_0500-gv_layout.
+*
+*      PERFORM mostrar_alv_punt       USING  gs_dyn_0500-gt_puntuacio_ori
+*                                            gs_dyn_0500-gv_alv_puntuacio
+*                                            gs_dyn_0500-gt_fcat
+*                                            gs_dyn_0500-gv_layout.
+****INI MOD ETJHG - SPEC-46407
+*    ELSE.
+*
+*      IF gv_back EQ 'X' AND gv_next EQ 'X'.
+*        SET HANDLER lcl_event_handler=>handle_toolbar_0500 FOR gs_dyn_0500-gv_alv_puntuacio.
+*      ELSEIF gv_back EQ 'X' AND gv_next EQ ' '.
+*        SET HANDLER lcl_event_handler=>handle_toolbar_back FOR gs_dyn_0500-gv_alv_puntuacio.
+*      ELSEIF gv_next EQ 'X' AND gv_back EQ ' '.
+*        SET HANDLER lcl_event_handler=>handle_toolbar_next FOR gs_dyn_0500-gv_alv_puntuacio.
+*      ENDIF.
+*      CLEAR: gv_next, gv_back.
+*
+*      gs_dyn_0500-gv_alv_puntuacio->refresh_table_display( ).
+*
+*    ENDIF.
+*  ENDIF.
+**  ENDIF.
+****FIN MOD ETJHG - SPEC-46407
+
+ENDMODULE.

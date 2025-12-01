@@ -1,0 +1,142 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESF03.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  SHOW_INFO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM show_info  USING pt_alv_warnings TYPE tty_punt_warnings.
+  IF gr_cont_warnings IS NOT BOUND.
+    CREATE OBJECT gr_cont_warnings
+      EXPORTING
+        container_name = 'CC_VERIF_PUNT'.
+  ENDIF.
+
+  IF gr_alv_warnings IS NOT BOUND.
+    TRY .
+        cl_salv_table=>factory( EXPORTING  r_container    = gr_cont_warnings
+                                IMPORTING  r_salv_table   = gr_alv_warnings
+                                CHANGING   t_table        = pt_alv_warnings ).
+        gr_warnings_function = gr_alv_warnings->get_functions( ).
+        gr_warnings_function->set_all( ).
+
+        gr_warnings_columns = gr_alv_warnings->get_columns( ).
+
+        gr_warnings_column ?= gr_warnings_columns->get_column( 'Z_CODI_CRIT_PUNT' ).
+        gr_warnings_column->set_visible( abap_on ).
+
+        gr_warnings_column ?= gr_warnings_columns->get_column( 'Z_DESCRIPCIO_CRIT' ).
+        gr_warnings_column->set_visible( abap_on ).
+
+        gr_warnings_column->set_long_text( 'Descripció Criteri' ).
+        gr_warnings_column->set_short_text( 'Criteri' ).
+        gr_warnings_column->set_medium_text( 'Criteri Punt.' ).
+
+        gr_warnings_column ?= gr_warnings_columns->get_column( 'Z_OFER' ).
+        gr_warnings_column->set_visible( abap_on ).
+        gr_warnings_column->set_long_text( 'Proveïdor' ).
+        gr_warnings_column->set_short_text( 'Proveïdor' ).
+        gr_warnings_column->set_medium_text( 'Proveïdor' ).
+
+        gr_warnings_column ?= gr_warnings_columns->get_column( 'Z_CODI_SUBAPAR_PUNT' ).
+        gr_warnings_column->set_visible( abap_off ).
+        gr_warnings_column->set_long_text( 'Codi Subapartat' ).
+        gr_warnings_column->set_short_text( 'Subapartat' ).
+        gr_warnings_column->set_medium_text( 'Subapartat' ).
+
+        gr_warnings_column ?= gr_warnings_columns->get_column( 'Z_DESCRIPCIO_SUBAPAR' ).
+        gr_warnings_column->set_visible( abap_off ).
+        gr_warnings_column->set_long_text( 'Descripció Subapartat' ).
+        gr_warnings_column->set_short_text( 'Subapartat' ).
+        gr_warnings_column->set_medium_text( 'Subapartat' ).
+
+        gr_warnings_column ?= gr_warnings_columns->get_column( 'Z_NUM_OFER' ).
+        gr_warnings_column->set_visible( abap_off ).
+
+        gr_warnings_column ?= gr_warnings_columns->get_column( 'MESSAGE' ).
+        gr_warnings_column->set_visible( abap_on ).
+        gr_warnings_column->set_long_text( 'Missatge' ).
+        gr_warnings_column->set_short_text( 'Missatge' ).
+        gr_warnings_column->set_medium_text( 'Missatge' ).
+
+        gr_warnings_columns->set_optimize( ).
+        gr_alv_warnings->display( ).
+
+      CATCH cx_salv_msg.
+        EXIT.
+    ENDTRY.
+  ELSE.
+    gr_alv_warnings->refresh( ).
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_PUNTUACIONS_NO_REALITZADES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM get_puntuacions_no_realitzades  USING    pt_puntuacio TYPE tty_punt_ofer_alv
+                                              pt_ofertes   TYPE zrm_cl_valoracio_ofertes=>ty_t_ofertax
+                                     CHANGING ct_alv       TYPE tty_punt_warnings.
+  DATA: wa_alv TYPE ty_punt_warnings.
+*  DATA(lt_ofertants) = pt_puntuacio.
+*
+*  SORT lt_ofertants BY z_num_ofer.
+*  DELETE ADJACENT DUPLICATES FROM lt_ofertants COMPARING z_num_ofer.
+
+*>> SPEC-55535, Inici modificació - ETLJS
+  SELECT *
+    INTO TABLE @DATA(lt_crit_punt)
+    FROM zrm_dm_crit_punt
+    FOR ALL ENTRIES IN @pt_puntuacio
+    WHERE z_mod_crit_punt EQ @pt_puntuacio-z_mod_crit_punt.
+*<< SPEC-55535, Final modificació - ETLJS
+
+** >> INI MODIF ETODR SPEC-49806
+  SELECT *
+    FROM zrm_dt_punt_sel
+    INTO TABLE @DATA(lt_punt_sel)
+    FOR ALL ENTRIES IN @pt_puntuacio
+    WHERE docclass        EQ @pt_puntuacio-docclass
+      AND objectid        EQ @pt_puntuacio-objectid
+      AND z_num_ofer      EQ @pt_puntuacio-z_num_ofer
+      AND z_mod_crit_punt EQ @pt_puntuacio-z_mod_crit_punt.
+** << FI MODIF ETODR SPEC-49806
+
+  LOOP AT pt_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_sel>).
+    CLEAR: wa_alv.
+    READ TABLE lt_crit_punt ASSIGNING FIELD-SYMBOL(<fs_crit>)
+      WITH KEY z_codi_crit_punt = <fs_punt_sel>-z_codi_crit_punt.
+    IF sy-subrc EQ 0.
+      CHECK <fs_crit>-z_incr IS INITIAL.
+
+      ">>>SPEC:67070, Inici modificació - ECJMS
+      CHECK <fs_crit>-z_coeficient_iref IS INITIAL.
+      "<<<SPEC:67070, Final modificació - ECJMS
+
+    ENDIF.
+
+    IF <fs_punt_sel>-z_sec IS INITIAL." OR <fs_punt_sel>-z_punts IS INITIAL.
+** >> INI MODIF ETODR SPEC-49806
+      READ TABLE lt_punt_sel TRANSPORTING NO FIELDS WITH KEY  z_codi_crit_punt = <fs_punt_sel>-z_codi_crit_punt
+                                                              z_num_ofer       = <fs_punt_sel>-z_num_ofer.
+      IF sy-subrc = 0. CONTINUE. ENDIF.
+** << FI MODIF ETODR SPEC-49806
+      wa_alv-z_codi_crit_punt     = <fs_punt_sel>-z_codi_crit_punt.
+      wa_alv-z_descripcio_crit    = <fs_punt_sel>-z_descripcio.
+      wa_alv-z_num_ofer           = <fs_punt_sel>-z_num_ofer.
+      READ TABLE pt_ofertes ASSIGNING FIELD-SYMBOL(<fs>) WITH KEY z_num_ofer = wa_alv-z_num_ofer.
+      IF sy-subrc = 0.
+        wa_alv-z_ofer               = <fs>-nom_proveidor.
+**    >> SPEC-53119 Si no es troba la oferta pot ser que sigui ja que ha renunciat, continuem..
+      ELSE.
+        CONTINUE.
+**    << SPEC-53119
+      ENDIF.
+      CHECK <fs>-exclos IS INITIAL.
+      CHECK <fs>-z_exclos_plec IS INITIAL. "SPEC-49806
+      wa_alv-message                = text-w01.
+      APPEND wa_alv TO ct_alv.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.

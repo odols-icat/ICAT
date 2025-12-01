@@ -1,0 +1,837 @@
+**----------------------------------------------------------------------*
+****INCLUDE LZRM_VALORACIO_OFERTESCL8.
+**----------------------------------------------------------------------*
+CLASS lcl_alv_1003_util DEFINITION FINAL.
+***********************************************************************************************
+**                                         PUBLIC SECTION                                     *
+***********************************************************************************************
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_s_columns,
+             fieldname              TYPE char250,
+             z_comptador_equip      TYPE zrm_dt_punt_equi-z_comptador_equip,
+             z_carrec               TYPE zrm_dt_punt_equi-z_carrec_equip,
+             z_imin                 TYPE zrm_dt_punt_equi-z_imin,
+             z_imp_incr_tot         TYPE zrm_dt_punt_equi-z_imp_incr_tot,
+             z_punts                TYPE zrm_dt_punt_equi-z_punts,
+             z_singularitat         TYPE zrm_dt_punt_equi-z_singularitat,
+             z_actual_in_bottom_alv TYPE xfeld,
+           END OF ty_s_columns.
+    TYPES: ty_t_columns TYPE STANDARD TABLE OF ty_s_columns.
+    TYPES: BEGIN OF ty_s_formula,
+             formula        TYPE string,
+             z_imp_incr_tot TYPE zrm_dt_punt_equi-z_imp_incr_tot,
+             z_imin         TYPE zrm_dt_punt_equi-z_imin,
+           END OF ty_s_formula.
+    TYPES: ty_t_formula TYPE STANDARD TABLE OF ty_s_formula.
+
+    CONSTANTS: co_cell_color TYPE string  VALUE 'CELL_COLOR',
+               co_cell_style TYPE string  VALUE 'CELL_STYLE'.
+
+    DATA: my_changes_done             TYPE xfeld VALUE abap_off,
+          gt_fcat                     TYPE lvc_t_fcat,
+          gr_cont_incr                TYPE REF TO cl_gui_custom_container,
+          gr_alv_incr                 TYPE REF TO cl_gui_alv_grid,
+          my_puntuacions_inicials     TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen,
+          my_punts                    TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen,
+          my_suapar_do_punts          TYPE zrm_dm_suapar_do, "ETODR SPEC-55535
+          my_tt_suapar_do_punts       TYPE STANDARD TABLE OF zrm_dm_suapar_do, "ETODR SPEC-55535
+          my_tt_suapar_do_punts_equip TYPE STANDARD TABLE OF zrm_dm_suapar_do, "ETODR SPEC-61754
+          my_form_sum_incr_initial    TYPE xfeld, "ETODR SPEC-61754
+          my_tt_formula               TYPE ty_t_formula,
+          my_readonly                 TYPE xfeld,
+          my_incr                     TYPE zrm_tt_dt_punt_equi,
+          my_incr_bd                  TYPE zrm_tt_dt_punt_equi,
+          my_company_name             TYPE string,
+          my_num_oferta               TYPE z_num_ofer,
+          my_singularitat(2)          TYPE c,
+          my_formula                  TYPE z_formula_incr,
+          my_punt_max_do              TYPE z_punt_max_do.
+
+
+
+    METHODS constructor
+      IMPORTING
+        it_incr      TYPE zrm_tt_dt_punt_equi
+        it_puntuacio TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+        i_readonly   TYPE xfeld.
+
+    METHODS create_alv.
+    METHODS show_alv.
+    METHODS handle_incr_changed FOR EVENT data_changed OF cl_gui_alv_grid IMPORTING er_data_changed.
+    METHODS handle_hotspot_click_incr FOR EVENT hotspot_click OF cl_gui_alv_grid  IMPORTING e_row_id e_column_id es_row_no.
+    METHODS set_layout EXPORTING es_layout   TYPE lvc_s_layo.
+    METHODS fill_catalog EXPORTING et_fieldcat TYPE lvc_t_fcat.
+    METHODS user_command IMPORTING i_ucomm TYPE syst_ucomm.
+    METHODS free_variables.
+    METHODS check_incr_introduida RETURNING VALUE(r_incr_ok) TYPE xfeld.
+    METHODS get_flag_changes RETURNING VALUE(r_changes) TYPE xfeld.
+    METHODS set_flag_changes IMPORTING i_changes TYPE xfeld.
+    METHODS modif_incr_puntuacions CHANGING  er_data_changed TYPE REF TO cl_alv_changed_data_protocol.
+    METHODS get_puntuacions EXPORTING et_incr       TYPE zrm_tt_dt_punt_equi
+                                      et_puntuacio  TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                                      et_no_changes TYPE xfeld.
+    METHODS aplicar_formula CHANGING  cs_incr    TYPE zrm_dt_punt_equi.
+    METHODS aplicar_formula_incr CHANGING  cs_incr    TYPE zrm_dt_punt_equi.
+ENDCLASS.
+*
+*
+CLASS lcl_alv_1003_util IMPLEMENTATION.
+***********************************************************************************************
+**                                         PUBLIC SECTION                                     *
+***********************************************************************************************
+**---------------------------------------------------------------------*
+** METHOD CONSTRUCTOR
+**---------------------------------------------------------------------*
+** Mètode constructor.
+**---------------------------------------------------------------------*
+  METHOD constructor.
+    DATA: ls_incr TYPE zrm_dt_punt_equi,
+          ls_ofer TYPE zrm_dt_punt_ofer.
+
+    my_incr = it_incr.
+    my_incr_bd = it_incr.
+    my_puntuacions_inicials = it_puntuacio.
+    my_punts = it_puntuacio.
+    my_readonly = i_readonly.
+
+    READ TABLE it_incr INTO ls_incr INDEX 1.
+
+    my_num_oferta = ls_incr-z_num_ofer.
+
+*-- Nom sencer del proveidor ------------------------------------
+    SELECT SINGLE proveidor
+    FROM zrm_dt_ofertes
+    INTO @DATA(lv_lifnr)
+          WHERE objectid    = @ls_incr-objectid
+          AND docclass    = @ls_incr-docclass
+          AND z_num_ofer  = @ls_incr-z_num_ofer.
+
+    IF sy-subrc = 0 AND lv_lifnr IS NOT INITIAL.
+      SELECT SINGLE name1,name2,name3,name4
+      FROM lfa1
+      INTO (@DATA(l_name1),@DATA(l_name2),@DATA(l_name3),@DATA(l_name4))
+            WHERE lifnr EQ @lv_lifnr.
+
+      CONCATENATE l_name1 l_name2 l_name3 l_name4 INTO my_company_name  SEPARATED BY space.
+      CONDENSE my_company_name.
+    ENDIF.
+
+    READ TABLE my_incr ASSIGNING FIELD-SYMBOL(<fs_incr>) INDEX 1.
+    CHECK sy-subrc EQ 0.
+
+    SELECT SINGLE *
+      INTO ls_ofer
+      FROM zrm_dt_punt_ofer
+     WHERE docclass         EQ <fs_incr>-docclass
+       AND objectid         EQ <fs_incr>-objectid
+       AND z_mod_crit_punt  EQ <fs_incr>-z_mod_crit_punt
+       AND z_codi_crit_punt EQ <fs_incr>-z_codi_crit_punt.
+
+    SELECT SINGLE z_formula_incr z_punt_max
+      INTO (my_formula, my_punt_max_do)
+      FROM zrm_dm_suapar_pt
+     WHERE z_codi_subapar_punt_rel  EQ ls_ofer-z_codi_subapar_punt.
+
+    SELECT SINGLE z_singularitat
+      INTO my_singularitat
+      FROM zrm_dm_suapar_do
+     WHERE z_codi_subapar_punt  EQ ls_ofer-z_codi_subapar_punt AND
+           z_singularitat EQ 'SI'.
+
+    SELECT SINGLE *
+      INTO my_suapar_do_punts
+      FROM zrm_dm_suapar_do
+     WHERE z_codi_subapar_punt  EQ ls_ofer-z_codi_subapar_punt AND
+           z_singularitat       EQ 'SI'.
+
+    SELECT *
+      INTO TABLE my_tt_suapar_do_punts
+      FROM zrm_dm_suapar_do
+     WHERE z_codi_subapar_punt  EQ ls_ofer-z_codi_subapar_punt.
+
+    SELECT *
+      INTO TABLE my_tt_suapar_do_punts_equip
+      FROM zrm_dm_suapar_do
+      FOR ALL ENTRIES IN my_incr
+     WHERE z_codi_subapar_punt  EQ my_incr-z_codi_subapar_punt_equip AND
+           z_singularitat       EQ 'SI'.
+
+    IF my_readonly IS INITIAL.
+      "Sempre que entrem recalculem per si s'ha canviat alguna cosa del IMIN
+      DATA(lt_punts_before) = my_punts.
+      LOOP AT my_incr  ASSIGNING FIELD-SYMBOL(<fs_incr_inicial>).
+        aplicar_formula( CHANGING  cs_incr    = <fs_incr_inicial> ).
+        READ TABLE my_tt_suapar_do_punts_equip ASSIGNING FIELD-SYMBOL(<fs_subapar_equip>) WITH KEY z_codi_subapar_punt = <fs_incr>-z_codi_subapar_punt_equip.
+        IF sy-subrc = 0.
+          DATA(lv_punt_max_do) = <fs_subapar_equip>-z_punt_max_do.
+          IF <fs_incr_inicial>-z_presenta_singularitat IS NOT INITIAL.
+            IF <fs_incr>-z_singularitat = 'SI'.
+              <fs_incr_inicial>-z_punts = <fs_incr_inicial>-z_punts + lv_punt_max_do.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+**        LOOP AT my_punts ASSIGNING FIELD-SYMBOL(<fs_punt_inici>) WHERE z_num_gen         = my_num_oferta
+**                                                                  AND  z_codi_crit_punt  = <fs_incr_inicial>-z_codi_crit_punt.
+**          aplicar_formula( CHANGING  cs_incr    = <fs_incr_inicial> ).
+**          READ TABLE my_tt_suapar_do_punts_equip ASSIGNING FIELD-SYMBOL(<fs_subapar_equip>) WITH KEY z_codi_subapar_punt = <fs_incr>-z_codi_subapar_punt_equip.
+**          IF sy-subrc = 0.
+**            DATA(lv_punt_max_do) = <fs_subapar_equip>-z_punt_max_do.
+**            IF <fs_incr_inicial>-z_presenta_singularitat IS NOT INITIAL.
+**              <fs_incr_inicial>-z_punts = <fs_incr_inicial>-z_punts + lv_punt_max_do.
+**            ENDIF.
+**          ENDIF.
+**          <fs_punt_inici>-z_punts = <fs_incr_inicial>-z_punts.
+**        ENDLOOP.
+      ENDLOOP.
+*      IF lt_punts_before <> my_punts.
+*        set_flag_changes( abap_on ).
+*      ENDIF.
+    ENDIF.
+
+    "Potser al PCAP no s'indica la fórmula A1/A2/A3, llavors s'ha de calcular a partir del que posin a INCR, el qual passarà a ser editable
+    "Per fer-ho comprovem un càrrec qualsevol
+    my_form_sum_incr_initial = abap_off.
+    SELECT  *
+      FROM zrm_dm_carrec_pt
+      INTO TABLE @DATA(lt_carrecs_pt)
+      WHERE z_mod_crit_punt = @ls_incr-z_mod_crit_punt.
+    IF sy-subrc = 0.
+      LOOP AT lt_carrecs_pt TRANSPORTING NO FIELDS WHERE z_form_sum_incr IS INITIAL.
+        my_form_sum_incr_initial = abap_on.
+        EXIT.
+      ENDLOOP.
+    ENDIF.
+
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD SHOW_ALV
+*---------------------------------------------------------------------*
+* Mètode que mostra la ALV.
+*---------------------------------------------------------------------*
+  METHOD create_alv.
+    CALL SCREEN '1003' STARTING AT 10 10.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SHOW_ALV
+*---------------------------------------------------------------------*
+* Mètode que mostra la ALV.
+*---------------------------------------------------------------------*
+  METHOD show_alv.
+
+    DATA: lt_exclude TYPE ui_functions,
+          wa_exclude TYPE ui_func.
+
+    IF gr_cont_incr IS INITIAL.
+      CREATE OBJECT gr_cont_incr
+        EXPORTING
+          container_name = 'CC_ALV_INCR_EQUIP'.
+
+      CHECK gr_cont_incr IS BOUND.
+
+      CREATE OBJECT gr_alv_incr
+        EXPORTING
+          i_parent = gr_cont_incr
+        EXCEPTIONS
+          OTHERS   = 0.
+      CHECK gr_alv_incr IS BOUND.
+
+* --------------------------------------------------------------------*
+** Aplicar el manegador del hotspot.
+      IF my_readonly IS INITIAL.
+        SET HANDLER gr_util_incr_equip->handle_hotspot_click_incr FOR gr_alv_incr.
+        SET HANDLER gr_util_incr_equip->handle_incr_changed FOR gr_alv_incr.
+        gr_alv_incr->register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+      ENDIF.
+* --------------------------------------------------------------------*
+
+      set_layout( IMPORTING es_layout = DATA(ls_layout) ).
+      fill_catalog( IMPORTING et_fieldcat = DATA(lt_fcat) ).
+
+
+      CLEAR: lt_exclude[].
+      wa_exclude = cl_gui_alv_grid=>mc_fc_excl_all.
+      APPEND wa_exclude TO lt_exclude.
+
+
+      gr_alv_incr->set_table_for_first_display( EXPORTING  is_layout                     = ls_layout
+                                                           it_toolbar_excluding          = lt_exclude
+                                                CHANGING   it_outtab                     = my_incr
+                                                           it_fieldcatalog               = lt_fcat
+                                                EXCEPTIONS invalid_parameter_combination = 1
+                                                           program_error                 = 2
+                                                           too_many_lines                = 3
+                                                           OTHERS                        = 4 ).
+      CHECK sy-subrc = 0.
+
+      IF my_readonly = abap_on.
+        gr_alv_incr->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+      ELSE.
+        gr_alv_incr->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+      ENDIF.
+    ELSE.
+      gr_alv_incr->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                               es_col_id = DATA(ls_col_id)
+                                               es_row_no = DATA(ls_row_no) ).
+      gr_alv_incr->refresh_table_display( ).
+      gr_alv_incr->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                      is_row_no    = ls_row_no ).
+    ENDIF.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD GET_FLAG_CHANGES
+*---------------------------------------------------------------------*
+* Mètode que retorna si s'han realitzat canvis
+*---------------------------------------------------------------------*
+  METHOD get_flag_changes.
+    r_changes = my_changes_done.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SET_FLAG_CHANGES
+*---------------------------------------------------------------------*
+* Mètode que determina si s'han realitzat canvis
+*---------------------------------------------------------------------*
+  METHOD set_flag_changes.
+    my_changes_done = i_changes.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD GET_PDM_PUNTUACIONS
+*---------------------------------------------------------------------*
+* Mètode que retorna les puntuacions del criteri de PDM per tècnic
+*---------------------------------------------------------------------*
+  METHOD modif_incr_puntuacions.
+    DATA: wa_incr  TYPE zrm_dt_punt_equi,
+          lv_punts TYPE f.
+
+    READ TABLE er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<fs_good>)
+     INDEX 1.
+    CHECK sy-subrc EQ 0.
+
+    READ TABLE my_incr ASSIGNING FIELD-SYMBOL(<fs_incr>) INDEX <fs_good>-row_id.
+    IF sy-subrc = 0.
+      READ TABLE my_tt_suapar_do_punts_equip ASSIGNING FIELD-SYMBOL(<fs_subapar_equip>) WITH KEY z_codi_subapar_punt = <fs_incr>-z_codi_subapar_punt_equip.
+      IF sy-subrc = 0.
+        DATA(lv_punt_max_do) = <fs_subapar_equip>-z_punt_max_do.
+      ENDIF.
+
+*      IF <fs_good>-fieldname = 'Z_PRESENTA_SINGULARITAT'.
+*        IF <fs_good>-value = abap_true.
+*          "Ha d'acumular a PUNTS el valor de la formula de IMINvsINCR + SINGULARITAT
+*          IF <fs_incr>-z_singularitat = 'SI'.
+*            <fs_incr>-z_punts = <fs_incr>-z_punts + lv_punt_max_do.
+*          ELSE.
+*            ev_undo_changes = abap_on.
+*          ENDIF.
+*        ELSE.
+*          aplicar_formula_incr( CHANGING  cs_incr    = <fs_incr> ).
+*          aplicar_formula( CHANGING  cs_incr    = <fs_incr> ).
+*        ENDIF.
+*      ELSE.
+      IF my_form_sum_incr_initial = abap_off.
+**    << ETODR SPEC-61754
+        IF <fs_good>-fieldname = 'Z_IMP_INCR_A1'.
+          <fs_incr>-z_imp_incr_a1 = <fs_good>-value.
+          aplicar_formula_incr( CHANGING  cs_incr    = <fs_incr> ).
+        ENDIF.
+        IF <fs_good>-fieldname = 'Z_IMP_INCR_A2'.
+          <fs_incr>-z_imp_incr_a2 = <fs_good>-value.
+          aplicar_formula_incr( CHANGING  cs_incr    = <fs_incr> ).
+        ENDIF.
+        IF <fs_good>-fieldname = 'Z_IMP_INCR_A3'.
+          <fs_incr>-z_imp_incr_a3 = <fs_good>-value.
+          aplicar_formula_incr( CHANGING  cs_incr    = <fs_incr> ).
+        ENDIF.
+        aplicar_formula( CHANGING  cs_incr    = <fs_incr> ).
+**    >> ETODR SPEC-61754
+      ELSE.
+        IF <fs_good>-fieldname = 'Z_IMP_INCR_TOT'.
+          <fs_incr>-z_imp_incr_tot = <fs_good>-value.
+          aplicar_formula( CHANGING  cs_incr    = <fs_incr> ).
+        ENDIF.
+      ENDIF.
+      IF <fs_incr>-z_presenta_singularitat = abap_on.
+        <fs_incr>-z_punts = <fs_incr>-z_punts + lv_punt_max_do.
+      ENDIF.
+
+**      ENDIF.
+**    << ETODR SPEC-61754
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SET_LAYOUT
+*---------------------------------------------------------------------*
+* Layout per la ALV de modificacions de càrrecs de l'equip
+*---------------------------------------------------------------------*
+  METHOD set_layout.
+    es_layout-smalltitle = abap_off.
+    es_layout-no_totline = abap_off.
+    es_layout-no_toolbar = abap_off.
+    es_layout-no_rowins  = abap_on.
+    es_layout-no_rowmove = abap_on.
+    es_layout-zebra      = abap_on.
+    es_layout-edit_mode  = abap_on.
+    es_layout-numc_total = abap_off.
+    es_layout-col_opt    = abap_on.
+    es_layout-sel_mode   = 'A'.
+*    es_layout-grid_title = 'Informar dedicació ofertada'.
+    es_layout-stylefname = 'STYLE'.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD FILL_CATALOG
+*---------------------------------------------------------------------*
+* Catàleg de camps per la ALV de modificacions de càrrecs de l'equip
+*---------------------------------------------------------------------*
+  METHOD fill_catalog.
+    DATA: wa_fcat TYPE lvc_s_fcat.
+
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_DESCRIPCIO'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 35.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'Càrrec'.
+    wa_fcat-scrtext_m     = 'Càrrec'.
+    wa_fcat-scrtext_l     = 'Càrrec'.
+*    wa_fcat-convexit      = 'JTPAR'.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_IMIN'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 15.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'IREF'.
+    wa_fcat-scrtext_m     = 'IREF'.
+    wa_fcat-scrtext_l     = 'IREF'.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_IMP_INCR_A1'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 15.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'A1'.
+    wa_fcat-scrtext_m     = 'A1'.
+    wa_fcat-scrtext_l     = 'A1'.
+    IF my_readonly = abap_on.
+      wa_fcat-edit = abap_off.
+    ENDIF.
+    IF my_form_sum_incr_initial = abap_on.
+      wa_fcat-edit   = abap_false.
+      wa_fcat-no_out = abap_true.
+    ELSE.
+      wa_fcat-edit   = abap_true.
+    ENDIF.
+    wa_fcat-decimals      = 2.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_IMP_INCR_A2'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 15.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'A2'.
+    wa_fcat-scrtext_m     = 'A2'.
+    wa_fcat-scrtext_l     = 'A2'.
+    IF my_readonly = abap_on.
+      wa_fcat-edit = abap_false.
+    ENDIF.
+    IF my_form_sum_incr_initial = abap_on.
+      wa_fcat-edit   = abap_false.
+      wa_fcat-no_out = abap_true.
+    ELSE.
+      wa_fcat-edit   = abap_true.
+    ENDIF.
+    wa_fcat-decimals      = 2.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_IMP_INCR_A3'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 15.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'A3'.
+    wa_fcat-scrtext_m     = 'A3'.
+    wa_fcat-scrtext_l     = 'A3'.
+    IF my_readonly = abap_on.
+      wa_fcat-edit = abap_off.
+    ENDIF.
+    IF my_form_sum_incr_initial = abap_on.
+      wa_fcat-edit   = abap_false.
+      wa_fcat-no_out = abap_true.
+    ELSE.
+      wa_fcat-edit   = abap_true.
+    ENDIF.
+    wa_fcat-decimals      = 2.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_IMP_INCR_TOT'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-ref_field     = 'Z_IMP_INCR_TOT'.
+    wa_fcat-ref_table     = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 15.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'INCR'.
+    wa_fcat-scrtext_m     = 'INCR'.
+    wa_fcat-scrtext_l     = 'INCR'.
+    IF my_form_sum_incr_initial = abap_on.
+      wa_fcat-edit   = abap_true.
+    ELSE.
+      wa_fcat-edit   = abap_false.
+    ENDIF.
+    IF my_readonly = abap_on.
+      wa_fcat-edit = abap_false.
+    ENDIF.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_PUNTS'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 5.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'Punt.'.
+    wa_fcat-scrtext_m     = 'Puntuació'.
+    wa_fcat-scrtext_l     = 'Puntuació'.
+    wa_fcat-lowercase     = 'X'.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_SINGULARITAT'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 10.
+    wa_fcat-scrtext_s     = 'Singularitat'.
+    wa_fcat-scrtext_m     = 'Singularitat'.
+    wa_fcat-scrtext_l     = 'Singularitat'.
+    wa_fcat-no_out        = abap_on. "ETODR SPEC-61754
+    APPEND wa_fcat TO et_fieldcat.
+
+*>> ETODR SPEC-61754
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_PRESENTA_SINGULARITAT'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 10.
+    wa_fcat-scrtext_s     = 'Acr.Sing.'.
+    wa_fcat-scrtext_m     = 'Acredita Singularitat'.
+    wa_fcat-scrtext_l     = 'Acredita Singularitat'.
+    IF my_readonly IS INITIAL.
+      wa_fcat-edit        = abap_true.
+      wa_fcat-checkbox    = abap_true.
+      wa_fcat-hotspot     = abap_true.
+    ELSE.
+      wa_fcat-just        = 'C'.
+      wa_fcat-checkbox    = abap_true.
+    ENDIF.
+    APPEND wa_fcat TO et_fieldcat.
+
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_CODI_FORMULA_INCR_CARREC'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 40.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'F.INCR'.
+    wa_fcat-scrtext_m     = 'Formula INCR'.
+    wa_fcat-scrtext_l     = 'Formula sum INCR'.
+    wa_fcat-lowercase     = 'X'.
+    IF my_form_sum_incr_initial = abap_on.
+      wa_fcat-no_out = abap_true.
+    ENDIF.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_CODI_FORMULA_INCR_PUNTS'.
+    wa_fcat-tabname       = 'ZRM_DT_PUNT_EQUI'.
+    wa_fcat-outputlen     = 5.
+    wa_fcat-just          = 'L'.
+    wa_fcat-no_out        = 'X'.
+    wa_fcat-scrtext_s     = 'P.INCR'.
+    wa_fcat-scrtext_m     = 'Punts INCR'.
+    wa_fcat-scrtext_l     = 'Formula punts INCR'.
+    wa_fcat-lowercase     = 'X'.
+    APPEND wa_fcat TO et_fieldcat.
+*<< ETODR SPEC-61754
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD HANDLE_DEDICACIO_CHANGED
+*---------------------------------------------------------------------*
+* Mètode per controlar els canvis en la ALV de càrrecs
+*---------------------------------------------------------------------*
+  METHOD handle_incr_changed.
+    set_flag_changes( abap_on ).
+    me->modif_incr_puntuacions( CHANGING  er_data_changed = er_data_changed ).
+*    gr_alv_incr->refresh_table_display( ).
+    gr_alv_incr->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                             es_col_id = DATA(ls_col_id)
+                                             es_row_no = DATA(ls_row_no) ).
+    gr_alv_incr->refresh_table_display( ).
+    gr_alv_incr->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                    is_row_no    = ls_row_no ).
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD HANDLE_HOTSPOT_CLICK_INCR
+*---------------------------------------------------------------------*
+* Mètode per controlar els canvis en la ALV del INCR al marcar singularitat
+*---------------------------------------------------------------------*
+  METHOD handle_hotspot_click_incr.
+    READ TABLE my_incr ASSIGNING FIELD-SYMBOL(<fs_incr>) INDEX e_row_id-index.
+    IF sy-subrc = 0.
+      READ TABLE my_tt_suapar_do_punts_equip ASSIGNING FIELD-SYMBOL(<fs_subapar_equip>) WITH KEY z_codi_subapar_punt = <fs_incr>-z_codi_subapar_punt_equip.
+      IF sy-subrc = 0.
+        DATA(lv_punt_max_do) = <fs_subapar_equip>-z_punt_max_do.
+      ENDIF.
+      IF <fs_incr>-z_singularitat = 'SI'.
+        "Actualitzem el valor del flag en funció del que hi havia abans
+        IF <fs_incr>-z_presenta_singularitat = abap_on.
+          <fs_incr>-z_presenta_singularitat = abap_off.
+        ELSE.
+          <fs_incr>-z_presenta_singularitat = abap_on.
+        ENDIF.
+
+        IF my_form_sum_incr_initial = abap_off.
+          aplicar_formula_incr( CHANGING  cs_incr = <fs_incr> ).
+        ENDIF.
+        aplicar_formula(      CHANGING  cs_incr = <fs_incr> ).
+
+        " >>>SPEC-90860 Inici modificació - EVXGL
+*        IF <fs_incr>-z_presenta_singularitat = abap_on.
+*          <fs_incr>-z_punts = <fs_incr>-z_punts + lv_punt_max_do.
+*        ENDIF.
+
+        IF <fs_incr>-z_presenta_singularitat = abap_on.
+          <fs_incr>-z_punts = <fs_incr>-z_punts + lv_punt_max_do.
+        ELSE.
+          <fs_incr>-z_punts = <fs_incr>-z_punts - lv_punt_max_do.
+        ENDIF.
+        " <<<SPEC-90860 Fi modificació - EVXGL
+
+        gr_alv_incr->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                 es_col_id = DATA(ls_col_id)
+                                                 es_row_no = DATA(ls_row_no) ).
+        gr_alv_incr->refresh_table_display( ).
+        gr_alv_incr->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                        is_row_no    = ls_row_no ).
+      ELSE.
+        MESSAGE 'No aplica singularitat per aquest càrrec' TYPE 'I' DISPLAY LIKE 'S'.
+        CLEAR: <fs_incr>-z_presenta_singularitat.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD USER_COMMAND
+*---------------------------------------------------------------------*
+* Mètode que realitza la acció del botó premut per l'usuari
+*---------------------------------------------------------------------*
+  METHOD user_command.
+    DATA: l_answer TYPE c.
+    CASE i_ucomm.
+
+      WHEN 'CANC_EQUI'.
+        IF get_flag_changes( ) = abap_on.
+          CLEAR:l_answer.
+          CALL FUNCTION 'POPUP_TO_CONFIRM'
+            EXPORTING
+              titlebar              = text-i01
+              text_question         = text-i02
+              display_cancel_button = abap_off
+            IMPORTING
+              answer                = l_answer.
+          CHECK l_answer = 1.
+*          CLEAR: my_equip_for_pdm[].
+          my_incr = my_incr_bd.
+          my_punts = my_puntuacions_inicials.
+        ENDIF.
+        CALL METHOD cl_gui_cfw=>flush.
+        LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+*
+      WHEN 'OK_PDM'.
+        IF my_readonly = abap_off.
+          CALL METHOD cl_gui_cfw=>flush.
+          LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+        ELSE.
+          IF check_incr_introduida( ) = abap_off.
+            MESSAGE 'No es pot introduir una dedicació inferior a la mínima establerta ni tampoc superior al 100%' TYPE 'I'.
+          ELSE.
+            CALL METHOD cl_gui_cfw=>flush.
+            LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+          ENDIF.
+        ENDIF.
+      WHEN OTHERS.
+        EXIT.
+    ENDCASE.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD check_dedicacio_introduida
+*---------------------------------------------------------------------*
+* Mètode que comprova si la dedicació ofertada introduïda és vàlida
+*---------------------------------------------------------------------*
+  METHOD check_incr_introduida.
+    r_incr_ok = abap_on.
+    LOOP AT my_incr ASSIGNING FIELD-SYMBOL(<fs_dades_incr>) WHERE z_imp_incr_tot IS INITIAL.
+      r_incr_ok = abap_off.
+    ENDLOOP.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD free_variables
+*---------------------------------------------------------------------*
+* Mètode que allibera la memòria de les variables
+*---------------------------------------------------------------------*
+  METHOD free_variables.
+    TRY.
+        IF gr_alv_incr IS BOUND . gr_alv_incr->free( ). ENDIF.
+        IF gr_cont_incr     IS BOUND . gr_cont_incr->free( ).      ENDIF.
+        FREE: gr_alv_incr, gr_cont_incr.
+      CATCH cx_root.
+        EXIT.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD get_puntuacions.
+    et_puntuacio = my_punts.
+    et_incr      = my_incr.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD aplicar_formula
+*---------------------------------------------------------------------*
+* Mètode que aplica la fòrmula de IMINvsINCR
+*---------------------------------------------------------------------*
+  METHOD aplicar_formula.
+
+    DATA: ls_zrm_dm_eval_incr    TYPE zrm_dm_eval_incr,
+          lv_resultat_formula_fm TYPE char5,
+          lv_formula_val         TYPE string.
+
+    "1. Consulta a taula ZRM_DM_EVAL_INCR.
+    SELECT * FROM zrm_dm_eval_incr INTO ls_zrm_dm_eval_incr
+      WHERE z_codi_formula_incr = cs_incr-z_codi_formula_incr_punts.
+      "1.1. Si hi han registres, fer el següent
+      lv_formula_val = cs_incr-z_imp_incr_tot.
+      SHIFT lv_formula_val LEFT DELETING LEADING space.
+      REPLACE ALL OCCURRENCES OF '[INCR]' IN ls_zrm_dm_eval_incr-z_formula WITH lv_formula_val .
+      lv_formula_val = CONV #( cs_incr-z_imin ).
+      SHIFT lv_formula_val LEFT DELETING LEADING space.
+      REPLACE ALL OCCURRENCES OF '[IMIN]' IN ls_zrm_dm_eval_incr-z_formula WITH lv_formula_val .
+
+      CALL FUNCTION 'EVAL_FORMULA'
+        EXPORTING
+          formula = ls_zrm_dm_eval_incr-z_formula
+          program = sy-repid
+        IMPORTING
+          value   = lv_resultat_formula_fm
+        EXCEPTIONS
+          OTHERS  = 1.
+      IF sy-subrc = 0.
+        IF lv_resultat_formula_fm EQ 'TRUE'.
+          cs_incr-z_punts = ls_zrm_dm_eval_incr-z_punts.
+          EXIT.
+        ENDIF.
+      ENDIF.
+
+    ENDSELECT.
+
+
+    "1.2. Si no hi han registres, continuar al case següent.
+    "FI ECDRB SPEC-64893
+    IF sy-subrc EQ 0.
+      EXIT.
+    ENDIF.
+
+    CASE cs_incr-z_codi_formula_incr_punts.
+      WHEN 'VI01'.
+        IF cs_incr-z_imp_incr_tot < ( '0.1' * cs_incr-z_imin ).
+          cs_incr-z_punts = '0'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( '0.1' *  cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( '0.5' * cs_incr-z_imin ).
+          cs_incr-z_punts = '1.5'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( '0.5' *  cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( cs_incr-z_imin ).
+          cs_incr-z_punts = '3'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( '1.5' * cs_incr-z_imin ).
+          cs_incr-z_punts = '4'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( '1.5' * cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( '2' * cs_incr-z_imin ).
+          cs_incr-z_punts = '5'.
+        ELSE.
+          cs_incr-z_punts = '6'.
+        ENDIF.
+      WHEN 'VI02'.
+        IF cs_incr-z_imp_incr_tot < ( '0.1' * cs_incr-z_imin ).
+          cs_incr-z_punts = '0'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( '0.1' *  cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( '0.5' * cs_incr-z_imin ).
+          cs_incr-z_punts = '1'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( '0.5' *  cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( cs_incr-z_imin ).
+          cs_incr-z_punts = '2'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( '1.5' * cs_incr-z_imin ).
+          cs_incr-z_punts = '3'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( '1.5' * cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( '2' * cs_incr-z_imin ).
+          cs_incr-z_punts = '4'.
+        ELSE.
+          cs_incr-z_punts = '4.5'.
+        ENDIF.
+**    >> INI MODIF ETODR SPEC-63278
+      WHEN 'VI03'.
+        IF cs_incr-z_imp_incr_tot < ( '0.1' * cs_incr-z_imin ).
+          cs_incr-z_punts = '0'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( '0.1' *  cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( '0.5' * cs_incr-z_imin ).
+          cs_incr-z_punts = '1'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( '0.5' *  cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( cs_incr-z_imin ).
+          cs_incr-z_punts = '2'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( '1.5' * cs_incr-z_imin ).
+          cs_incr-z_punts = '3'.
+        ELSEIF cs_incr-z_imp_incr_tot >= ( '1.5' * cs_incr-z_imin ) AND cs_incr-z_imp_incr_tot < ( '2' * cs_incr-z_imin ).
+          cs_incr-z_punts = '3.5'.
+        ELSE.
+          cs_incr-z_punts = '4'.
+        ENDIF.
+**    << FI MODIF ETODR SPEC-63278
+      WHEN OTHERS.
+    ENDCASE.
+
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD aplicar_formula
+*---------------------------------------------------------------------*
+* Mètode que aplica la fòrmula de IMINvsINCR
+*---------------------------------------------------------------------*
+  METHOD aplicar_formula_incr.
+    DATA: lv_resultat_formula_fm TYPE f,
+          lv_formula_val         TYPE char20,
+          lv_formula_carrec      TYPE zrm_dt_punt_equi-z_codi_formula_incr_carrec.
+
+    lv_formula_carrec = cs_incr-z_codi_formula_incr_carrec.
+    "1.1. Si hi han registres, fer el següent
+    lv_formula_val = CONV #( cs_incr-z_imp_incr_a1 ).
+    REPLACE  ALL OCCURRENCES OF '[A1]' IN lv_formula_carrec
+    WITH lv_formula_val .
+    lv_formula_val = CONV #( cs_incr-z_imp_incr_a2 ).
+    REPLACE  ALL OCCURRENCES OF '[A2]' IN lv_formula_carrec
+    WITH lv_formula_val.
+    lv_formula_val = CONV #( cs_incr-z_imp_incr_a3 ).
+    REPLACE  ALL OCCURRENCES OF '[A3]' IN lv_formula_carrec
+    WITH lv_formula_val.
+    lv_formula_val = CONV #( cs_incr-z_imin ).
+    REPLACE  ALL OCCURRENCES OF '[IMIN]' IN lv_formula_carrec
+    WITH lv_formula_val.
+
+    CALL FUNCTION 'EVAL_FORMULA'
+      EXPORTING
+        formula = lv_formula_carrec
+        program = sy-repid
+      IMPORTING
+        value   = lv_resultat_formula_fm
+      EXCEPTIONS
+        OTHERS  = 1.
+    IF sy-subrc = 0.
+      cs_incr-z_imp_incr_tot = lv_resultat_formula_fm.
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.

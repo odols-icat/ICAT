@@ -1,0 +1,2924 @@
+*&---------------------------------------------------------------------*
+*&  Include           LZRM_VALORACIO_OFERTESCL3
+*&---------------------------------------------------------------------*
+*---------------------------------------------------------------------*
+*       CLASS LCL_ALV_0700_UTIL DEFINITION
+*---------------------------------------------------------------------*
+CLASS lcl_alv_0700_util DEFINITION FINAL.
+**********************************************************************************************
+*                                         PUBLIC SECTION                                     *
+**********************************************************************************************
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_s_columns,
+             fieldname              TYPE char250,
+             z_comptador_equip      TYPE zrm_dt_punt_equi-z_comptador_equip,
+             z_carrec_equip         TYPE zrm_dt_punt_equi-z_carrec_equip,
+             z_descripcio           TYPE zrm_dt_punt_equi-z_descripcio,
+             z_equip_basic          TYPE zrm_dt_punt_equi-z_equip_basic,
+             z_pes                  TYPE zrm_dt_punt_equi-z_pes,
+             z_punts_total          TYPE zrm_dt_punt_equi-z_punts,
+             z_actual_in_bottom_alv TYPE xfeld,
+           END OF ty_s_columns.
+    TYPES: ty_t_columns TYPE STANDARD TABLE OF ty_s_columns.
+
+    CONSTANTS: co_cell_color TYPE string  VALUE 'CELL_COLOR',
+               co_cell_style TYPE string  VALUE 'CELL_STYLE'.
+
+    DATA: my_readonly                 TYPE xfeld,
+          my_max_punts_carrec         TYPE ztt_equip_max,
+          my_punt_offers              TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen,
+          my_columns                  TYPE ty_t_columns,
+          my_num_criteris             TYPE i,
+          my_num_compta_equip         TYPE i,
+          my_num_compta_equip_add     TYPE i,
+          my_company_name             TYPE string,
+          my_num_oferta               TYPE z_num_ofer,
+          my_mod_crit_punt            TYPE zrm_dm_crit_punt-z_mod_crit_punt,
+          my_objectid                 TYPE bapiguid,
+          my_doclass                  TYPE bapidclass,
+          my_puntuacio_equip          TYPE tty_puntuacio,
+          my_puntuacio_equip_show_alv TYPE tty_puntuacio,
+          my_carrecs                  TYPE tty_carrec, "STANDARD TABLE OF zrm_dm_carrec_pt,
+          my_puntuacions_inicials     TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats,
+          my_graella_equip            TYPE zrm_tt_dt_punt_equi,
+          my_equip                    TYPE zrm_tt_dt_punt_equi,
+          my_exp_cont                 TYPE zrm_dt_exp_cont,
+          my_zrm_dt_punt_sel          TYPE zrm_tt_punt_sel,
+          my_equip_modificable        TYPE ztt_punt_equi,
+          my_equip_temporal           TYPE ztt_punt_equi, "SPEC-51135
+          my_delete_equip_table       TYPE zrm_tt_dt_punt_equi,
+          my_equip_to_save            TYPE STANDARD TABLE OF zrm_dt_punt_equi,
+          my_graella_crit             TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt,
+          my_documents                TYPE tty_puntuacio,
+          my_dm_crit_punt             TYPE STANDARD TABLE OF zrm_dm_crit_punt,
+          my_codi_subapart_punt       TYPE STANDARD TABLE OF zrm_dt_punt_ofer,
+          my_suapar_pt                TYPE STANDARD TABLE OF zrm_dm_suapar_pt,
+          my_suapar_pt_dep            TYPE STANDARD TABLE OF zrm_dm_suapar_pt,
+          my_suapar_re                TYPE STANDARD TABLE OF zrm_dm_suapar_re.
+
+    METHODS constructor IMPORTING it_graella_criteris TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt
+                                  it_equip            TYPE zrm_tt_dt_punt_equi
+                                  it_puntuacio        TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats
+                                  i_readonly          TYPE xfeld
+                                  i_objectid          TYPE bapiguid
+                                  i_docclass          TYPE bapidclass
+                                  i_num_oferta        TYPE z_num_ofer.
+    METHODS create_alv.
+    METHODS show_alv.
+    METHODS show_alv_modif_carrecs.
+    METHODS get_flag_changes RETURNING VALUE(r_changes) TYPE xfeld.
+    METHODS set_flag_changes IMPORTING i_changes TYPE xfeld.
+    METHODS free_variables.
+    METHODS free_variables_equip.
+    METHODS handle_hotspot_click         FOR EVENT hotspot_click  OF cl_gui_alv_grid IMPORTING e_row_id   e_column_id.
+    METHODS handle_hotspot_click_bottom  FOR EVENT hotspot_click  OF cl_gui_alv_grid IMPORTING e_row_id   e_column_id.
+    METHODS handle_toolbar_carrecs       FOR EVENT toolbar        OF cl_gui_alv_grid IMPORTING e_object   e_interactive.
+    METHODS handle_carrecs_changed       FOR EVENT data_changed   OF cl_gui_alv_grid IMPORTING er_data_changed.
+    METHODS handle_alv_bottom_changed    FOR EVENT data_changed   OF cl_gui_alv_grid IMPORTING er_data_changed.
+    METHODS handle_user_command_carrecs  FOR EVENT user_command   OF cl_gui_alv_grid IMPORTING e_ucomm.
+    METHODS command_alv      FOR EVENT after_user_command  OF cl_gui_alv_grid IMPORTING e_ucomm.
+    METHODS user_command     IMPORTING i_ucomm TYPE syst_ucomm.
+    METHODS modif_membre_equip.
+****    METHODS elimina_membre_equip.
+    METHODS splitter_alv.
+    METHODS set_dropdown_carrecs.
+    METHODS set_layout_carrecs    EXPORTING es_layout   TYPE lvc_s_layo.
+    METHODS fill_catalog_carrecs  EXPORTING et_fieldcat TYPE lvc_t_fcat.
+    METHODS fill_layout      IMPORTING i_top        TYPE xfeld
+                                       i_descripcio TYPE string OPTIONAL
+                             EXPORTING es_layout    TYPE lvc_s_layo.
+    METHODS fill_catalog     IMPORTING is_alv      TYPE any OPTIONAL
+                                       i_top       TYPE xfeld
+                             EXPORTING et_fieldcat TYPE lvc_t_fcat.
+    METHODS toolbar_excluded EXPORTING et_exclude TYPE ui_functions.
+    METHODS filter_bottom_alv IMPORTING i_codi_crit_punt  TYPE z_codi_crit_punt
+                                        i_grid_title      TYPE string OPTIONAL
+                                        i_field_to_filter TYPE string
+                                        i_value_filter    TYPE string.
+    METHODS  actualitza_punts_alv_top   IMPORTING it_puntuacio TYPE tty_puntuacio
+                                                  i_row_id     TYPE lvc_s_row.
+    METHODS  change_seleccio_puntuacio  IMPORTING i_row_id     TYPE lvc_s_row
+                                        CHANGING  ct_puntuacio TYPE tty_puntuacio.
+    METHODS  check_change_seleccio      IMPORTING  i_row_id       TYPE lvc_s_row
+                                                   i_readonly     TYPE xfeld
+                                        EXPORTING  e_nomes_un_sel TYPE xfeld
+                                                   e_result       TYPE z_punt_max_do
+                                        CHANGING   ct_puntuacio   TYPE tty_puntuacio
+                                        EXCEPTIONS no_seleccionable.
+    METHODS show_descripcio_llarga     IMPORTING   is_puntuacio    TYPE gty_puntuacio.
+    METHODS get_max_puntuacions        EXPORTING et_max_punts_carrec TYPE ztt_equip_max
+                                                 et_punt_offers      TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                                                 et_puntuacio        TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats.
+
+**********************************************************************************************
+*                                         PRIVATE SECTION                                     *
+**********************************************************************************************
+  PRIVATE SECTION.
+    DATA: t_fcat               TYPE lvc_t_fcat,
+          my_current_line      TYPE lvc_s_row,
+          my_current_crit_punt TYPE z_codi_crit_punt,
+          my_current_col       TYPE char250,
+          g_changes_done       TYPE xfeld VALUE abap_off,
+          gr_docking           TYPE REF TO cl_gui_docking_container,
+          gr_splitter          TYPE REF TO cl_gui_splitter_container,
+          gr_container_top     TYPE REF TO cl_gui_container,
+          gr_container_bottom  TYPE REF TO cl_gui_container,
+          gr_cont_carrecs      TYPE REF TO cl_gui_custom_container,
+          gr_alv_carrecs       TYPE REF TO cl_gui_alv_grid,
+          gr_alv_top           TYPE REF TO cl_gui_alv_grid,
+          gr_alv_bottom        TYPE REF TO cl_gui_alv_grid.
+
+    METHODS set_dades_puntuacio_equip IMPORTING it_puntuacio TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats.
+    METHODS update_dades_puntuacio_equip.
+    METHODS set_description         IMPORTING i_tag       TYPE lvc_fname
+                                              ir_type     TYPE REF TO cl_abap_datadescr
+                                    CHANGING  ct_fieldcat TYPE lvc_t_fcat.
+    METHODS fill_dynamic_catalog    IMPORTING i_num_cols  TYPE i
+                                    EXPORTING et_fieldcat TYPE lvc_t_fcat.
+    METHODS crea_dynamic_table.
+    METHODS crea_dynamic_warea.
+    METHODS check_changes_equip EXPORTING  et_msg_result TYPE tty_messages
+                                EXCEPTIONS not_ok.
+    METHODS save_changes_equip.
+    METHODS save_changes_punts.
+    METHODS check_experiencia_done RETURNING VALUE(r_experiencia_done) TYPE xfeld.
+    METHODS refresh_dynamic_table.
+    METHODS fill_itable IMPORTING i_num_cols TYPE i
+                                  i_num_rows TYPE i
+                                  it_dades   TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt.
+ENDCLASS.
+
+CLASS lcl_alv_0700_util IMPLEMENTATION.
+**********************************************************************************************
+*                                         PUBLIC SECTION                                     *
+**********************************************************************************************
+*---------------------------------------------------------------------*
+* METHOD CONSTRUCTOR
+*---------------------------------------------------------------------*
+* Mètode constructor.
+*---------------------------------------------------------------------*
+  METHOD constructor.
+    DATA: wa_dades_equip_add  TYPE zty_dades_equip,
+          wa_equip_to_graella TYPE zrm_dt_punt_equi.
+    ">>> SPEC-52548, Inici Modificació - ECTRP  24012020
+    DATA: ls_my_carrecs TYPE gty_carrec,
+          ls_equip      TYPE zrm_dt_punt_equi.
+    ">>> SPEC-52548, Final Modificació - ECTRP  24012020
+    my_readonly = i_readonly.
+
+    CLEAR: my_num_compta_equip_add, my_num_criteris, my_num_compta_equip, my_equip_modificable[], my_equip_to_save[].
+
+    DATA(lt_graella_aux) = it_graella_criteris[].
+*    SORT lt_graella_aux BY z_codi_crit_punt.
+    DELETE ADJACENT DUPLICATES FROM lt_graella_aux COMPARING z_codi_crit_punt.
+
+    DATA(lt_equip_aux)        = it_equip[].
+    DATA(lt_equip_addicional) = it_equip[].
+    SORT lt_equip_aux BY z_comptador_equip.
+    DELETE ADJACENT DUPLICATES FROM lt_equip_aux COMPARING z_comptador_equip.
+
+    SELECT SINGLE *
+      FROM zrm_dt_exp_cont
+      INTO @my_exp_cont
+      WHERE docclass = @i_docclass
+        AND objectid = @i_objectid.
+
+*    LOOP AT lt_equip_addicional ASSIGNING FIELD-SYMBOL(<fs_equip_aux>) WHERE z_equip_basic = abap_off
+*                                                                         AND z_is_header   = abap_off.
+*      MOVE-CORRESPONDING <fs_equip_aux> TO wa_dades_equip_add.
+*      APPEND wa_dades_equip_add TO my_equip_modificable.
+*    ENDLOOP.
+    IF gt_punt_equi_max IS NOT INITIAL.
+      LOOP AT gt_punt_equi_max ASSIGNING FIELD-SYMBOL(<fs_punt_equi_anterior>) WHERE z_equip_basic = abap_off
+                                                                                 AND z_is_header   = abap_off.
+        CLEAR: wa_dades_equip_add.
+        MOVE-CORRESPONDING <fs_punt_equi_anterior> TO wa_dades_equip_add.
+        APPEND wa_dades_equip_add TO my_equip_modificable.
+      ENDLOOP.
+      DELETE my_equip_modificable WHERE z_num_ofer <> i_num_oferta.
+    ENDIF.
+    IF my_equip_modificable[] IS INITIAL.
+      SELECT *
+        FROM zrm_dt_punt_equi
+        INTO CORRESPONDING FIELDS OF TABLE @my_equip_modificable
+        WHERE docclass      = @i_docclass
+          AND objectid      = @i_objectid
+          AND z_equip_basic = @abap_off
+          AND z_is_header   = @abap_off.
+      DELETE my_equip_modificable WHERE z_num_ofer <> i_num_oferta.
+    ENDIF.
+    LOOP AT gt_delete_equips ASSIGNING FIELD-SYMBOL(<fs_equips_delete>) WHERE z_num_ofer = i_num_oferta.
+      LOOP AT my_equip_modificable TRANSPORTING NO FIELDS WHERE z_num_ofer        = <fs_equips_delete>-z_num_ofer
+                                                            AND z_comptador_equip = <fs_equips_delete>-z_comptador_equip.
+        DELETE my_equip_modificable.
+      ENDLOOP.
+    ENDLOOP.
+
+    SORT my_equip_modificable BY z_comptador_equip.
+    DELETE ADJACENT DUPLICATES FROM my_equip_modificable COMPARING z_comptador_equip.
+    SORT my_equip_modificable BY z_comptador_equip ASCENDING.
+    DESCRIBE TABLE my_equip_modificable LINES my_num_compta_equip_add.
+
+*-- Nom sencer del proveidor ------------------------------------
+    SELECT SINGLE proveidor
+      FROM zrm_dt_ofertes
+      INTO @DATA(lv_lifnr)
+      WHERE objectid    = @i_objectid
+        AND docclass    = @i_docclass
+        AND z_num_ofer  = @i_num_oferta.
+    IF sy-subrc = 0 AND lv_lifnr IS NOT INITIAL.
+      SELECT SINGLE name1,name2,name3,name4
+        FROM lfa1
+        INTO (@DATA(l_name1),@DATA(l_name2),@DATA(l_name3),@DATA(l_name4))
+        WHERE lifnr EQ @lv_lifnr .
+
+      CONCATENATE l_name1 l_name2 l_name3 l_name4 INTO my_company_name  SEPARATED BY space.
+      CONDENSE my_company_name.
+    ENDIF.
+    my_graella_crit[]       = it_graella_criteris[].
+    my_graella_equip[]      = lt_equip_aux[].
+    my_equip[]              = it_equip[].
+    my_num_oferta           = i_num_oferta.
+    my_puntuacions_inicials = it_puntuacio.
+    my_doclass              = i_docclass.
+    my_objectid             = i_objectid.
+
+    LOOP AT my_equip_modificable ASSIGNING FIELD-SYMBOL(<fs_punt_equi_aux>).
+      READ TABLE my_graella_equip TRANSPORTING NO FIELDS WITH KEY z_comptador_equip = <fs_punt_equi_aux>-z_comptador_equip.
+      IF sy-subrc <> 0.
+        CLEAR: wa_equip_to_graella.
+        MOVE-CORRESPONDING <fs_punt_equi_aux> TO wa_equip_to_graella.
+        APPEND wa_equip_to_graella TO my_graella_equip.
+      ENDIF.
+      READ TABLE my_equip TRANSPORTING NO FIELDS WITH KEY z_comptador_equip = <fs_punt_equi_aux>-z_comptador_equip.
+      IF sy-subrc <> 0.
+        IF gt_punt_equi_max IS NOT INITIAL.
+          LOOP AT gt_punt_equi_max ASSIGNING <fs_punt_equi_anterior> WHERE z_comptador_equip = <fs_punt_equi_aux>-z_comptador_equip.
+            CLEAR: wa_equip_to_graella.
+            MOVE-CORRESPONDING <fs_punt_equi_anterior> TO wa_equip_to_graella.
+            APPEND wa_equip_to_graella TO my_equip.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    DESCRIBE TABLE my_graella_equip LINES my_num_compta_equip.
+    DESCRIBE TABLE lt_graella_aux   LINES my_num_criteris.
+
+    DATA(lt_equip) = my_equip[].
+    SORT lt_equip BY z_carrec_equip.
+    DELETE ADJACENT DUPLICATES FROM lt_equip COMPARING z_carrec_equip.
+    CHECK lt_equip[] IS NOT INITIAL.
+
+    CLEAR my_carrecs[].
+    SELECT b~docclass, b~objectid, a~z_carrec_equip, a~z_descripcio, a~z_carrec_def, a~z_carrec_cap
+      INTO TABLE @my_carrecs
+      FROM zrm_dt_exp_cont AS b
+     INNER JOIN zrm_dm_carrec_pt AS a
+        ON a~z_subtius_cont EQ b~z_subtipus_cont
+      FOR ALL ENTRIES IN @it_graella_criteris
+     WHERE b~docclass        EQ @i_docclass AND
+           b~objectid        EQ @i_objectid AND
+           a~z_mod_crit_punt EQ @it_graella_criteris-z_mod_crit_punt.
+
+    SORT my_carrecs.
+    DELETE ADJACENT DUPLICATES FROM my_carrecs.
+
+    ">>> SPEC-52548, Inici Modificació - ECTRP  24012020
+    "Eliminarem de la MY_CARRECS els registres que no estiguin continguts
+    "en la LT_EQUIP (conté ls càrrecs propis de l'expedient.
+    LOOP AT my_carrecs INTO ls_my_carrecs.
+      READ TABLE lt_equip INTO ls_equip
+           WITH KEY z_carrec_equip = ls_my_carrecs-z_carrec_equip.
+      IF sy-subrc NE 0.
+        DELETE TABLE my_carrecs FROM ls_my_carrecs.
+      ENDIF.
+    ENDLOOP.
+    "<<< SPEC-52548, Final Modificació - ECTRP  24012020
+
+    set_dades_puntuacio_equip( EXPORTING it_puntuacio = it_puntuacio ).
+
+    me->fill_dynamic_catalog( my_num_compta_equip ).
+*    "Crea la taula interna dinàmica
+    me->crea_dynamic_table( ).
+*    "Crea l'àrea de treball per la taula interna dinàmica
+    me->crea_dynamic_warea( ).
+    "Omple la taula interna dinàmica que es visualitzarà a la ALV
+    me->fill_itable( EXPORTING i_num_cols = my_num_compta_equip
+                               i_num_rows = my_num_criteris
+                               it_dades   = my_graella_crit ).
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD SHOW_ALV
+*---------------------------------------------------------------------*
+* Mètode que mostra la ALV.
+*---------------------------------------------------------------------*
+  METHOD create_alv.
+    CALL SCREEN '0700'.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD MODIF_MEMBRE_EQUIP
+*---------------------------------------------------------------------*
+* Mètode que permet afegir membres per un determinat càrrec
+*---------------------------------------------------------------------*
+  METHOD modif_membre_equip  .
+    CALL SCREEN '0701' STARTING AT 10 10.
+    free_variables_equip( ).
+    CALL METHOD cl_gui_cfw=>flush.
+    "my_equip_to_save
+    refresh_dynamic_table( ).
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD SHOW_ALV
+*---------------------------------------------------------------------*
+* Mètode que mostra la ALV.
+*---------------------------------------------------------------------*
+  METHOD show_alv.
+    IF gr_docking IS INITIAL.
+      me->splitter_alv( ).
+    ELSE.
+      fill_layout( EXPORTING i_top     = abap_on
+                   IMPORTING es_layout = DATA(ls_layout_top) ).
+      fill_catalog( EXPORTING is_alv      = <gs_dyntable>
+                              i_top       = abap_on
+                    IMPORTING et_fieldcat = DATA(lt_fieldcat_top) ).
+      gr_alv_top->set_frontend_layout( is_layout = ls_layout_top ).
+      gr_alv_top->set_frontend_fieldcatalog( it_fieldcatalog = lt_fieldcat_top ).
+      gr_alv_top->refresh_table_display( EXPORTING i_soft_refresh = abap_on ).
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SHOW_ALV_MODIF_CARRECS
+*---------------------------------------------------------------------*
+* Mètode que mostra la ALV per a les modificacions de l'equip
+*---------------------------------------------------------------------*
+  METHOD show_alv_modif_carrecs.
+    DATA: ls_style TYPE lvc_s_styl.
+
+    LOOP AT my_equip_modificable ASSIGNING FIELD-SYMBOL(<fs_equip_modificable>).
+      IF <fs_equip_modificable>-z_carrec_equip IS INITIAL.
+        CLEAR: ls_style.
+        ls_style-fieldname = 'Z_CARREC_EQUIP'.
+        ls_style-style     = cl_gui_alv_grid=>mc_style_enabled.
+        INSERT ls_style INTO TABLE <fs_equip_modificable>-style.
+      ELSE.
+        READ TABLE <fs_equip_modificable>-style TRANSPORTING NO FIELDS WITH KEY fieldname = 'Z_CARREC_EQUIP'.
+        IF sy-subrc EQ 0.
+          DELETE <fs_equip_modificable>-style WHERE fieldname = 'Z_CARREC_EQUIP'.
+        ENDIF.
+      ENDIF.
+      CLEAR: ls_style.
+      ls_style-fieldname = 'Z_DESCRIPCIO'.
+      ls_style-style     = cl_gui_alv_grid=>mc_style_enabled.
+      INSERT ls_style INTO TABLE <fs_equip_modificable>-style.
+    ENDLOOP.
+
+    IF gr_alv_carrecs IS INITIAL.
+      CREATE OBJECT gr_cont_carrecs
+        EXPORTING
+          container_name = 'CC_ALV_ADD_EQUIP'.
+
+      CHECK gr_cont_carrecs IS BOUND.
+
+      CREATE OBJECT gr_alv_carrecs
+        EXPORTING
+          i_parent = gr_cont_carrecs
+        EXCEPTIONS
+          OTHERS   = 0.
+      CHECK gr_alv_carrecs IS BOUND.
+* --------------------------------------------------------------------*
+** Aplicar el manegador del hotspot.
+      SET HANDLER gr_util_alv->handle_user_command_carrecs  FOR gr_alv_carrecs.
+      SET HANDLER gr_util_alv->handle_carrecs_changed       FOR gr_alv_carrecs.
+      gr_alv_carrecs->register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+      SET HANDLER gr_util_alv->handle_toolbar_carrecs       FOR gr_alv_carrecs.
+* --------------------------------------------------------------------*
+
+**    SET HANDLER lcl_event_receiver=>handle_user_command FOR pv_alv_subapart.
+      set_layout_carrecs( IMPORTING es_layout = DATA(ls_layout) ).
+      fill_catalog_carrecs( IMPORTING et_fieldcat = DATA(lt_fcat) ).
+      set_dropdown_carrecs( ).
+
+      DATA: lt_exclude TYPE ui_functions,
+            wa_exclude TYPE ui_func.
+
+      CLEAR: lt_exclude[].
+      wa_exclude = cl_gui_alv_grid=>mc_fc_excl_all.
+      APPEND wa_exclude TO lt_exclude.
+
+      SORT my_equip_modificable BY z_comptador_equip ASCENDING.
+
+      gr_alv_carrecs->set_table_for_first_display( EXPORTING  is_layout                     = ls_layout
+                                                              it_toolbar_excluding          = lt_exclude
+                                                   CHANGING   it_outtab                     = my_equip_modificable
+                                                              it_fieldcatalog               = lt_fcat
+                                                   EXCEPTIONS invalid_parameter_combination = 1
+                                                              program_error                 = 2
+                                                              too_many_lines                = 3
+                                                              OTHERS                        = 4 ).
+      CHECK sy-subrc = 0.
+      gr_alv_carrecs->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+    ELSE.
+      SORT my_equip_modificable BY z_comptador_equip ASCENDING.
+      gr_alv_carrecs->refresh_table_display( ).
+    ENDIF.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD SET_LAYOUT_CARRECS
+*---------------------------------------------------------------------*
+* Layout per la ALV de modificacions de càrrecs de l'equip
+*---------------------------------------------------------------------*
+  METHOD set_layout_carrecs .
+    es_layout-smalltitle = abap_true.
+    es_layout-no_totline = abap_false.
+    es_layout-no_toolbar = abap_false.
+    es_layout-no_rowins  = abap_true.
+    es_layout-no_rowmove = abap_true.
+    es_layout-zebra      = abap_true.
+    es_layout-edit_mode  = abap_true.
+    es_layout-numc_total = abap_true.
+    es_layout-sel_mode   = 'A'.
+    es_layout-grid_title = 'Modificacions a l''equip'.
+    es_layout-stylefname = 'STYLE'.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD FILL_CATALOG_CARRECS
+*---------------------------------------------------------------------*
+* Catàleg de camps per la ALV de modificacions de càrrecs de l'equip
+*---------------------------------------------------------------------*
+  METHOD fill_catalog_carrecs.
+    DATA: wa_fcat     TYPE lvc_s_fcat.
+
+    CLEAR wa_fcat. "Limpiamos previamente la work area.
+
+    wa_fcat-fieldname     = 'Z_CARREC_EQUIP'.
+    wa_fcat-outputlen     = 8.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'Càrrec'.
+    wa_fcat-scrtext_m     = 'Càrrec'.
+    wa_fcat-scrtext_l     = 'Càrrec'.
+    wa_fcat-drdn_hndl     = 1.
+    wa_fcat-drdn_alias    = 'X'.
+*    wa_fcat-edit          = abap_on.
+    wa_fcat-convexit      = 'CARREC'.
+
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat. "Limpiamos previamente la work area.
+
+    wa_fcat-fieldname     = 'Z_DESCRIPCIO'.
+    wa_fcat-outputlen     = 50.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'Descr.'.
+    wa_fcat-scrtext_m     = 'Descripció'.
+    wa_fcat-scrtext_l     = 'Descripció'.
+*    wa_fcat-edit          = abap_on.
+    wa_fcat-lowercase     = 'X'.
+    APPEND wa_fcat TO et_fieldcat.
+*    PERFORM crear_catalogo_equip  USING     my_equip_modificable
+*                                  CHANGING  lt_fcat.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SET_DROPDOWN_CARRECS
+*---------------------------------------------------------------------*
+* Listbox de selecció de tipus de càrrecs
+*---------------------------------------------------------------------*
+  METHOD set_dropdown_carrecs.
+    DATA: lt_drop_down TYPE lvc_t_dral,
+          wa_drop_down TYPE lvc_s_dral.
+
+    LOOP AT my_carrecs ASSIGNING FIELD-SYMBOL(<fs_carrec>).
+      wa_drop_down-handle     = '1'.
+      wa_drop_down-int_value  = <fs_carrec>-z_carrec_equip.
+      wa_drop_down-value      = <fs_carrec>-z_descripcio.
+      APPEND wa_drop_down TO  lt_drop_down.
+    ENDLOOP.
+
+    gr_alv_carrecs->set_drop_down_table( EXPORTING  it_drop_down_alias = lt_drop_down ).
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD HANDLE_TOOLBAR_CARRECS
+*---------------------------------------------------------------------*
+* Esdeveniment de control de la barra d'eines
+*---------------------------------------------------------------------*
+  METHOD handle_toolbar_carrecs.
+    DATA: ls_toolbar  TYPE stb_button.
+
+    "append a separator to normal toolbar
+    CLEAR ls_toolbar.
+    MOVE 3 TO ls_toolbar-butn_type.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+    CLEAR ls_toolbar.
+    MOVE 'ADD' TO ls_toolbar-function.
+    MOVE icon_insert_row TO ls_toolbar-icon.
+    IF gs_dyn_0200-gs_node_sel-z_mult_equip EQ abap_true.
+      MOVE text-014 TO ls_toolbar-quickinfo.
+      MOVE text-014 TO ls_toolbar-text.
+    ENDIF.
+    ">>>SPEC-56253, Inici modificació  - ETODR
+    IF my_readonly = abap_on.
+      MOVE 'X' TO ls_toolbar-disabled.
+    ELSE.
+      "<<<SPEC-56253, Final modificació - ETODR
+      MOVE ' ' TO ls_toolbar-disabled.
+    ENDIF.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+    CLEAR ls_toolbar.
+    MOVE 'DEL' TO ls_toolbar-function.
+    MOVE icon_delete_row TO ls_toolbar-icon.
+
+    IF gs_dyn_0200-gs_node_sel-z_mult_equip EQ abap_true.
+      MOVE text-015 TO ls_toolbar-quickinfo.
+      MOVE text-015 TO ls_toolbar-text.
+    ENDIF.
+    ">>>SPEC-56253, Inici modificació  - ETODR
+    IF my_readonly = abap_on.
+      MOVE 'X' TO ls_toolbar-disabled.
+    ELSE.
+      "<<<SPEC-56253, Final modificació - ETODR
+      MOVE ' ' TO ls_toolbar-disabled.
+    ENDIF.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD HANDLE_CARRECS_CHANGED
+*---------------------------------------------------------------------*
+* Mètode per controlar els canvis en la ALV de càrrecs
+*---------------------------------------------------------------------*
+  METHOD handle_carrecs_changed.
+    DATA: ls_style TYPE lvc_s_styl.
+    LOOP AT er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<fs>).
+      READ TABLE my_equip_modificable ASSIGNING FIELD-SYMBOL(<fs_dades_equip>) INDEX <fs>-row_id.
+      CHECK sy-subrc EQ 0.
+      CASE <fs>-fieldname.
+        WHEN 'Z_DESCRIPCIO'.
+          <fs_dades_equip>-z_descripcio   = <fs>-value.
+        WHEN 'Z_CARREC_EQUIP'.
+          <fs_dades_equip>-z_carrec_equip = <fs>-value.
+      ENDCASE.
+    ENDLOOP.
+    LOOP AT my_equip_modificable ASSIGNING FIELD-SYMBOL(<fs_equip_modificable>).
+      IF <fs_equip_modificable>-z_carrec_equip IS INITIAL.
+        CLEAR: ls_style.
+        ls_style-fieldname = 'Z_CARREC_EQUIP'.
+        ls_style-style     = cl_gui_alv_grid=>mc_style_enabled.
+        INSERT ls_style INTO TABLE <fs_equip_modificable>-style.
+      ELSE.
+        READ TABLE <fs_equip_modificable>-style TRANSPORTING NO FIELDS WITH KEY fieldname = 'Z_CARREC_EQUIP'.
+        IF sy-subrc EQ 0.
+          DELETE <fs_equip_modificable>-style WHERE fieldname = 'Z_CARREC_EQUIP'.
+        ENDIF.
+      ENDIF.
+      CLEAR: ls_style.
+      ls_style-fieldname = 'Z_DESCRIPCIO'.
+      ls_style-style     = cl_gui_alv_grid=>mc_style_enabled.
+      INSERT ls_style INTO TABLE <fs_equip_modificable>-style.
+    ENDLOOP.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD HANDLE_ALV_BOTTOM_CHANGED
+*---------------------------------------------------------------------*
+* Mètode per controlar els canvis en la ALV de les puntuacions
+*---------------------------------------------------------------------*
+  METHOD handle_alv_bottom_changed.
+    set_flag_changes( abap_on ).
+    LOOP AT er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<fs>).
+      READ TABLE my_puntuacio_equip_show_alv ASSIGNING FIELD-SYMBOL(<fs_alv>) INDEX <fs>-row_id.
+      IF sy-subrc = 0.
+        LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs_equip>) WHERE z_codi_crit_punt  = <fs_alv>-z_codi_crit_punt
+                                                                        AND z_comptador_equip = <fs_alv>-z_comptador_equip
+                                                                        AND z_sec             = <fs_alv>-z_sec.
+          ASSIGN COMPONENT <fs>-fieldname OF STRUCTURE <fs_equip> TO FIELD-SYMBOL(<fs_value>).
+          <fs_value> = <fs>-value.
+        ENDLOOP.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD HANDLE_CARRECS_CHANGED
+*---------------------------------------------------------------------*
+* Mètode per controlar els botons premuts en la ALV de càrrecs
+*---------------------------------------------------------------------*
+  METHOD handle_user_command_carrecs.
+    DATA: wa_dades_equip       TYPE zty_dades_equip,
+          wa_delete_from_table TYPE zrm_dt_punt_equi,
+          ls_style             TYPE lvc_s_styl,
+          lv_line              TYPE z_sec.
+    CHECK gr_alv_carrecs IS BOUND.
+    set_flag_changes( abap_on ).
+    CASE e_ucomm.
+      WHEN 'ADD'. "Afegir nova persona dins de càrrec a puntuar
+        CHECK my_carrecs IS NOT INITIAL.
+        SORT my_equip_modificable BY z_comptador_equip DESCENDING.
+        READ TABLE my_equip_modificable INTO DATA(wa_dades_ultim_afegit) INDEX 1.
+        IF sy-subrc = 0.
+          lv_line = wa_dades_ultim_afegit-z_comptador_equip.
+        ELSE.
+          CLEAR: lv_line.
+          DATA(lt_equip_tmp) = my_equip[].
+          SORT lt_equip_tmp BY z_comptador_equip DESCENDING.
+          READ TABLE lt_equip_tmp INTO DATA(wa_dades_ultim_afegit_basic) INDEX 1.
+          lv_line = wa_dades_ultim_afegit_basic-z_comptador_equip.
+        ENDIF.
+        wa_dades_equip-docclass           = g_docclass.
+        wa_dades_equip-objectid           = g_objectid.
+        wa_dades_equip-z_comptador_equip  = lv_line + 1.
+        wa_dades_equip-z_equip_basic      = abap_false.
+
+        CLEAR: ls_style.
+        ls_style-fieldname = 'Z_CARREC_EQUIP'.
+        ls_style-style     = cl_gui_alv_grid=>mc_style_enabled.
+        INSERT ls_style INTO TABLE wa_dades_equip-style.
+        CLEAR: ls_style.
+        ls_style-fieldname = 'Z_DESCRIPCIO'.
+        ls_style-style     = cl_gui_alv_grid=>mc_style_enabled.
+        INSERT ls_style INTO TABLE wa_dades_equip-style.
+        ADD 1 TO my_num_compta_equip_add.
+        APPEND wa_dades_equip TO my_equip_modificable.
+        APPEND wa_dades_equip TO my_equip_temporal."SPEC-51135
+      WHEN 'DEL'. "Eliminar membre de l'equip a puntuar
+        gr_alv_carrecs->get_selected_rows( IMPORTING et_index_rows = DATA(lt_rows) ).
+        SORT lt_rows BY index DESCENDING.
+        LOOP AT lt_rows ASSIGNING FIELD-SYMBOL(<rows>).
+          READ TABLE my_equip_modificable ASSIGNING FIELD-SYMBOL(<fs_dades_equip>) INDEX <rows>-index.
+          IF sy-subrc = 0.
+            READ TABLE my_carrecs ASSIGNING FIELD-SYMBOL(<fs_carr>) WITH KEY z_carrec_equip = <fs_dades_equip>-z_carrec_equip.
+            IF sy-subrc NE 0 AND <fs_dades_equip>-z_carrec_equip IS NOT INITIAL.
+              MESSAGE i550(zrm_errors) DISPLAY LIKE 'E'."No es pot eliminar el càrrec marcat
+              EXIT.
+            ENDIF.
+
+            ">>> SPEC-52548, Inici Modificació - ECTRP  24012020
+*            IF <fs_carr> IS NOT ASSIGNED.
+*              EXIT.
+*            ENDIF.
+            ">>> SPEC-52548, Final Modificació - ECTRP  24012020
+
+            "Si s'elimina també s'ha de comprovar si està ja a la graella de puntuables i, en cas afirmatiu, eliminar-lo d'allà també
+            DELETE my_puntuacio_equip WHERE z_comptador_equip = <fs_dades_equip>-z_comptador_equip.
+            IF sy-subrc = 0.
+              "Afegim a taula d'entrades eliminades per a poder eliminar de la BD de la ZRM_DT_PUNT_SEL i ZRM_DT_PUNT_EQUI
+              CLEAR: wa_delete_from_table.
+              wa_delete_from_table-docclass          = my_doclass.
+              wa_delete_from_table-objectid          = my_objectid.
+              wa_delete_from_table-z_num_ofer        = my_num_oferta.
+              wa_delete_from_table-z_comptador_equip = <fs_dades_equip>-z_comptador_equip.
+              APPEND wa_delete_from_table TO my_delete_equip_table.
+            ENDIF.
+
+            DELETE my_graella_equip WHERE z_comptador_equip = <fs_dades_equip>-z_comptador_equip.
+            DELETE my_equip_modificable INDEX <rows>-index.
+            my_num_compta_equip_add = my_num_compta_equip_add - 1.
+          ENDIF.
+        ENDLOOP.
+      WHEN OTHERS.
+        EXIT.
+    ENDCASE.
+    show_alv_modif_carrecs( ).
+    gr_alv_carrecs->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                es_col_id = DATA(ls_col_id)
+                                                es_row_no = DATA(ls_row_no) ).
+    gr_alv_carrecs->refresh_table_display( ).
+    gr_alv_carrecs->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                       is_row_no    = ls_row_no ).
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD GET_FLAG_CHANGES
+*---------------------------------------------------------------------*
+* Mètode que retorna si s'han realitzat canvis
+*---------------------------------------------------------------------*
+  METHOD get_flag_changes.
+    r_changes = g_changes_done.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SET_FLAG_CHANGES
+*---------------------------------------------------------------------*
+* Mètode que determina si s'han realitzat canvis
+*---------------------------------------------------------------------*
+  METHOD set_flag_changes.
+    g_changes_done = i_changes.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD free_variables
+*---------------------------------------------------------------------*
+* Mètode que allibera la memòria de les variables
+*---------------------------------------------------------------------*
+  METHOD free_variables.
+    TRY.
+        IF gr_alv_top           IS BOUND . gr_alv_top->free( ).           ENDIF.
+        IF gr_alv_bottom        IS BOUND . gr_alv_bottom->free( ).        ENDIF.
+        IF gr_container_top     IS BOUND . gr_container_top->free( ).     ENDIF.
+        IF gr_container_bottom  IS BOUND . gr_container_bottom->free( ).  ENDIF.
+        IF gr_splitter          IS BOUND . gr_splitter->free( ).          ENDIF.
+        IF gr_docking           IS BOUND . gr_docking->free( ).           ENDIF.
+
+        FREE: gr_docking, gr_splitter, gr_container_top, gr_container_bottom, gr_alv_top, gr_alv_bottom.
+      CATCH cx_root.
+        EXIT.
+    ENDTRY.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD FREE_VARIABLES_EQUIP
+*---------------------------------------------------------------------*
+* Mètode que allibera la memòria de les variables
+*---------------------------------------------------------------------*
+  METHOD free_variables_equip.
+    TRY.
+        IF gr_alv_carrecs       IS BOUND . gr_alv_carrecs->free( ).       ENDIF.
+        IF gr_cont_carrecs      IS BOUND . gr_cont_carrecs->free( ).      ENDIF.
+        FREE: gr_alv_carrecs, gr_cont_carrecs.
+      CATCH cx_root.
+        EXIT.
+    ENDTRY.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD HANDLE_HOTSPOT_CLICK_BOTTOM
+*---------------------------------------------------------------------*
+* Controlador del hotspot de la ALV
+*---------------------------------------------------------------------*
+  METHOD handle_hotspot_click_bottom.
+    DATA: l_editable   TYPE xfeld,
+          lt_dades_sub TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats,
+          lv_tittle    TYPE string,
+          lv_text1     TYPE string,
+          lv_text2     TYPE string.
+
+    CHECK gr_alv_bottom IS BOUND.
+    CHECK gr_alv_top    IS BOUND.
+
+    READ TABLE my_puntuacio_equip_show_alv ASSIGNING FIELD-SYMBOL(<fs_puntuacio>) INDEX e_row_id-index.
+    IF sy-subrc = 0.
+      IF e_column_id-fieldname EQ 'Z_DESCRIPCIO_DO' AND e_row_id-index IS NOT INITIAL.
+        show_descripcio_llarga( is_puntuacio = <fs_puntuacio> ).
+      ENDIF.
+
+      IF e_column_id-fieldname EQ 'SELECCIO' AND e_row_id-index IS NOT INITIAL.
+        gr_backend->get_punt_subapart( IMPORTING et_dades_subapart = lt_dades_sub ).
+        READ TABLE my_puntuacio_equip_show_alv ASSIGNING FIELD-SYMBOL(<fs_punt>) INDEX e_row_id.
+        IF sy-subrc EQ 0.
+          IF <fs_punt>-z_codi_subapar_punt_dep IS NOT INITIAL.
+            READ TABLE lt_dades_sub ASSIGNING FIELD-SYMBOL(<fs_dades_sub>)  WITH KEY z_codi_subapar_punt = <fs_punt>-z_codi_subapar_punt_dep
+                                                                                     z_punts             = <fs_punt>-z_punts_no_val_dep
+                                                                                     z_num_ofer          = <fs_punt>-z_num_ofer.
+            IF sy-subrc EQ 0 AND <fs_punt>-z_punt_max_do IS NOT INITIAL.
+
+              CONCATENATE 'El criteri' <fs_punt>-z_codi_crit_punt 'no es pot puntuar ' INTO lv_tittle SEPARATED BY space.
+              lv_text1 = <fs_punt>-z_punt_max_do.
+              CONCATENATE 'El criteri' <fs_punt>-z_codi_crit_punt 'no es pot puntuar amb' lv_text1 'ja que s’ha puntuat' INTO lv_text1 SEPARATED BY space.
+              lv_text2 = <fs_dades_sub>-z_punts.
+              CONCATENATE  'amb' lv_text2 'el criteri' <fs_dades_sub>-z_codi_crit_punt INTO lv_text2 SEPARATED BY space.
+
+              CALL FUNCTION 'POPUP_TO_INFORM'
+                EXPORTING
+                  titel = lv_tittle
+                  txt1  = lv_text1
+                  txt2  = lv_text2.
+              CHECK 1 = 2.
+            ENDIF.
+
+            IF <fs_punt>-z_codi_subapar_punt_dep2 IS NOT INITIAL.
+              READ TABLE lt_dades_sub ASSIGNING <fs_dades_sub> WITH KEY z_codi_subapar_punt = <fs_punt>-z_codi_subapar_punt_dep2
+                                                                        z_num_ofer          = <fs_punt>-z_num_ofer.
+
+              IF sy-subrc EQ 0 AND <fs_dades_sub>-z_punts IS NOT INITIAL AND <fs_punt>-z_punt_max_do EQ <fs_punt>-z_punts_no_val_dep.
+
+                CONCATENATE 'El criteri' <fs_punt>-z_codi_crit_punt 'no es pot puntuar ' INTO lv_tittle SEPARATED BY space.
+                CONCATENATE 'El criteri' <fs_punt>-z_codi_crit_punt 'no es pot puntuar ja que s’ha puntuat' INTO lv_text1 SEPARATED BY space.
+                lv_text2 = <fs_dades_sub>-z_punts.
+                CONCATENATE  'amb' lv_text2 'el criteri' <fs_dades_sub>-z_codi_crit_punt INTO lv_text2 SEPARATED BY space.
+
+                CALL FUNCTION 'POPUP_TO_INFORM'
+                  EXPORTING
+                    titel = lv_tittle
+                    txt1  = lv_text1
+                    txt2  = lv_text2.
+                CHECK 1 = 2.
+              ENDIF.
+            ENDIF.
+
+          ENDIF.
+
+          set_flag_changes( abap_on ).
+
+          change_seleccio_puntuacio(  EXPORTING i_row_id        = e_row_id
+                                      CHANGING  ct_puntuacio    = my_puntuacio_equip_show_alv ).
+          actualitza_punts_alv_top( EXPORTING it_puntuacio  = my_puntuacio_equip_show_alv
+                                              i_row_id      = e_row_id ).
+          gr_alv_bottom->refresh_table_display( ).
+          gr_alv_top->refresh_table_display( ).
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD HANDLE_HOTSPOT_CLICK
+*---------------------------------------------------------------------*
+* Controlador del hotspot de la ALV
+*---------------------------------------------------------------------*
+  METHOD handle_hotspot_click.
+    DATA: l_field_to_filter TYPE string,
+          lv_filter         TYPE string.
+
+    CHECK gr_alv_top IS BOUND.
+    CLEAR: my_current_line, my_current_col.
+
+    READ TABLE <gt_dyntable> ASSIGNING <gs_dyntable> INDEX e_row_id-index.
+    CHECK sy-subrc = 0.
+
+    READ TABLE my_columns ASSIGNING FIELD-SYMBOL(<fs_column_info>) WITH KEY fieldname = e_column_id.
+    CHECK sy-subrc = 0.
+
+*    ASSIGN COMPONENT e_column_id OF STRUCTURE <gs_dyntable> TO FIELD-SYMBOL(<fs_val_filter>).
+    l_field_to_filter = 'Z_COMPTADOR_EQUIP'.
+    ASSIGN COMPONENT l_field_to_filter OF STRUCTURE <fs_column_info> TO FIELD-SYMBOL(<fs_val_filter>).
+    CHECK <fs_val_filter> IS ASSIGNED.
+    DATA(lv_val_filter) = CONV string( <fs_val_filter> ).
+    SHIFT lv_val_filter LEFT DELETING LEADING space.
+
+    ASSIGN COMPONENT 'Z_CODI_CRIT_PUNT' OF STRUCTURE <gs_dyntable> TO FIELD-SYMBOL(<fs_codi_crit_punt>).
+    CHECK <fs_codi_crit_punt> IS ASSIGNED.
+
+    READ TABLE my_dm_crit_punt ASSIGNING FIELD-SYMBOL(<fs_dm_crit_punt>) WITH KEY z_codi_crit_punt = <fs_codi_crit_punt>.
+    CHECK sy-subrc = 0.
+    CONCATENATE <fs_codi_crit_punt> <fs_dm_crit_punt>-z_descripcio '-' <fs_column_info>-z_descripcio INTO DATA(l_grid_title) SEPARATED BY space.
+
+    my_current_line      = e_row_id-index.
+    my_current_crit_punt = <fs_codi_crit_punt>.
+    my_current_col       = e_column_id.
+
+    me->filter_bottom_alv( EXPORTING i_codi_crit_punt  = <fs_codi_crit_punt>
+                                     i_field_to_filter = l_field_to_filter
+                                     i_grid_title      = l_grid_title
+                                     i_value_filter    = CONV string( lv_val_filter ) ).
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD COMMAND_ALV
+*---------------------------------------------------------------------*
+* Mètode que captura l'acció realtizada per l'usuari a la bara d'eines
+*---------------------------------------------------------------------*
+  METHOD command_alv.
+    DATA: lt_filter TYPE lvc_t_filt.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD USER_COMMAND
+*---------------------------------------------------------------------*
+* Mètode que realitza la acció del botó premut per l'usuari
+*---------------------------------------------------------------------*
+  METHOD user_command.
+    DATA: l_answer TYPE c.
+    CASE i_ucomm.
+      WHEN 'CANCEL'.
+        IF get_flag_changes( ) = abap_on.
+          CLEAR:l_answer.
+          CALL FUNCTION 'POPUP_TO_CONFIRM'
+            EXPORTING
+              titlebar              = text-i01
+              text_question         = text-i02
+              display_cancel_button = abap_off
+            IMPORTING
+              answer                = l_answer.
+          CHECK l_answer = 1.
+          CLEAR: my_equip_modificable.
+        ENDIF.
+*        free_variables( ).
+*
+*        FREE: gr_util_alv.
+
+        CALL METHOD cl_gui_cfw=>flush.
+        LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+
+      WHEN 'BACK'.
+        IF get_flag_changes( ) = abap_on.
+          CLEAR:l_answer.
+
+          CALL FUNCTION 'POPUP_TO_CONFIRM'
+            EXPORTING
+              titlebar              = text-i01
+              text_question         = text-i00
+              display_cancel_button = abap_off
+            IMPORTING
+              answer                = l_answer.
+          IF l_answer = '1'. "Desar
+            CLEAR: my_max_punts_carrec[], my_punt_offers[].
+**           >> INI MODIF ETODR SPEC-50770
+            IF check_experiencia_done( ) = abap_off.
+              MESSAGE 'Cal informar l''experìencia en obres per poder continuar' TYPE 'I'.
+              EXIT.
+            ELSE.
+**           << FI MODIF ETODR SPEC-50770
+              save_changes_punts( ).
+            ENDIF.
+          ENDIF.
+        ENDIF.
+        CALL METHOD cl_gui_cfw=>flush.
+        LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+
+
+      WHEN 'OK_ADD_EQUIP'.
+        IF get_flag_changes( ) = abap_on.
+          gr_alv_carrecs->check_changed_data( ). "Com que pot ser que no hagin premut ENTER o canviat de cel·la, abans de guardar recuperem els canvis que puguin haver-hi a la ALV
+          check_changes_equip( IMPORTING  et_msg_result = DATA(lt_msg_result)
+                               EXCEPTIONS not_ok       = 1 ).
+          IF sy-subrc = 0.
+            save_changes_equip( ).
+            free_variables_equip( ).
+          ELSE.
+            IF lt_msg_result[] IS NOT INITIAL.
+              CALL FUNCTION 'ZPOPUP_WITH_TABLE'
+                EXPORTING
+                  endpos_col   = 130
+                  endpos_row   = 20
+                  startpos_col = 20
+                  startpos_row = 10
+                  titletext    = text-i01
+                TABLES
+                  valuetab     = lt_msg_result
+                EXCEPTIONS
+                  OTHERS       = 0.
+              EXIT.
+            ENDIF.
+          ENDIF.
+*          ENDIF.
+        ENDIF.
+        LEAVE TO SCREEN 0.
+
+      WHEN 'CANC_EQUI'.
+        IF get_flag_changes( ) = abap_on.
+          CLEAR:l_answer.
+          CALL FUNCTION 'POPUP_TO_CONFIRM'
+            EXPORTING
+              titlebar              = text-i01
+              text_question         = text-i02
+              display_cancel_button = abap_off
+            IMPORTING
+              answer                = l_answer.
+          CHECK l_answer = 1.
+**        >> INI MODIF ETODR SPEC-51135
+          LOOP AT my_equip_temporal ASSIGNING FIELD-SYMBOL(<fs_equip_temporal_delete>).
+            DELETE my_equip_modificable WHERE z_comptador_equip = <fs_equip_temporal_delete>-z_comptador_equip.
+          ENDLOOP.
+*          CLEAR: my_equip_modificable[].
+**        << FI MODIF ETODR SPEC-51135
+        ENDIF.
+        free_variables_equip( ).
+        CALL METHOD cl_gui_cfw=>flush.
+        LEAVE TO SCREEN 0.
+      WHEN 'MOD_EQUIP'.
+        modif_membre_equip( ).
+      WHEN OTHERS.
+        EXIT.
+    ENDCASE.
+  ENDMETHOD.
+
+*****---------------------------------------------------------------------*
+***** METHOD ELIMINA_MEMBRE_EQUIP
+*****---------------------------------------------------------------------*
+***** Mètode que mostra tots els possibles membres a eliminar, no es pot
+***** eliminar l'equip bàsic
+*****---------------------------------------------------------------------*
+****  METHOD elimina_membre_equip.
+****    DATA: lt_options TYPE STANDARD TABLE OF spopli,
+****          wa_options TYPE spopli,
+****          l_answer   TYPE c.
+****    CLEAR: lt_options[].
+****
+****    DATA(lt_equip) = my_equip[].
+****    SORT lt_equip BY z_carrec_equip.
+****    DELETE ADJACENT DUPLICATES FROM lt_equip COMPARING z_carrec_equip.
+****    CHECK lt_equip[] IS NOT INITIAL.
+****
+****    "Només mostrem per eliminar l'equip NO bàsic
+****    LOOP AT lt_equip ASSIGNING FIELD-SYMBOL(<fs_equip>) WHERE z_equip_basic = abap_off.
+****      READ TABLE my_carrecs ASSIGNING FIELD-SYMBOL(<fs_info_carrec>) WITH KEY z_carrec_equip = <fs_equip>-z_carrec_equip.
+****      IF sy-subrc = 0.
+****        CLEAR: wa_options.
+****        CONCATENATE <fs_equip>-z_descripcio '-' <fs_info_carrec>-z_descripcio INTO wa_options-varoption SEPARATED BY space.
+****        APPEND wa_options TO lt_options.
+****      ENDIF.
+****    ENDLOOP.
+****
+****    IF lt_options[] IS NOT INITIAL.
+****      CALL FUNCTION 'POPUP_TO_DECIDE_LIST'
+****        EXPORTING
+****          textline1          = 'Escollir càrrec a eliminar'
+****          titel              = 'Càrrec'
+****        IMPORTING
+****          answer             = l_answer
+****        TABLES
+****          t_spopli           = lt_options
+****        EXCEPTIONS
+****          not_enough_answers = 1
+****          too_much_answers   = 2
+****          too_much_marks     = 3
+****          OTHERS             = 4.
+****      IF sy-subrc = 0.
+****        READ TABLE lt_options[] ASSIGNING FIELD-SYMBOL(<fs_option_selected>) INDEX l_answer.
+****        IF sy-subrc = 0.
+****          "Preguntar si n'està segur!!
+****
+****          "Eliminar de MY_COLUMNS i de GT_DYNTABLE el càrrec addicional seleccionat
+****        ENDIF.
+****      ENDIF.
+****    ENDIF.
+****
+****  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SPLITTER_ALV
+*---------------------------------------------------------------------*
+* Mètode que crea les visulaitzacions de la ALV mitjançant l'objecte
+* splitter
+*---------------------------------------------------------------------*
+  METHOD splitter_alv.
+    DATA: lt_excluded        TYPE ui_functions.
+
+* Es crea el docking container
+    CREATE OBJECT gr_docking
+      EXPORTING
+        repid      = sy-repid
+        dynnr      = sy-dynnr
+        side       = cl_gui_docking_container=>dock_at_top
+        extension  = 300
+        ratio      = 90
+      EXCEPTIONS
+        cntl_error = 1
+        OTHERS     = 2.
+    CHECK sy-subrc = 0.
+
+* Es crea el splitter container
+    CREATE OBJECT gr_splitter
+      EXPORTING
+        link_dynnr = sy-dynnr
+        link_repid = sy-repid
+        parent     = gr_docking
+        rows       = 2
+        columns    = 1
+      EXCEPTIONS
+        OTHERS     = 1.
+    CHECK sy-subrc = 0.
+
+* Es creen els contenidors de cada divisió
+    CALL METHOD gr_splitter->get_container
+      EXPORTING
+        row       = 1
+        column    = 1
+      RECEIVING
+        container = gr_container_top.
+    CALL METHOD gr_splitter->get_container
+      EXPORTING
+        row       = 2
+        column    = 1
+      RECEIVING
+        container = gr_container_bottom.
+
+* Es creen les dues ALV
+    CREATE OBJECT gr_alv_top
+      EXPORTING
+        i_parent = gr_container_top
+      EXCEPTIONS
+        OTHERS   = 1.
+    CHECK sy-subrc = 0.
+
+    CREATE OBJECT gr_alv_bottom
+      EXPORTING
+        i_parent = gr_container_bottom
+      EXCEPTIONS
+        OTHERS   = 1.
+    CHECK sy-subrc = 0.
+
+**"S'omple l'ALV referent al TOP
+* --------------------------------------------------------------------*
+** Aplicar el manegador del hotspot.
+    SET HANDLER gr_util_alv->handle_hotspot_click FOR gr_alv_top.
+* --------------------------------------------------------------------*
+    me->fill_layout( EXPORTING i_top     = abap_on
+                     IMPORTING es_layout = DATA(ls_layout_top) ).
+*    me->toolbar_excluded( IMPORTING et_exclude = lt_excluded ).
+    me->fill_catalog( EXPORTING is_alv      = <gs_dyntable>
+                                i_top       = abap_on
+                      IMPORTING et_fieldcat = DATA(lt_fieldcat_top) ).
+    gr_alv_top->set_table_for_first_display( EXPORTING  is_layout             = ls_layout_top
+                                                        it_toolbar_excluding  = lt_excluded
+                                             CHANGING   it_outtab             = <gt_dyntable>
+                                                        it_fieldcatalog       = lt_fieldcat_top
+                                             EXCEPTIONS OTHERS                = 1 ).
+    CHECK sy-subrc = 0.
+
+**"S'omple l'ALV referent al BOTTOM
+* --------------------------------------------------------------------*
+** Aplicar el manegador del hotspot.
+    SET HANDLER gr_util_alv->handle_hotspot_click_bottom FOR gr_alv_bottom.
+    SET HANDLER gr_util_alv->handle_alv_bottom_changed   FOR gr_alv_bottom.
+    gr_alv_bottom->register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+* --------------------------------------------------------------------*
+    me->fill_layout(  EXPORTING i_top     = abap_off
+                      IMPORTING es_layout = DATA(ls_layout_bottom) ).
+    me->fill_catalog( EXPORTING i_top       = abap_off
+                      IMPORTING et_fieldcat = DATA(lt_fieldcat_bottom) ).
+
+    gr_alv_bottom->set_table_for_first_display( EXPORTING  is_layout            = ls_layout_bottom
+                                                           it_toolbar_excluding = lt_excluded
+                                                CHANGING   it_outtab            = my_puntuacio_equip_show_alv
+                                                           it_fieldcatalog      = lt_fieldcat_bottom
+                                                EXCEPTIONS OTHERS               = 1 ).
+    CHECK sy-subrc = 0.
+  ENDMETHOD.
+
+
+*---------------------------------------------------------------------*
+* METHOD FILL_CATALOG
+*---------------------------------------------------------------------*
+* Mètode que crea el catàleg de camps de la ALV
+*---------------------------------------------------------------------*
+  METHOD fill_catalog.
+    DATA: lr_desc TYPE REF TO cl_abap_structdescr,
+          l_tag   TYPE lvc_fname,
+          wa_fcat TYPE lvc_s_fcat.
+
+    DATA: lwa_zrms_dm_punt_txt TYPE zrms_dm_punt_txt. " Insert SPEC-51885 ETXGL
+
+
+    IF is_alv IS NOT INITIAL.
+      lr_desc ?= cl_abap_typedescr=>describe_by_data( is_alv ).
+      DATA(lt_components) = lr_desc->get_components( ).
+      IF i_top = abap_off.
+        LOOP AT lt_components ASSIGNING FIELD-SYMBOL(<fs_component>).
+          l_tag = <fs_component>-name.
+          IF l_tag <> co_cell_color AND l_tag <> co_cell_style.
+            me->set_description( EXPORTING i_tag        = l_tag
+                                           ir_type      = <fs_component>-type
+                                 CHANGING  ct_fieldcat  = et_fieldcat ).
+          ENDIF.
+        ENDLOOP.
+      ELSE.
+        et_fieldcat = t_fcat.
+        DELETE et_fieldcat WHERE fieldname = co_cell_color OR fieldname = co_cell_style.
+      ENDIF.
+    ELSE.
+      IF i_top = abap_off.
+        DATA: wa_puntuacio TYPE gty_puntuacio.
+
+        CLEAR wa_fcat. "Limpiamos previamente la work area.
+
+        wa_fcat-fieldname     = 'Z_CODI_SUBAPAR_PUNT_REL'.
+        wa_fcat-outputlen     = 10.
+        wa_fcat-just          = 'L'.
+        wa_fcat-scrtext_s     = 'Subap.'.
+        wa_fcat-scrtext_m     = 'Subapartat'.
+        wa_fcat-scrtext_l     = 'Subapartat'.
+        wa_fcat-no_out        = abap_true.
+
+        APPEND wa_fcat TO et_fieldcat.
+
+        CLEAR wa_fcat. "Limpiamos previamente la work area.
+
+        wa_fcat-fieldname     = 'Z_DESCRIPCIO_DO'.
+        wa_fcat-outputlen     = 80.
+        wa_fcat-hotspot       = abap_true.
+        wa_fcat-just          = 'L'.
+        wa_fcat-scrtext_s     = 'Descr.'.
+        wa_fcat-scrtext_m     = 'Descripció'.
+        wa_fcat-scrtext_l     = 'Descripció'.
+
+        APPEND wa_fcat TO et_fieldcat.
+
+        CLEAR wa_fcat. "Limpiamos previamente la work area.
+
+        wa_fcat-fieldname     = 'Z_PUNT_MAX_DO'.
+        wa_fcat-outputlen     = 9.
+        wa_fcat-just          = 'C'.
+        wa_fcat-scrtext_s     = 'Punt.Max.'.
+        wa_fcat-scrtext_m     = 'Puntuació Màxima'.
+        wa_fcat-scrtext_l     = 'Puntuació Màxima'.
+
+        APPEND wa_fcat TO et_fieldcat.
+
+        CLEAR wa_fcat. "Limpiamos previamente la work area.
+
+        wa_fcat-fieldname     = 'SELECCIO'.
+        wa_fcat-outputlen     = 8.
+        wa_fcat-just          = 'L'.
+        IF g_readonly IS INITIAL.
+          wa_fcat-edit          = abap_true.
+          wa_fcat-hotspot       = abap_true.
+          wa_fcat-checkbox      = abap_true.
+        ELSE.
+          wa_fcat-just          = 'C'.
+          wa_fcat-checkbox      = abap_true.
+        ENDIF.
+        wa_fcat-scrtext_s     = 'Selecció'.
+        wa_fcat-scrtext_m     = 'Selecció'.
+        wa_fcat-scrtext_l     = 'Selecció'.
+
+        APPEND wa_fcat TO et_fieldcat.
+
+** >> INI MODIF ETODR SPEC-49075
+        READ TABLE my_puntuacio_equip_show_alv INTO DATA(wa_puntuacio_actual) WITH KEY z_codi_crit_punt = my_current_crit_punt.
+        IF sy-subrc = 0.
+          IF my_exp_cont-z_llei92017 = abap_on AND my_exp_cont-z_obert_preu = abap_off.
+            IF wa_puntuacio_actual-z_experiencia = abap_on.
+***>>> INICI Modificació ETXGL SPEC-51885
+*              CLEAR: wa_fcat.
+*              wa_fcat-fieldname     = 'Z_NUM_OB_OFERTA'.
+*              wa_fcat-no_zero       = abap_on.
+*              wa_fcat-outputlen     = 10.
+*              wa_fcat-just          = 'L'.
+*              wa_fcat-scrtext_s     = 'Núm. ob.'.
+*              wa_fcat-scrtext_m     = 'Núm. obres oferta'.
+*              wa_fcat-scrtext_l     = 'Número d''obres presentades a l''oferta'.
+*              IF my_readonly IS INITIAL.
+*                wa_fcat-edit          = abap_true.
+*              ENDIF.
+*              APPEND wa_fcat TO et_fieldcat.
+*
+*              CLEAR: wa_fcat.
+*              wa_fcat-fieldname     = 'Z_NUM_OB_TIP_OK'.
+*              wa_fcat-no_zero       = abap_on.
+*              wa_fcat-outputlen     = 10.
+*              wa_fcat-just          = 'L'.
+*              wa_fcat-scrtext_s     = 'Núm. ob.'.
+*              wa_fcat-scrtext_m     = 'Núm. obres tip. c.'.
+*              wa_fcat-scrtext_l     = 'Obres similars de tipologia correcta'.
+*              IF my_readonly IS INITIAL.
+*                wa_fcat-edit          = abap_true.
+*              ENDIF.
+*              APPEND wa_fcat TO et_fieldcat.
+*
+*              CLEAR: wa_fcat.
+*              wa_fcat-fieldname     = 'Z_NUM_OB_ACREDIT_OK'.
+*              wa_fcat-no_zero       = abap_on.
+*              wa_fcat-outputlen     = 10.
+*              wa_fcat-just          = 'L'.
+*              wa_fcat-scrtext_s     = 'Núm. obres acredit.'.
+*              wa_fcat-scrtext_m     = 'Núm. obres acredit.'.
+*              wa_fcat-scrtext_l     = 'Obres acredit. correct. no solvència'.
+*              IF my_readonly IS INITIAL.
+*                wa_fcat-edit          = abap_true.
+*              ENDIF.
+*              APPEND wa_fcat TO et_fieldcat.
+*            ENDIF.
+
+
+              "--------------------------------------------------------------------
+              ">>>SPEC:58688, Inici modificació  -  ECJSA
+              "--------------------------------------------------------------------
+              CLEAR lwa_zrms_dm_punt_txt.
+              DATA: ls_my_dm_crit_punt LIKE LINE OF my_dm_crit_punt.
+              READ TABLE my_dm_crit_punt INTO ls_my_dm_crit_punt INDEX 1.
+
+              IF sy-subrc = 0.
+                SELECT SINGLE *
+                  FROM zrms_dm_punt_txt
+                   INTO CORRESPONDING FIELDS OF lwa_zrms_dm_punt_txt
+                      WHERE z_mod_crit_punt = ls_my_dm_crit_punt-z_mod_crit_punt
+                      AND   z_camp          = 'Z_NUM_OB_OFERTA'.
+
+              ENDIF.
+              "--------------------------------------------------------------------
+              "<<<SPEC:58688, Final modificació  -  ECJSA
+              "--------------------------------------------------------------------
+
+              CLEAR: wa_fcat.
+              wa_fcat-fieldname     = 'Z_NUM_OB_OFERTA'.
+              wa_fcat-no_zero       = abap_on.
+              wa_fcat-outputlen     = 13.
+              wa_fcat-just          = 'C'.
+              IF lwa_zrms_dm_punt_txt IS NOT INITIAL.
+                wa_fcat-scrtext_l   = lwa_zrms_dm_punt_txt-z_descripcio_l. "SPEC-58688
+                wa_fcat-scrtext_m   = lwa_zrms_dm_punt_txt-z_descripcio_m. "SPEC-58688
+                wa_fcat-scrtext_s   = lwa_zrms_dm_punt_txt-z_descripcio_s. "SPEC-58688
+              ELSE.
+                wa_fcat-scrtext_l   = 'Número d''obres presentades a l''oferta'.
+                wa_fcat-scrtext_m   = 'Núm. obres oferta'.
+                wa_fcat-scrtext_s   = 'Núm. ob.'.
+              ENDIF.
+              IF my_readonly IS INITIAL.
+                wa_fcat-edit        = abap_true.
+              ENDIF.
+              APPEND wa_fcat TO et_fieldcat.
+
+
+              "--------------------------------------------------------------------
+              ">>>SPEC:58688, Inici modificació  -  ECJSA
+              "--------------------------------------------------------------------
+              CLEAR lwa_zrms_dm_punt_txt.
+              CLEAR ls_my_dm_crit_punt.
+              READ TABLE my_dm_crit_punt INTO ls_my_dm_crit_punt INDEX 1.
+
+              IF sy-subrc = 0.
+                SELECT SINGLE *
+                  FROM zrms_dm_punt_txt
+                   INTO CORRESPONDING FIELDS OF lwa_zrms_dm_punt_txt
+                      WHERE z_mod_crit_punt = ls_my_dm_crit_punt-z_mod_crit_punt
+                      AND   z_camp          = 'Z_NUM_OB_TIP_OK'.
+
+              ENDIF.
+              "--------------------------------------------------------------------
+              "<<<SPEC:58688, Final modificació  -  ECJSA
+              "--------------------------------------------------------------------
+
+
+              CLEAR: wa_fcat.
+              wa_fcat-fieldname     = 'Z_NUM_OB_TIP_OK'.
+              wa_fcat-no_zero       = abap_on.
+              wa_fcat-outputlen     = 13.
+              wa_fcat-just          = 'C'.
+              IF lwa_zrms_dm_punt_txt IS NOT INITIAL.
+                wa_fcat-scrtext_l   = lwa_zrms_dm_punt_txt-z_descripcio_l. "SPEC-58688
+                wa_fcat-scrtext_m   = lwa_zrms_dm_punt_txt-z_descripcio_m. "SPEC-58688
+                wa_fcat-scrtext_s   = lwa_zrms_dm_punt_txt-z_descripcio_s. "SPEC-58688
+              ELSE.
+                wa_fcat-scrtext_l   = 'Obres similars de tipologia correcta'.
+                wa_fcat-scrtext_m   = 'Núm. obres tip. c.'.
+                wa_fcat-scrtext_s   = 'Núm. ob.'.
+              ENDIF.
+              IF my_readonly IS INITIAL.
+                wa_fcat-edit        = abap_true.
+              ENDIF.
+              APPEND wa_fcat TO et_fieldcat.
+
+              "--------------------------------------------------------------------
+              ">>>SPEC:58688, Inici modificació  -  ECJSA
+              "--------------------------------------------------------------------
+              CLEAR lwa_zrms_dm_punt_txt.
+              CLEAR ls_my_dm_crit_punt.
+              READ TABLE my_dm_crit_punt INTO ls_my_dm_crit_punt INDEX 1.
+
+              IF sy-subrc = 0.
+
+                SELECT SINGLE *
+                  FROM zrms_dm_punt_txt
+                   INTO CORRESPONDING FIELDS OF lwa_zrms_dm_punt_txt
+                      WHERE z_mod_crit_punt = ls_my_dm_crit_punt-z_mod_crit_punt
+                                 AND z_camp = 'Z_NUM_OB_ACREDIT_OK'.
+              ENDIF.
+              "--------------------------------------------------------------------
+              "<<<SPEC:58688, Final modificació  -  ECJSA
+              "--------------------------------------------------------------------
+
+              CLEAR: wa_fcat.
+              wa_fcat-fieldname     = 'Z_NUM_OB_ACREDIT_OK'.
+              wa_fcat-outputlen     = 13.
+              wa_fcat-just          = 'C'.
+              IF lwa_zrms_dm_punt_txt IS NOT INITIAL.
+                wa_fcat-scrtext_l   = lwa_zrms_dm_punt_txt-z_descripcio_l. "SPEC-58688
+                wa_fcat-scrtext_m   = lwa_zrms_dm_punt_txt-z_descripcio_m. "SPEC-58688
+                wa_fcat-scrtext_s   = lwa_zrms_dm_punt_txt-z_descripcio_s. "SPEC-58688
+              ELSE.
+                wa_fcat-scrtext_s   = 'Núm. obres acredit.'.
+                wa_fcat-scrtext_m   = 'Núm. obres acredit.'.
+                wa_fcat-scrtext_l   = 'Obres acredit. correct. no solvència'.
+              ENDIF.
+              IF my_readonly IS INITIAL.
+                wa_fcat-edit        = abap_true.
+              ENDIF.
+              APPEND wa_fcat TO et_fieldcat.
+***<<< FI Modificació ETXGL SPEC-51885
+            ENDIF.
+
+            IF wa_puntuacio_actual-z_mult_rec = abap_on.
+              CLEAR: wa_fcat.
+              wa_fcat-fieldname     = 'Z_KM_VERIF'.
+              wa_fcat-no_zero       = abap_on.
+              wa_fcat-outputlen     = 10.
+              wa_fcat-just          = 'L'.
+              wa_fcat-scrtext_s     = 'Km verif.'.
+              wa_fcat-scrtext_m     = 'Distància verificada (km)'.
+              wa_fcat-scrtext_l     = 'Distància verificada (km)'.
+              IF my_readonly IS INITIAL.
+                wa_fcat-edit          = abap_true.
+              ENDIF.
+              APPEND wa_fcat TO et_fieldcat.
+
+              CLEAR: wa_fcat.
+              wa_fcat-fieldname     = 'Z_KM_OFERTA'.
+              wa_fcat-no_zero       = abap_on.
+              wa_fcat-outputlen     = 10.
+              wa_fcat-just          = 'L'.
+              wa_fcat-scrtext_s     = 'Km oferta'.
+              wa_fcat-scrtext_m     = 'Distància indicada a l''oferta (km)'.
+              wa_fcat-scrtext_l     = 'Distància indicada a l''oferta (km)'.
+              IF my_readonly IS INITIAL.
+                wa_fcat-edit          = abap_true.
+              ENDIF.
+              APPEND wa_fcat TO et_fieldcat.
+            ENDIF.
+
+            IF wa_puntuacio_actual-z_carrega_treball = abap_on.
+              CLEAR: wa_fcat.
+              wa_fcat-fieldname     = 'Z_NUM_CONT_VIG'.
+              wa_fcat-no_zero       = abap_on.
+              wa_fcat-outputlen     = 10.
+              wa_fcat-just          = 'L'.
+              wa_fcat-scrtext_s     = 'Núm. Cont.'.
+              wa_fcat-scrtext_m     = 'Número de contractes vigents a considerar'.
+              wa_fcat-scrtext_l     = 'Número de contractes vigents a considerar'.
+              IF my_readonly IS INITIAL.
+                wa_fcat-edit          = abap_true.
+              ENDIF.
+              APPEND wa_fcat TO et_fieldcat.
+
+              CLEAR: wa_fcat.
+              wa_fcat-fieldname     = 'Z_IMP_ACUM_CONT_VIG'.
+              wa_fcat-no_zero       = abap_on.
+              wa_fcat-outputlen     = 10.
+              wa_fcat-just          = 'L'.
+              wa_fcat-scrtext_s     = 'Import Acum.'.
+              wa_fcat-scrtext_m     = 'Import acumulat contractes vigents a considerar'.
+              wa_fcat-scrtext_l     = 'Import acumulat contractes vigents a considerar (milers euros)'.
+              IF my_readonly IS INITIAL.
+                wa_fcat-edit          = abap_true.
+              ENDIF.
+              APPEND wa_fcat TO et_fieldcat.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD FILL_LAYOUT
+*---------------------------------------------------------------------*
+* Mètode que crea el layout de la ALV
+*---------------------------------------------------------------------*
+  METHOD fill_layout.
+    CLEAR: es_layout.
+    es_layout-col_opt     = abap_on.
+    es_layout-no_toolbar  = abap_on.
+    IF i_top = abap_on.
+      es_layout-stylefname  = co_cell_style.
+      CONCATENATE 'Puntuació Equip Màxim per a ' my_company_name INTO es_layout-grid_title SEPARATED BY space.
+      es_layout-ctab_fname    = co_cell_color.
+    ELSE.
+      es_layout-stylefname  = co_cell_style.
+      IF i_descripcio IS NOT INITIAL.
+        es_layout-grid_title = i_descripcio.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD TOOLBAR_EXCLUDED
+*---------------------------------------------------------------------*
+*  Funcions excloses de la barra d'eines
+*---------------------------------------------------------------------*
+  METHOD toolbar_excluded.
+    CLEAR:et_exclude[].
+    APPEND cl_gui_alv_grid=>mc_fc_info    TO et_exclude.
+    APPEND cl_gui_alv_grid=>mc_fc_graph   TO et_exclude.
+    APPEND cl_gui_alv_grid=>mc_fc_sort    TO et_exclude.
+    APPEND cl_gui_alv_grid=>mc_mb_filter  TO et_exclude.
+  ENDMETHOD.
+
+
+
+
+**********************************************************************************************
+*                                         PRIVATE SECTION                                     *
+**********************************************************************************************
+
+*---------------------------------------------------------------------*
+* METHOD SET_DADES_PUNTUACIO_EQUIP
+*---------------------------------------------------------------------*
+* Recupera el les puntuacions dels membres de l'equip de la oferta
+*---------------------------------------------------------------------*
+  METHOD set_dades_puntuacio_equip.
+    DATA: wa_puntuacio  TYPE gty_puntuacio,
+          lv_compta_rec TYPE zrm_dt_punt_sel-z_comptador_recurs,
+          ls_style      TYPE lvc_s_styl.
+
+    "Es recuperen totes les puntuacions seleccionades
+    IF gt_punt_sel_equi IS INITIAL.
+      SELECT *
+        FROM zrm_dt_punt_sel
+        INTO TABLE @my_zrm_dt_punt_sel
+        FOR ALL ENTRIES IN @my_graella_crit
+        WHERE docclass          = @my_doclass
+          AND objectid          = @my_objectid
+          AND z_codi_crit_punt  = @my_graella_crit-z_codi_crit_punt.
+      gt_punt_sel_equi = my_zrm_dt_punt_sel.
+    ELSE.
+      my_zrm_dt_punt_sel = gt_punt_sel_equi.
+    ENDIF.
+
+
+    SELECT *
+      FROM zrm_dt_punt_ofer
+      INTO TABLE @my_codi_subapart_punt
+      FOR ALL ENTRIES IN @my_graella_crit
+      WHERE docclass          = @my_doclass
+        AND objectid          = @my_objectid
+        AND z_codi_crit_punt  = @my_graella_crit-z_codi_crit_punt.
+    DELETE my_codi_subapart_punt WHERE z_codi_subapar_punt IS INITIAL.
+    CHECK my_codi_subapart_punt IS NOT INITIAL.
+
+    SELECT *
+      FROM zrm_dm_suapar_pt
+      INTO TABLE @my_suapar_pt
+      FOR ALL ENTRIES IN @my_codi_subapart_punt
+      WHERE z_codi_subapar_punt = @my_codi_subapart_punt-z_codi_subapar_punt.
+    CHECK sy-subrc = 0.
+
+    SELECT *
+      FROM zrm_dm_suapar_pt
+      INTO TABLE @my_suapar_pt_dep
+      FOR ALL ENTRIES IN @my_codi_subapart_punt
+      WHERE z_codi_subapar_punt_dep = @my_codi_subapart_punt-z_codi_subapar_punt.
+
+    SELECT *
+      FROM zrm_dm_suapar_re
+      INTO TABLE @my_suapar_re
+      FOR ALL ENTRIES IN @my_suapar_pt
+      WHERE z_codi_subapar_punt = @my_suapar_pt-z_codi_subapar_punt.
+
+    SELECT z_codi_subapar_punt, z_sec,z_descripcio_do, z_punt_max_do, z_motiv_apl, z_opcional, z_pun_rel_sel, z_additiva " ETLJS SPEC-53807 19.08.2020 14:59:25
+      FROM zrm_dm_suapar_do
+      INTO CORRESPONDING FIELDS OF TABLE @my_documents
+      FOR ALL ENTRIES IN @my_codi_subapart_punt
+      WHERE z_codi_subapar_punt = @my_codi_subapart_punt-z_codi_subapar_punt.
+    SORT my_documents BY z_punt_max_do DESCENDING.
+
+    SELECT *
+      FROM zrm_dm_crit_punt
+      INTO TABLE @my_dm_crit_punt
+      FOR ALL ENTRIES IN @my_graella_crit
+      WHERE z_mod_crit_punt EQ @my_graella_crit-z_mod_crit_punt.
+
+*    DATA(lt_puntuacio_tmp) = it_puntuacio.
+*    LOOP AT lt_puntuacio_tmp ASSIGNING FIELD-SYMBOL(<fs_punt_temp>).
+*      READ TABLE my_equip TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt = <fs_punt_temp>-z_codi_crit_punt.
+*      IF sy-subrc <> 0.
+*        DELETE lt_puntuacio_tmp.
+*      ENDIF.
+*    ENDLOOP.
+
+    READ TABLE my_dm_crit_punt ASSIGNING FIELD-SYMBOL(<fs_mod_crit_punt>) INDEX 1.
+    CHECK sy-subrc = 0.
+    my_mod_crit_punt = <fs_mod_crit_punt>-z_mod_crit_punt.
+
+    CLEAR: my_puntuacio_equip[].
+
+    LOOP AT my_equip ASSIGNING FIELD-SYMBOL(<fs_graella_equip>).
+      READ TABLE my_puntuacio_equip TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt  = <fs_graella_equip>-z_codi_crit_punt
+                                                                    z_comptador_equip = <fs_graella_equip>-z_comptador_equip.
+      IF sy-subrc = 0.
+        CONTINUE.
+      ENDIF.
+      LOOP AT my_dm_crit_punt ASSIGNING FIELD-SYMBOL(<fs_mod_crit_punt_aux>) WHERE z_codi_crit_punt = <fs_graella_equip>-z_codi_crit_punt.
+        READ TABLE my_codi_subapart_punt ASSIGNING FIELD-SYMBOL(<fs_aux>) WITH KEY z_codi_crit_punt = <fs_graella_equip>-z_codi_crit_punt.
+        CHECK sy-subrc = 0.
+**    Recorrer documents subapartat per marcar els que s'hagin guardat i poder marcar i introduir motivació de nou **
+        LOOP AT my_documents INTO DATA(wa_documents) WHERE z_codi_subapar_punt = <fs_aux>-z_codi_subapar_punt.
+          CLEAR: wa_puntuacio.
+          wa_puntuacio-z_codi_crit_punt     = <fs_mod_crit_punt_aux>-z_codi_crit_punt.
+          wa_puntuacio-z_mult_equip         = <fs_mod_crit_punt_aux>-z_mult_equip.
+          wa_puntuacio-z_mult_rec           = <fs_mod_crit_punt_aux>-z_mult_rec.
+          READ TABLE my_suapar_pt ASSIGNING FIELD-SYMBOL(<fs_pt>)
+                WITH KEY z_codi_subapar_punt = wa_documents-z_codi_subapar_punt.
+          IF sy-subrc EQ 0.
+            wa_puntuacio-z_codi_subapar_punt_dep = <fs_pt>-z_codi_subapar_punt_dep.
+            wa_puntuacio-z_punts_no_val_dep      = <fs_pt>-z_punts_no_val_dep.
+          ENDIF.
+          READ TABLE my_suapar_pt_dep ASSIGNING <fs_pt>
+            WITH KEY z_codi_subapar_punt_dep = wa_documents-z_codi_subapar_punt.
+          IF sy-subrc EQ 0.
+            wa_puntuacio-z_codi_subapar_punt_dep2 = <fs_pt>-z_codi_subapar_punt.
+            wa_puntuacio-z_punts_no_val_dep       = <fs_pt>-z_punts_no_val_dep.
+          ENDIF.
+          wa_puntuacio-z_codi_subapar_punt        = wa_documents-z_codi_subapar_punt.
+          wa_puntuacio-z_codi_subapar_punt_rel    = wa_documents-z_codi_subapar_punt_rel.
+          wa_puntuacio-z_descripcio_do            = wa_documents-z_descripcio_do.
+          wa_puntuacio-z_punt_max_do              = wa_documents-z_punt_max_do.
+          wa_puntuacio-z_sec                      = wa_documents-z_sec.
+          wa_puntuacio-docclass                   = my_doclass.
+          wa_puntuacio-objectid                   = my_objectid.
+          wa_puntuacio-z_num_ofer                 = my_num_oferta.
+          wa_puntuacio-z_motiv_apl                = wa_documents-z_motiv_apl.
+          wa_puntuacio-z_experiencia              = <fs_mod_crit_punt_aux>-z_experiencia.
+          wa_puntuacio-z_carrega_treball          = <fs_mod_crit_punt_aux>-z_carrega_treball.
+          wa_puntuacio-z_comptador_equip          = <fs_graella_equip>-z_comptador_equip.
+          wa_puntuacio-z_pes                      = <fs_graella_equip>-z_pes.
+          wa_puntuacio-z_opcional                 = wa_documents-z_opcional.
+          wa_puntuacio-z_pun_rel_sel              = wa_documents-z_pun_rel_sel.
+          "Marquem aquells que ja han estat seleccionats en execucions anteriors
+*          IF <fs_mod_crit_punt>-z_mult_equip = abap_on.
+*            CLEAR: wa_puntuacio-z_mult_rec.
+          lv_compta_rec             = wa_puntuacio-z_comptador_equip.
+          wa_puntuacio-z_mult_equip = abap_on.
+
+          READ TABLE my_zrm_dt_punt_sel TRANSPORTING NO FIELDS
+           WITH KEY docclass           = wa_puntuacio-docclass
+                    objectid           = wa_puntuacio-objectid
+                    z_num_ofer         = wa_puntuacio-z_num_ofer
+                    z_mod_crit_punt    = my_mod_crit_punt
+                    z_sec              = wa_puntuacio-z_sec
+                    z_codi_crit_punt   = wa_puntuacio-z_codi_crit_punt
+                    z_comptador_recurs = wa_puntuacio-z_comptador_equip.
+          IF sy-subrc EQ 0. "Si troba entrada a MY_ZRM_DT_PUNT_SEL
+            wa_puntuacio-seleccio = abap_on.
+          ELSE.
+            CLEAR wa_puntuacio-seleccio.
+          ENDIF.
+
+          READ TABLE my_zrm_dt_punt_sel ASSIGNING FIELD-SYMBOL(<fs_dades_punt_sel>)
+           WITH KEY docclass           = wa_puntuacio-docclass
+                    objectid           = wa_puntuacio-objectid
+                    z_num_ofer         = wa_puntuacio-z_num_ofer
+                    z_mod_crit_punt    = my_mod_crit_punt
+                    z_sec              = wa_puntuacio-z_sec
+                    z_codi_crit_punt   = wa_puntuacio-z_codi_crit_punt
+                    z_comptador_recurs = wa_puntuacio-z_comptador_equip.
+          IF sy-subrc = 0.
+            wa_puntuacio-z_km_oferta          = <fs_dades_punt_sel>-z_km_oferta.
+            wa_puntuacio-z_km_verif           = <fs_dades_punt_sel>-z_km_verif.
+            wa_puntuacio-z_num_ob_tip_ok      = <fs_dades_punt_sel>-z_num_ob_tip_ok.
+            wa_puntuacio-z_num_ob_acredit_ok  = <fs_dades_punt_sel>-z_num_ob_acredit_ok.
+            wa_puntuacio-z_num_ob_oferta      = <fs_dades_punt_sel>-z_num_ob_oferta.
+            wa_puntuacio-z_imp_acum_cont_vig  = <fs_dades_punt_sel>-z_imp_acum_cont_vig.
+            wa_puntuacio-z_num_cont_vig       = <fs_dades_punt_sel>-z_num_cont_vig.
+          ENDIF.
+
+**          IF lt_puntuacio_tmp[] IS NOT INITIAL. "Si tenim entrades a les taules temporals de seleccions de la execució actual comprovem i marquem
+**            READ TABLE lt_puntuacio_tmp ASSIGNING FIELD-SYMBOL(<fs>) WITH KEY z_codi_crit_punt  = wa_puntuacio-z_codi_crit_punt
+**                                                                              z_sec             = wa_puntuacio-z_sec
+**                                                                              z_compta_rec      = lv_compta_rec
+**                                                                              z_num_ofer        = wa_puntuacio-z_num_ofer.
+**
+**            IF sy-subrc EQ 0.
+**              wa_puntuacio-seleccio = abap_on.
+**            ENDIF.
+**          ENDIF.
+
+          DATA: lv_codi_text TYPE thead-tdname.
+          CLEAR: lv_codi_text.
+          CONCATENATE 'Z' wa_puntuacio-objectid wa_puntuacio-z_num_ofer wa_puntuacio-z_codi_crit_punt
+                      wa_puntuacio-z_codi_subapar_punt wa_puntuacio-z_sec wa_puntuacio-z_comptador_equip INTO lv_codi_text.
+
+          CREATE OBJECT wa_puntuacio-z_motivacio
+            EXPORTING
+              i_docclass = CONV #( wa_puntuacio-docclass )
+              i_objectid = CONV #( wa_puntuacio-objectid )
+              i_tdid     = 'ZMOT'
+              i_tdspras  = sy-langu
+              i_tdname   = lv_codi_text
+              i_tdobject = 'Z_PUNT_DYN'
+            EXCEPTIONS
+              OTHERS     = 0.
+
+          CLEAR: lv_codi_text.
+          CONCATENATE 'Z' wa_puntuacio-objectid wa_puntuacio-z_num_ofer wa_puntuacio-z_codi_crit_punt
+                      wa_puntuacio-z_codi_subapar_punt wa_puntuacio-z_sec wa_puntuacio-z_comptador_equip INTO lv_codi_text.
+
+          CREATE OBJECT wa_puntuacio-z_comentaris
+            EXPORTING
+              i_docclass = CONV #( wa_puntuacio-docclass )
+              i_objectid = CONV #( wa_puntuacio-objectid )
+              i_tdid     = 'ZCOM'
+              i_tdspras  = sy-langu
+              i_tdname   = lv_codi_text
+              i_tdobject = 'Z_PUNT_DYN'
+            EXCEPTIONS
+              OTHERS     = 0.
+
+** Pel cas que la puntuació es determina a partir del nombre de seleccionats..
+          IF wa_documents-z_pun_rel_sel EQ abap_true.
+            IF wa_documents-z_opcional EQ abap_true.
+              "ocultem la puntuació per aquells que poden clicar-se simultàniament
+              CLEAR: ls_style.
+              ls_style-fieldname = 'Z_PUNT_MAX_DO'.
+              ls_style-style     = '00000051'.
+              INSERT ls_style INTO TABLE wa_puntuacio-style.
+              CLEAR: ls_style.
+            ENDIF.
+          ENDIF.
+          APPEND wa_puntuacio TO my_puntuacio_equip.
+        ENDLOOP.
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD UPDATE_DADES_PUNTUACIO_EQUIP
+*---------------------------------------------------------------------*
+* Actualitza el les puntuacions dels membres de l'equip de la oferta
+*---------------------------------------------------------------------*
+  METHOD update_dades_puntuacio_equip.
+    DATA: wa_puntuacio TYPE gty_puntuacio,
+          ls_style     TYPE lvc_s_styl.
+    READ TABLE my_dm_crit_punt ASSIGNING FIELD-SYMBOL(<fs_mod_crit_punt>) INDEX 1.
+    CHECK sy-subrc = 0.
+    my_mod_crit_punt = <fs_mod_crit_punt>-z_mod_crit_punt.
+
+    LOOP AT my_equip_to_save ASSIGNING FIELD-SYMBOL(<fs_graella_equip>).
+      READ TABLE my_puntuacio_equip TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt  = <fs_graella_equip>-z_codi_crit_punt
+                                                                    z_comptador_equip = <fs_graella_equip>-z_comptador_equip.
+      IF sy-subrc = 0.
+        CONTINUE.
+      ENDIF.
+      LOOP AT my_dm_crit_punt ASSIGNING FIELD-SYMBOL(<fs_mod_crit_punt_aux>) WHERE z_codi_crit_punt = <fs_graella_equip>-z_codi_crit_punt.
+        READ TABLE my_codi_subapart_punt ASSIGNING FIELD-SYMBOL(<fs_subapar_pt>) WITH KEY z_codi_crit_punt = <fs_graella_equip>-z_codi_crit_punt.
+        CHECK sy-subrc = 0.
+**    Recorrer documents subapartat per marcar els que s'hagin guardat i poder marcar i introduir motivació de nou **
+        LOOP AT my_documents INTO DATA(wa_documents) WHERE z_codi_subapar_punt = <fs_subapar_pt>-z_codi_subapar_punt.
+          CLEAR: wa_puntuacio.
+          wa_puntuacio-z_codi_crit_punt     = <fs_mod_crit_punt_aux>-z_codi_crit_punt.
+          wa_puntuacio-z_mult_equip         = <fs_mod_crit_punt_aux>-z_mult_equip.
+          wa_puntuacio-z_mult_rec           = <fs_mod_crit_punt_aux>-z_mult_rec.
+          READ TABLE my_suapar_pt ASSIGNING FIELD-SYMBOL(<fs_pt>)
+                WITH KEY z_codi_subapar_punt = wa_documents-z_codi_subapar_punt.
+          IF sy-subrc EQ 0.
+            wa_puntuacio-z_codi_subapar_punt_dep = <fs_pt>-z_codi_subapar_punt_dep.
+            wa_puntuacio-z_punts_no_val_dep      = <fs_pt>-z_punts_no_val_dep.
+          ENDIF.
+          READ TABLE my_suapar_pt_dep ASSIGNING <fs_pt>
+            WITH KEY z_codi_subapar_punt_dep = wa_documents-z_codi_subapar_punt.
+          IF sy-subrc EQ 0.
+            wa_puntuacio-z_codi_subapar_punt_dep2 = <fs_pt>-z_codi_subapar_punt.
+            wa_puntuacio-z_punts_no_val_dep       = <fs_pt>-z_punts_no_val_dep.
+          ENDIF.
+          wa_puntuacio-z_codi_subapar_punt        = wa_documents-z_codi_subapar_punt.
+          wa_puntuacio-z_codi_subapar_punt_rel    = wa_documents-z_codi_subapar_punt_rel.
+          wa_puntuacio-z_descripcio_do            = wa_documents-z_descripcio_do.
+          wa_puntuacio-z_punt_max_do              = wa_documents-z_punt_max_do.
+          wa_puntuacio-z_sec                      = wa_documents-z_sec.
+          wa_puntuacio-docclass                   = my_doclass.
+          wa_puntuacio-objectid                   = my_objectid.
+          wa_puntuacio-z_num_ofer                 = my_num_oferta.
+          wa_puntuacio-z_motiv_apl                = wa_documents-z_motiv_apl.
+          wa_puntuacio-z_experiencia              = <fs_mod_crit_punt_aux>-z_experiencia.
+          wa_puntuacio-z_carrega_treball          = <fs_mod_crit_punt_aux>-z_carrega_treball.
+          wa_puntuacio-z_comptador_equip          = <fs_graella_equip>-z_comptador_equip.
+          wa_puntuacio-z_pes                      = <fs_graella_equip>-z_pes.
+          wa_puntuacio-z_opcional                 = wa_documents-z_opcional.
+          wa_puntuacio-z_pun_rel_sel              = wa_documents-z_pun_rel_sel.
+          "Marquem aquells que ja han estat seleccionats en execucions anteriors
+*          IF <fs_mod_crit_punt>-z_mult_equip = abap_on.
+*            CLEAR: wa_puntuacio-z_mult_rec.
+          lv_compta_rec             = wa_puntuacio-z_comptador_equip.
+          wa_puntuacio-z_mult_equip = abap_on.
+          READ TABLE my_zrm_dt_punt_sel TRANSPORTING NO FIELDS
+           WITH KEY docclass           = wa_puntuacio-docclass
+                    objectid           = wa_puntuacio-objectid
+                    z_num_ofer         = wa_puntuacio-z_num_ofer
+                    z_mod_crit_punt    = my_mod_crit_punt
+                    z_sec              = wa_puntuacio-z_sec
+                    z_codi_crit_punt   = wa_puntuacio-z_codi_crit_punt
+                    z_comptador_recurs = wa_puntuacio-z_comptador_equip.
+*          READ TABLE my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs>) WITH KEY z_codi_crit_punt  = wa_puntuacio-z_codi_crit_punt
+*                                                                              z_sec             = wa_puntuacio-z_sec
+*                                                                              z_compta_rec      = lv_compta_rec
+*                                                                              z_num_ofer        = wa_puntuacio-z_num_ofer.
+          IF sy-subrc EQ 0. "Si troba entrada a MY_ZRM_DT_PUNT_SEL
+            wa_puntuacio-seleccio = abap_true.
+          ELSE.
+            CLEAR wa_puntuacio-seleccio.
+          ENDIF.
+
+          READ TABLE my_zrm_dt_punt_sel ASSIGNING FIELD-SYMBOL(<fs_dades_punt_sel>)
+           WITH KEY docclass           = wa_puntuacio-docclass
+                    objectid           = wa_puntuacio-objectid
+                    z_num_ofer         = wa_puntuacio-z_num_ofer
+                    z_mod_crit_punt    = my_mod_crit_punt
+                    z_sec              = wa_puntuacio-z_sec
+                    z_codi_crit_punt   = wa_puntuacio-z_codi_crit_punt
+                    z_comptador_recurs = wa_puntuacio-z_comptador_equip.
+          IF sy-subrc = 0.
+            wa_puntuacio-z_km_oferta          = <fs_dades_punt_sel>-z_km_oferta.
+            wa_puntuacio-z_km_verif           = <fs_dades_punt_sel>-z_km_verif.
+            wa_puntuacio-z_num_ob_tip_ok      = <fs_dades_punt_sel>-z_num_ob_tip_ok.
+            wa_puntuacio-z_num_ob_acredit_ok  = <fs_dades_punt_sel>-z_num_ob_acredit_ok.
+            wa_puntuacio-z_num_ob_oferta      = <fs_dades_punt_sel>-z_num_ob_oferta.
+            wa_puntuacio-z_imp_acum_cont_vig  = <fs_dades_punt_sel>-z_imp_acum_cont_vig.
+            wa_puntuacio-z_num_cont_vig       = <fs_dades_punt_sel>-z_num_cont_vig.
+          ENDIF.
+
+          DATA: lv_codi_text TYPE thead-tdname.
+          CLEAR: lv_codi_text.
+          CONCATENATE 'Z' wa_puntuacio-objectid wa_puntuacio-z_num_ofer wa_puntuacio-z_codi_crit_punt
+                      wa_puntuacio-z_codi_subapar_punt wa_puntuacio-z_sec wa_puntuacio-z_comptador_equip INTO lv_codi_text.
+
+          CREATE OBJECT wa_puntuacio-z_motivacio
+            EXPORTING
+              i_docclass = CONV #( wa_puntuacio-docclass )
+              i_objectid = CONV #( wa_puntuacio-objectid )
+              i_tdid     = 'ZMOT'
+              i_tdspras  = sy-langu
+              i_tdname   = lv_codi_text
+              i_tdobject = 'Z_PUNT_DYN'
+            EXCEPTIONS
+              OTHERS     = 0.
+
+          CLEAR: lv_codi_text.
+          CONCATENATE 'Z' wa_puntuacio-objectid wa_puntuacio-z_num_ofer wa_puntuacio-z_codi_crit_punt
+                      wa_puntuacio-z_codi_subapar_punt wa_puntuacio-z_sec wa_puntuacio-z_comptador_equip INTO lv_codi_text.
+
+          CREATE OBJECT wa_puntuacio-z_comentaris
+            EXPORTING
+              i_docclass = CONV #( wa_puntuacio-docclass )
+              i_objectid = CONV #( wa_puntuacio-objectid )
+              i_tdid     = 'ZCOM'
+              i_tdspras  = sy-langu
+              i_tdname   = lv_codi_text
+              i_tdobject = 'Z_PUNT_DYN'
+            EXCEPTIONS
+              OTHERS     = 0.
+** Pel cas que la puntuació es determina a partir del nombre de seleccionats..
+          IF wa_documents-z_pun_rel_sel EQ abap_true.
+            IF wa_documents-z_opcional EQ abap_true.
+              "ocultem la puntuació per aquells que poden clicar-se simultàniament
+              CLEAR: ls_style.
+              ls_style-fieldname = 'Z_PUNT_MAX_DO'.
+              ls_style-style     = '00000051'.
+              INSERT ls_style INTO TABLE wa_puntuacio-style.
+              CLEAR: ls_style.
+            ENDIF.
+          ENDIF.
+          APPEND wa_puntuacio TO my_puntuacio_equip.
+        ENDLOOP.
+      ENDLOOP.
+    ENDLOOP.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD SET_DESCRIPTION
+*---------------------------------------------------------------------*
+* Recupera el text a mostrar a la capçalera de la ALV
+*---------------------------------------------------------------------*
+  METHOD set_description.
+    DATA: ref_element   TYPE REF TO cl_abap_elemdescr,
+          ls_field      TYPE dfies,
+          l_long_text   TYPE scrtext_l,
+          l_medium_text TYPE scrtext_m,
+          l_short_text  TYPE scrtext_s,
+          l_noout       TYPE abap_bool,
+          wa_fcat       TYPE lvc_s_fcat.
+
+    CLEAR: wa_fcat,l_noout,ls_field,l_short_text,l_medium_text,l_long_text.
+    IF i_tag = 'Z_RANG'.
+      wa_fcat-reptext   = 'Rang puntuació'.
+      wa_fcat-scrtext_l = 'Rang puntuació'.
+      wa_fcat-scrtext_m = 'Rang puntuació'.
+      wa_fcat-scrtext_s = 'Rang'.
+    ELSE.
+      ref_element ?= ir_type.
+      ref_element->get_ddic_field(   RECEIVING   p_flddescr   = ls_field
+                                     EXCEPTIONS  OTHERS       = 0  ).
+      IF ls_field IS INITIAL.
+        wa_fcat-reptext     = i_tag.
+        wa_fcat-scrtext_l   = i_tag.
+        wa_fcat-scrtext_m   = i_tag.
+        wa_fcat-scrtext_s   = i_tag.
+      ENDIF.
+    ENDIF.
+    l_long_text   = ls_field-scrtext_l.
+    l_short_text  = ls_field-scrtext_s.
+    l_medium_text = ls_field-scrtext_m.
+
+    wa_fcat-reptext     = l_long_text.
+    wa_fcat-scrtext_l   = l_long_text.
+    wa_fcat-scrtext_m   = l_short_text.
+    wa_fcat-scrtext_s   = l_short_text.
+    wa_fcat-fieldname   = i_tag.
+    wa_fcat-no_out      = l_noout.
+    APPEND wa_fcat TO ct_fieldcat.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD FILL_DYNAMIC_CATALOG
+*---------------------------------------------------------------------*
+* Omple el catàleg de camps de la taula dinàmica
+* per tal de poder-la omplir posteriorment
+*---------------------------------------------------------------------*
+  METHOD fill_dynamic_catalog.
+    DATA:ls_fcat         TYPE lvc_s_fcat,
+         lv_index_col(3) TYPE c.
+
+    CLEAR: t_fcat[].
+    "Criteri de puntuació
+    CLEAR: ls_fcat.
+    ls_fcat-fieldname = 'Z_CODI_CRIT_PUNT'.
+    ls_fcat-rollname  = 'Z_CODI_CRIT_PUNT'.
+    ls_fcat-ref_table = 'ZRM_DM_CRIT_PUNT'.
+    ls_fcat-key       = 'X' .
+    ls_fcat-outputlen = 250.
+    ls_fcat-col_opt   = abap_on.
+    APPEND ls_fcat TO et_fieldcat.
+    "Descripció
+    CLEAR: ls_fcat.
+    ls_fcat-fieldname = 'Z_DESCRIPCIO'.
+    ls_fcat-rollname  = 'Z_DESCRIPCIO'.
+    ls_fcat-ref_table = 'ZRM_DM_CRIT_PUNT'.
+    ls_fcat-key       = 'X' .
+    ls_fcat-outputlen = 250.
+    ls_fcat-col_opt   = abap_on.
+    APPEND ls_fcat TO et_fieldcat.
+    "Rang puntuació
+    CLEAR: ls_fcat.
+    ls_fcat-fieldname = 'Z_RANG'.
+    ls_fcat-rollname  = 'Z_RANG'.
+    ls_fcat-seltext   = 'Rang de puntuació'.
+    ls_fcat-reptext   = 'Rang puntuació'.
+    ls_fcat-scrtext_l = 'Rang puntuació' .
+    ls_fcat-scrtext_m = 'Rang puntuació'.
+    ls_fcat-scrtext_s = 'Rang'.
+    ls_fcat-key       = 'X' .
+    ls_fcat-outputlen = 250.
+    ls_fcat-col_opt   = abap_on.
+    APPEND ls_fcat TO et_fieldcat.
+
+    DO i_num_cols TIMES.
+      lv_index_col = sy-index.
+      SHIFT lv_index_col LEFT DELETING LEADING space.
+      "Descripció del membre de l'equip
+      READ TABLE my_graella_equip INTO DATA(wa_dades) INDEX lv_index_col.
+      CLEAR: ls_fcat.
+      CONCATENATE 'E' lv_index_col INTO ls_fcat-fieldname RESPECTING BLANKS.
+      SHIFT ls_fcat-fieldname LEFT DELETING LEADING space.
+      ls_fcat-rollname  = wa_dades-z_descripcio.
+      ls_fcat-outputlen = 250.
+      ls_fcat-seltext   = wa_dades-z_descripcio.
+      ls_fcat-reptext   = wa_dades-z_descripcio.
+      ls_fcat-scrtext_l = wa_dades-z_descripcio.
+      ls_fcat-scrtext_m = wa_dades-z_descripcio.
+      ls_fcat-scrtext_s = wa_dades-z_descripcio.
+      ls_fcat-col_opt   = abap_on.
+      APPEND ls_fcat TO et_fieldcat.
+    ENDDO.
+
+    CLEAR: ls_fcat.
+    ls_fcat-fieldname = co_cell_style.
+    ls_fcat-ref_table = 'ZBPC_TAULA_COLOR'.
+    ls_fcat-ref_field = 'CELLTAB'.
+    APPEND ls_fcat TO et_fieldcat.
+
+    t_fcat = et_fieldcat.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD CREA_DYNAMIC_TABLE
+*---------------------------------------------------------------------*
+* Mètode que crea la tabla interna dinámica y asignamos a un field-symbol
+*---------------------------------------------------------------------*
+  METHOD crea_dynamic_table.
+    DATA lo_newtable TYPE REF TO data.
+    IF <gt_dyntable> IS ASSIGNED. UNASSIGN <gt_dyntable>. ENDIF.
+    cl_alv_table_create=>create_dynamic_table( EXPORTING  it_fieldcatalog = t_fcat
+                                               IMPORTING  ep_table        = lo_newtable ).
+
+    ASSIGN lo_newtable->* TO <gt_dyntable>.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD CREA_DYNAMIC_WAREA
+*---------------------------------------------------------------------*
+* Mètode que crea l'àrea de treball per la taula interna dinàmica i
+* assigna un field-symbol
+*---------------------------------------------------------------------*
+  METHOD crea_dynamic_warea.
+    DATA lo_newline TYPE REF TO data.
+
+    CREATE DATA lo_newline LIKE LINE OF <gt_dyntable>.
+    ASSIGN lo_newline->* TO <gs_dyntable>.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD REFRESH_DYNAMIC_TABLE
+*---------------------------------------------------------------------*
+* Regenera la taula dinàmica a partir dels canvis en els membres de l'equip a puntuar
+*---------------------------------------------------------------------*
+  METHOD refresh_dynamic_table.
+    free_variables( ). "Netegem tot per tornar a carregar-ho de nou
+
+*    my_num_compta_equip = my_num_compta_equip + my_num_compta_equip_add.
+    LOOP AT my_equip_to_save ASSIGNING FIELD-SYMBOL(<fs_equip_add>).
+      APPEND <fs_equip_add> TO my_graella_equip.
+    ENDLOOP.
+
+    SORT my_graella_equip BY z_comptador_equip.
+    DELETE ADJACENT DUPLICATES FROM my_graella_equip COMPARING z_comptador_equip.
+    DESCRIBE TABLE my_graella_equip LINES my_num_compta_equip.
+
+    update_dades_puntuacio_equip( ).
+
+    fill_dynamic_catalog( my_num_compta_equip ).
+    "Crea la taula interna dinàmica
+    crea_dynamic_table( ).
+    "Crea l'àrea de treball per la taula interna dinàmica
+    crea_dynamic_warea( ).
+    "Omple la taula interna dinàmica que es visualitzarà a la ALV
+    fill_itable( EXPORTING i_num_cols = my_num_compta_equip
+                           i_num_rows = my_num_criteris
+                           it_dades   = my_graella_crit ).
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD FILL_ITABLE
+*---------------------------------------------------------------------*
+* Crea la taula resultant ALV
+*---------------------------------------------------------------------*
+  METHOD fill_itable.
+    TYPES: BEGIN OF ty_s_camps_fixes,
+             z_codi_crit_punt TYPE z_codi_crit_punt,
+             z_descripcio     TYPE z_descripcio,
+             z_rang           TYPE string,
+           END OF ty_s_camps_fixes.
+
+    DATA: lr_desc               TYPE REF TO cl_abap_structdescr,
+          wa_graella_fix        TYPE ty_s_camps_fixes,
+          wa_column             TYPE ty_s_columns,
+          lt_style              TYPE lvc_t_styl,
+          lv_punts_seleccionats TYPE z_punts,
+          wa_style              TYPE lvc_s_styl,
+          lv_fldval(50)         TYPE c,
+          lv_index_row(3)       TYPE c,
+          lv_index_col(3)       TYPE c.
+
+    FIELD-SYMBOLS: <fv_fldval>     TYPE any,
+                   <fv_fldval_tab> TYPE ANY TABLE.
+
+    CLEAR: my_columns[].
+
+    me->crea_dynamic_warea( ).
+    DATA(lt_graella_no_dupl) = my_graella_crit[].
+    DELETE ADJACENT DUPLICATES FROM lt_graella_no_dupl COMPARING z_codi_crit_punt.
+
+    lr_desc             ?= cl_abap_typedescr=>describe_by_data( wa_graella_fix ).
+    DATA(lt_components)  = lr_desc->get_components( ).
+
+    TRY.
+        DO i_num_rows TIMES.    "Recorrem tantes files com criteris hi ha. Part fixa
+          lv_index_row = sy-index.
+          LOOP AT lt_components ASSIGNING FIELD-SYMBOL(<fs_comp_fix>).
+            READ TABLE lt_graella_no_dupl INTO DATA(wa_graella_crit) INDEX lv_index_row.
+            ASSIGN COMPONENT <fs_comp_fix>-name OF STRUCTURE <gs_dyntable> TO <fv_fldval>.
+            IF <fv_fldval> IS ASSIGNED.
+              IF <fs_comp_fix>-name = 'Z_RANG'.
+                DATA(lv_punt_min) = CONV string( wa_graella_crit-z_punt_min ).
+                DATA(lv_punt_max) = CONV string( wa_graella_crit-z_punt_max ).
+                lv_fldval = '[' && lv_punt_min && '-' && lv_punt_max && ']'.
+                CONDENSE lv_fldval.
+                REPLACE ALL OCCURRENCES OF '.' IN lv_fldval WITH ','.
+              ELSE.
+                ASSIGN COMPONENT <fs_comp_fix>-name OF STRUCTURE wa_graella_crit TO FIELD-SYMBOL(<fv_value>).
+                IF sy-subrc = 0.
+                  lv_fldval   = <fv_value>.
+                ENDIF.
+              ENDIF.
+              <fv_fldval> = lv_fldval.
+            ENDIF.
+          ENDLOOP.
+          DO i_num_cols TIMES. "Recorrem tantes columnes com membres d'equip creats. Part dinàmica
+            lv_index_col = sy-index.
+            SHIFT lv_index_col LEFT DELETING LEADING space.
+            READ TABLE my_graella_equip INTO DATA(wa_graella_equip) INDEX lv_index_col.
+            CONCATENATE 'E' lv_index_col INTO DATA(lv_field_column).
+            SHIFT lv_field_column LEFT DELETING LEADING space.
+            CLEAR: lv_punts_seleccionats.
+            LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs_punts_seleccionats>) WHERE seleccio           = abap_on
+                                                                                         AND z_codi_crit_punt   = wa_graella_crit-z_codi_crit_punt
+                                                                                         AND z_comptador_equip  = wa_graella_equip-z_comptador_equip.
+              ADD <fs_punts_seleccionats>-z_punt_max_do TO lv_punts_seleccionats.
+            ENDLOOP.
+*            READ TABLE my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs_punts_seleccionats>) WITH KEY seleccio           = abap_on
+*                                                                                                   z_codi_crit_punt   = wa_graella_crit-z_codi_crit_punt
+*                                                                                                   z_comptador_equip  = wa_graella_equip-z_comptador_equip.
+            IF sy-subrc = 0.
+              ASSIGN COMPONENT lv_field_column OF STRUCTURE <gs_dyntable> TO <fv_fldval>.
+              IF <fv_fldval> IS ASSIGNED.
+                lv_fldval   = lv_punts_seleccionats.
+                <fv_fldval> = lv_fldval.
+              ENDIF.
+            ELSE.
+              ASSIGN COMPONENT lv_field_column OF STRUCTURE <gs_dyntable> TO <fv_fldval>.
+              IF <fv_fldval> IS ASSIGNED.
+                lv_fldval   = wa_graella_equip-z_punts.
+                <fv_fldval> = lv_fldval.
+              ENDIF.
+            ENDIF.
+
+            "Hotspot
+            CLEAR:wa_style.
+            wa_style-fieldname  = lv_field_column.
+            READ TABLE lt_graella_no_dupl ASSIGNING FIELD-SYMBOL(<fs_te_subapartats>) WITH KEY z_codi_crit_punt = wa_graella_crit-z_codi_crit_punt.
+            IF sy-subrc = 0 AND <fs_te_subapartats>-z_codi_subapar_punt IS NOT INITIAL AND <fs_te_subapartats>-z_no_aplica = abap_off.
+              wa_style-style      = cl_gui_alv_grid=>mc_style_hotspot.
+            ELSE.
+              wa_style-style      = cl_gui_alv_grid=>mc_style_hotspot_no.
+            ENDIF.
+            INSERT wa_style INTO TABLE lt_style.
+
+          ENDDO.
+          ASSIGN COMPONENT co_cell_style OF STRUCTURE <gs_dyntable> TO <fv_fldval_tab>.
+          <fv_fldval_tab> = lt_style.
+          CLEAR: lt_style[].
+          APPEND <gs_dyntable> TO <gt_dyntable>.
+        ENDDO.
+      CATCH cx_sy_conversion_no_number cx_root.
+        CLEAR: <gt_dyntable>.
+    ENDTRY.
+
+    DO i_num_cols TIMES.       "Creem també una taula de columnes
+      lv_index_col = sy-index.
+      SHIFT lv_index_col LEFT DELETING LEADING space.
+      READ TABLE my_graella_equip INTO wa_graella_equip INDEX lv_index_col.
+      CLEAR: wa_column.
+      CONCATENATE 'E' lv_index_col INTO wa_column-fieldname.
+      SHIFT wa_column-fieldname LEFT DELETING LEADING space.
+      wa_column-z_carrec_equip    = wa_graella_equip-z_carrec_equip.
+      wa_column-z_comptador_equip = wa_graella_equip-z_comptador_equip.
+      wa_column-z_descripcio      = wa_graella_equip-z_descripcio.
+      wa_column-z_equip_basic     = wa_graella_equip-z_equip_basic.
+      wa_column-z_pes             = wa_graella_equip-z_pes.
+      LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs_punts>) WHERE z_comptador_equip = wa_column-z_comptador_equip
+                                                                      AND seleccio          = abap_on.
+        ADD <fs_punts>-z_punt_max_do TO wa_column-z_punts_total.
+      ENDLOOP.
+      APPEND wa_column TO my_columns.
+    ENDDO.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD FILTER_BOTTOM_ALV
+*---------------------------------------------------------------------*
+* Filtra la ALV a partir del camp-valor especificat
+*---------------------------------------------------------------------*
+  METHOD filter_bottom_alv.
+    DATA: lt_filter TYPE lvc_t_filt,
+          wa_filter TYPE lvc_s_filt.
+    CLEAR: lt_filter[].
+
+    CLEAR: my_puntuacio_equip_show_alv[].
+    LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs>) WHERE z_codi_crit_punt EQ i_codi_crit_punt.
+      ASSIGN COMPONENT i_field_to_filter OF STRUCTURE <fs> TO FIELD-SYMBOL(<fs_check_filter>).
+      IF sy-subrc = 0.
+        IF <fs_check_filter> EQ i_value_filter.
+          APPEND <fs> TO my_puntuacio_equip_show_alv.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    me->fill_layout( EXPORTING i_top            = abap_off
+                               i_descripcio     = i_grid_title
+                     IMPORTING es_layout        = DATA(ls_layout_bottom) ).
+    me->fill_catalog( EXPORTING i_top       = abap_off
+                      IMPORTING et_fieldcat = DATA(lt_fieldcat_bottom) ).
+    gr_alv_bottom->set_frontend_layout( is_layout = ls_layout_bottom ).
+    gr_alv_bottom->set_frontend_fieldcatalog( it_fieldcatalog = lt_fieldcat_bottom ).
+    gr_alv_bottom->refresh_table_display( ).
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SHOW_DESCRIPCIO_LLARGA
+*---------------------------------------------------------------------*
+* Mostra el text llarg de la puntuació
+*---------------------------------------------------------------------*
+  METHOD show_descripcio_llarga.
+    DATA: lt_text                TYPE wcb_tdline_tab,
+          wa_text                TYPE tdline,
+          lt_tdline              TYPE TABLE OF tline,
+          lt_wrap_text           TYPE string_table,
+          lv_string_text(160000) TYPE c,
+          lv_titol               TYPE sy-title,
+          lv_index               TYPE n,
+          lv_read_text           TYPE string.
+
+    DATA(lv_sec) = is_puntuacio-z_sec.
+    SHIFT lv_sec LEFT DELETING LEADING '0'.
+
+    CONCATENATE 'Descripció completa de la puntuació' lv_sec 'del criteri' is_puntuacio-z_codi_crit_punt INTO lv_titol SEPARATED BY space.
+
+    SELECT SINGLE z_descripcio_do AS text1, z_descripcio_do_2 AS text2, z_descripcio_do_3 AS text3, z_descripcio_do_4 AS text4
+      FROM zrm_dm_suapar_do
+      INTO @DATA(wa_descripcio)
+      WHERE z_codi_subapar_punt = @is_puntuacio-z_codi_subapar_punt
+        AND z_sec               = @is_puntuacio-z_sec.
+
+    lv_index = 1.
+    CLEAR: lv_string_text.
+    DO.
+      CONCATENATE 'text' lv_index INTO lv_read_text.
+      ASSIGN COMPONENT lv_read_text OF STRUCTURE wa_descripcio TO FIELD-SYMBOL(<fs_text>).
+      IF sy-subrc <> 0.
+        EXIT.
+      ELSE.
+        IF lv_index EQ 1.
+          CONCATENATE lv_string_text <fs_text> INTO lv_string_text.
+        ELSE.
+          CONCATENATE lv_string_text <fs_text> INTO lv_string_text SEPARATED BY space.
+        ENDIF.
+      ENDIF.
+      ADD 1 TO lv_index.
+    ENDDO.
+    CHECK lv_string_text IS NOT INITIAL.
+    CALL FUNCTION 'ZRM_EDIT_STRING'
+      EXPORTING
+        i_title = lv_titol
+      CHANGING
+        c_text  = lv_string_text.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD CHANGE_SELECCIO_PUNTUACIO
+*---------------------------------------------------------------------*
+* Actualitza la puntuació en funció del seleccionat
+*---------------------------------------------------------------------*
+  METHOD change_seleccio_puntuacio.
+    DATA: lt_messages    TYPE tty_messages,
+          wa_messages    TYPE ty_messages,
+          l_result       TYPE z_punt_max_do,
+          l_lines_sel    TYPE i,
+          l_nomes_un_sel TYPE xfeld.
+
+    CLEAR: l_result.
+*
+    READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio>) INDEX i_row_id-index.
+    CHECK sy-subrc = 0.
+    IF <fs_puntuacio>-seleccio = abap_false AND <fs_puntuacio>-z_opcional = abap_false.
+      LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_aux2>) WHERE seleccio   = abap_on
+                                                              AND z_opcional = abap_false.
+        CLEAR: <fs_aux2>-seleccio.
+      ENDLOOP.
+    ENDIF.
+    CLEAR: l_lines_sel.
+    LOOP AT ct_puntuacio TRANSPORTING NO FIELDS WHERE seleccio = abap_on AND z_opcional = abap_false. "SPEC-49499 ETJMD 06.06.2018
+      ADD 1 TO l_lines_sel.
+    ENDLOOP.
+    IF l_lines_sel > 1.
+      LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_aux>) WHERE seleccio   =  abap_on
+                                                              AND z_pun_rel_sel EQ abap_false.
+        CLEAR: <fs_aux>-seleccio.
+      ENDLOOP.
+    ENDIF.
+    check_change_seleccio( EXPORTING  i_row_id       = i_row_id
+                                      i_readonly     = abap_off
+                           IMPORTING  e_nomes_un_sel = l_nomes_un_sel
+                                      e_result       = l_result
+                           CHANGING   ct_puntuacio   = ct_puntuacio
+                           EXCEPTIONS OTHERS         = 0 ).
+    IF l_nomes_un_sel = abap_on.
+      <fs_puntuacio>-seleccio = abap_on.
+      set_flag_changes( abap_on ).
+      LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio2>) WHERE z_codi_subapar_punt =  <fs_puntuacio>-z_codi_subapar_punt
+                                                                     AND z_sec               <> <fs_puntuacio>-z_sec
+                                                                     AND z_opcional          =  abap_false.
+        <fs_puntuacio2>-seleccio = abap_off.
+      ENDLOOP.
+
+*      READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING FIELD-SYMBOL(<fs_punt_ofer_alv>) WITH KEY z_codi_crit_punt = <fs_puntuacio>-z_codi_crit_punt.
+*      IF sy-subrc = 0.
+*        <fs_punt_ofer_alv>-z_sec        = <fs_puntuacio>-z_sec.
+*        <fs_punt_ofer_alv>-z_punts      = <fs_puntuacio>-z_punt_max_do.
+*        <fs_punt_ofer_alv>-z_sec_resta  = <fs_puntuacio>-z_sec_resta.
+*      ENDIF.
+    ENDIF.
+    DELETE my_zrm_dt_punt_sel WHERE z_num_ofer          = my_num_oferta
+                                AND z_codi_crit_punt    = <fs_puntuacio>-z_codi_crit_punt
+                                AND z_comptador_recurs  = <fs_puntuacio>-z_comptador_equip.
+
+    LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<puntuacio>) WHERE seleccio = abap_on.
+      READ TABLE my_dm_crit_punt ASSIGNING FIELD-SYMBOL(<fs_mod_crit_punt>) WITH KEY z_codi_crit_punt   = <puntuacio>-z_codi_crit_punt.
+      IF sy-subrc = 0.
+        READ TABLE my_zrm_dt_punt_sel ASSIGNING FIELD-SYMBOL(<punt_sel>)
+         WITH KEY docclass           = my_doclass
+                  objectid           = my_objectid
+                  z_num_ofer         = <puntuacio>-z_num_ofer
+                  z_sec              = <puntuacio>-z_sec
+                  z_codi_crit_punt   = <puntuacio>-z_codi_crit_punt
+                  z_comptador_recurs = <puntuacio>-z_comptador_equip.
+        IF sy-subrc = 0.
+          <punt_sel>-z_punts              = <puntuacio>-z_punt_max_do.
+          <punt_sel>-z_sec                = <puntuacio>-z_sec.
+          <punt_sel>-z_num_ob_oferta      = <puntuacio>-z_num_ob_oferta.
+          <punt_sel>-z_num_ob_tip_ok      = <puntuacio>-z_num_ob_tip_ok.
+          <punt_sel>-z_num_ob_acredit_ok  = <puntuacio>-z_num_ob_acredit_ok.
+          <punt_sel>-z_km_oferta          = <puntuacio>-z_km_oferta.
+          <punt_sel>-z_km_verif           = <puntuacio>-z_km_verif..
+          <punt_sel>-z_imp_acum_cont_vig  = <puntuacio>-z_imp_acum_cont_vig.
+          <punt_sel>-z_num_cont_vig       = <puntuacio>-z_num_cont_vig.
+        ELSE.
+          APPEND INITIAL LINE TO my_zrm_dt_punt_sel ASSIGNING <punt_sel>.
+          <punt_sel>-docclass             = my_doclass.
+          <punt_sel>-objectid             = my_objectid.
+          <punt_sel>-z_num_ofer           = <puntuacio>-z_num_ofer.
+          <punt_sel>-z_mod_crit_punt      = <fs_mod_crit_punt>-z_mod_crit_punt.
+          <punt_sel>-z_codi_crit_punt     = <puntuacio>-z_codi_crit_punt.
+          <punt_sel>-z_punts              = <puntuacio>-z_punt_max_do.
+          <punt_sel>-z_sec                = <puntuacio>-z_sec.
+          <punt_sel>-z_punt_max           = <fs_mod_crit_punt>-z_punt_max.
+*            <punt_sel>-z_descripcio         = <fs_mod_crit_punt>-z_descripcio.
+          <punt_sel>-z_num_ob_oferta      = <puntuacio>-z_num_ob_oferta.
+          <punt_sel>-z_num_ob_tip_ok      = <puntuacio>-z_num_ob_tip_ok.
+          <punt_sel>-z_num_ob_acredit_ok  = <puntuacio>-z_num_ob_acredit_ok.
+          <punt_sel>-z_km_oferta          = <puntuacio>-z_km_oferta.
+          <punt_sel>-z_km_verif           = <puntuacio>-z_km_verif.
+          <punt_sel>-z_imp_acum_cont_vig  = <puntuacio>-z_imp_acum_cont_vig.
+          <punt_sel>-z_num_cont_vig       = <puntuacio>-z_num_cont_vig.
+          IF <puntuacio>-z_mult_equip EQ abap_on.
+            <punt_sel>-z_comptador_recurs = <puntuacio>-z_comptador_equip.
+*            ELSEIF <puntuacio>-z_mult_rec EQ abap_on.
+*              <punt_sel>-z_comptador_recurs = wa_punt_rec-z_comptador_recurs.
+          ELSE.
+            CLEAR <punt_sel>-z_comptador_recurs.
+          ENDIF.
+          <punt_sel>-z_pes              = <puntuacio>-z_pes.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD ACTUALITZA_PUNTS_ALV_TOP
+*---------------------------------------------------------------------*
+* actualitza els punts de la graella a partir de la selecció dels punts
+*---------------------------------------------------------------------*
+  METHOD actualitza_punts_alv_top.
+    DATA: lv_punts_seleccionats TYPE z_punts.
+    LOOP AT it_puntuacio ASSIGNING FIELD-SYMBOL(<fs_alv>).
+      LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs_alv_to_back>) WHERE z_codi_crit_punt   = <fs_alv>-z_codi_crit_punt
+                                                                            AND z_comptador_equip  = <fs_alv>-z_comptador_equip
+                                                                            AND z_sec              = <fs_alv>-z_sec.
+        <fs_alv_to_back>-seleccio = <fs_alv>-seleccio.
+      ENDLOOP.
+    ENDLOOP.
+
+    READ TABLE <gt_dyntable> ASSIGNING <gs_dyntable> INDEX my_current_line.
+    IF sy-subrc = 0.
+      READ TABLE my_columns ASSIGNING FIELD-SYMBOL(<fs_current_shown>) WITH KEY fieldname = my_current_col.
+      IF sy-subrc = 0.
+        ASSIGN COMPONENT 'FIELDNAME' OF STRUCTURE <fs_current_shown> TO FIELD-SYMBOL(<fs_fieldname_actual>).
+        CHECK <fs_fieldname_actual> IS ASSIGNED.
+        ASSIGN COMPONENT <fs_fieldname_actual> OF STRUCTURE <gs_dyntable> TO FIELD-SYMBOL(<fs_punts>).
+        CHECK <fs_punts> IS ASSIGNED.
+        CLEAR: lv_punts_seleccionats.
+        LOOP AT it_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio_alv>) WHERE seleccio = abap_on.
+          ADD <fs_puntuacio_alv>-z_punt_max_do TO lv_punts_seleccionats.
+        ENDLOOP.
+        IF sy-subrc = 0.
+          <fs_punts> = lv_punts_seleccionats.
+          SHIFT <fs_punts> LEFT DELETING LEADING space.
+        ENDIF.
+      ENDIF.
+      LOOP AT my_columns ASSIGNING <fs_current_shown> WHERE fieldname = my_current_col.
+        CLEAR: <fs_current_shown>-z_punts_total.
+      ENDLOOP.
+      LOOP AT my_columns ASSIGNING <fs_current_shown> WHERE fieldname = my_current_col.
+        LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs_puntuacio>) WHERE seleccio           = abap_on
+                                                                           AND z_comptador_equip  = <fs_current_shown>-z_comptador_equip.
+          ADD <fs_puntuacio>-z_punt_max_do TO <fs_current_shown>-z_punts_total.
+        ENDLOOP.
+      ENDLOOP.
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD CHECK_CHANGE_SELECCIO
+*---------------------------------------------------------------------*
+* Comprova si pot actualitzar la puntuació
+*---------------------------------------------------------------------*
+  METHOD check_change_seleccio.
+    DATA: lt_puntuacion_aux TYPE tty_puntuacio,
+          punt_opcional     TYPE z_punt_max_do.
+    CLEAR: punt_opcional, lt_puntuacion_aux.
+    READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio>) INDEX i_row_id-index.
+    CHECK sy-subrc = 0.
+    LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_resta>) WHERE z_opcional =  abap_on.
+      APPEND <fs_punt_resta> TO lt_puntuacion_aux.
+      IF ( <fs_punt_resta>-z_sec <> i_row_id-index AND <fs_punt_resta>-seleccio = abap_on ) OR
+         ( <fs_punt_resta>-z_sec = i_row_id-index  AND <fs_punt_resta>-seleccio = abap_false ) .
+        punt_opcional = punt_opcional + <fs_punt_resta>-z_punt_max_do.
+      ENDIF.
+    ENDLOOP.
+    IF lt_puntuacion_aux IS NOT INITIAL AND ( <fs_punt_resta>-seleccio = abap_on OR ( <fs_puntuacio>-z_opcional = abap_on ) )
+       AND <fs_puntuacio>-z_pun_rel_sel EQ abap_false.
+
+      READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_atual>) WITH KEY seleccio = abap_on.
+      IF sy-subrc = 0.
+        "Si aquest criteri té un subapartat com a opcional, es permet marcar 2 (un sent l'opcional) sempre i quan la suma dels dos criteris sigui > 0.
+        DATA(l_puntuacio)                = <fs_puntuacio>-z_punt_max_do. "Recuperem puntuació seleccionada
+        DATA(l_puntuacio_actual_marcada) = <fs_punt_atual>-z_punt_max_do. "Recuperem puntuació actualment marcada
+
+        "Calculem el valor total previst en funció del que hem marcat o desmarcat
+        IF <fs_puntuacio>-z_opcional = abap_on.
+          e_result = punt_opcional + l_puntuacio_actual_marcada.
+        ELSE.
+          e_result = punt_opcional + l_puntuacio.
+        ENDIF.
+
+        IF ( e_result ) LE 0.
+          MESSAGE s555(zrm_errors) DISPLAY LIKE 'E'.   "La puntuació deu ser major a 0
+          RAISE no_seleccionable.
+        ENDIF.
+        IF e_result < 0.
+          IF <fs_puntuacio>-z_opcional IS INITIAL.
+            e_nomes_un_sel = abap_on.
+          ELSE.
+            RAISE no_seleccionable.
+          ENDIF.
+        ELSE.
+          IF i_readonly <> abap_on AND <fs_puntuacio>-z_opcional = abap_false.
+            <fs_puntuacio>-seleccio = abap_on.
+          ELSEIF i_readonly <> abap_on AND <fs_puntuacio>-seleccio = abap_false.
+            <fs_puntuacio>-seleccio = abap_on.
+          ELSEIF i_readonly <> abap_on.
+            <fs_puntuacio>-seleccio = abap_false.
+          ENDIF.
+        ENDIF.
+      ELSE.
+        IF i_readonly <> abap_on.
+          <fs_puntuacio>-seleccio = abap_off.
+        ENDIF.
+      ENDIF.
+      DATA lv_cont        TYPE z_num_sel.
+
+    ELSEIF sy-subrc EQ 0 AND <fs_puntuacio>-z_pun_rel_sel EQ abap_true.
+      CLEAR lv_cont.
+      CLEAR e_nomes_un_sel.
+      IF <fs_puntuacio>-seleccio EQ abap_true.
+        CLEAR <fs_puntuacio>-seleccio.
+      ELSE.
+        <fs_puntuacio>-seleccio = abap_true.
+      ENDIF.
+      IF <fs_puntuacio>-z_opcional EQ abap_true.
+        LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt>) WHERE seleccio = abap_true.
+          IF <fs_punt>-z_opcional EQ abap_false.
+            CLEAR <fs_punt>-seleccio.
+          ELSE.
+            ADD 1 TO lv_cont.
+          ENDIF.
+        ENDLOOP.
+
+        CHECK my_suapar_re IS NOT INITIAL AND <fs_puntuacio>-z_pun_rel_sel EQ abap_true.
+        READ TABLE my_suapar_re ASSIGNING FIELD-SYMBOL(<fs_punt_do>) WITH KEY z_num_sel = lv_cont.
+        IF sy-subrc EQ 0.
+          e_result = <fs_punt_do>-z_punts.
+        ENDIF.
+      ELSE.
+        LOOP AT ct_puntuacio ASSIGNING <fs_punt> WHERE seleccio = abap_true
+                                                   AND z_opcional = abap_true.
+          CLEAR <fs_punt>-seleccio.
+        ENDLOOP.
+        e_result = <fs_puntuacio>-z_punt_max_do.
+      ENDIF.
+    ELSE.
+      e_nomes_un_sel = abap_on.
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD CHECK_CHANGES_EQUIP
+*---------------------------------------------------------------------*
+* Comprova els canvis realitzats a l'equip abans de guardar
+*---------------------------------------------------------------------*
+  METHOD check_changes_equip.
+    DATA: wa_message TYPE ty_messages.
+    CLEAR: et_msg_result[].
+    LOOP AT my_equip_modificable ASSIGNING FIELD-SYMBOL(<fs_equip_modif>).
+      CLEAR: wa_message.
+      IF <fs_equip_modif>-z_carrec_equip IS INITIAL.
+        wa_message-icon = icon_red_light.
+        MESSAGE s551(zrm_errors) INTO wa_message-descr.
+        APPEND wa_message TO et_msg_result.
+      ELSEIF <fs_equip_modif>-z_descripcio IS INITIAL.
+        wa_message-icon = icon_red_light.
+        MESSAGE s552(zrm_errors) INTO wa_message-descr.
+        APPEND wa_message TO et_msg_result.
+      ENDIF.
+    ENDLOOP.
+    IF et_msg_result[] IS NOT INITIAL.
+      RAISE not_ok.
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SAVE_CHANGES_EQUIP
+*---------------------------------------------------------------------*
+* Guarda els canvis en l'equip addicional
+*---------------------------------------------------------------------*
+  METHOD save_changes_equip.
+    DATA: wa_dades_equi_save TYPE zrm_dt_punt_equi.
+    CLEAR: my_equip_to_save[].
+    SELECT *
+      FROM zrm_dt_punt_equi
+      INTO TABLE @DATA(lt_equip_basic_bd)
+      WHERE docclass      = @g_docclass
+        AND objectid      = @g_objectid
+        AND z_equip_basic = @abap_on
+        AND z_num_ofer    = @my_num_oferta.
+
+    DATA(lt_ofertes) = lt_equip_basic_bd.
+    SORT lt_ofertes BY z_num_ofer.
+    DELETE ADJACENT DUPLICATES FROM lt_ofertes COMPARING z_num_ofer.
+    DESCRIBE TABLE lt_ofertes LINES DATA(l_lines_ofers).
+    DATA(lt_criteris_equip) = lt_equip_basic_bd[].
+    SORT lt_criteris_equip BY z_codi_crit_punt.
+    DELETE ADJACENT DUPLICATES FROM lt_criteris_equip COMPARING z_codi_crit_punt.
+    DESCRIBE TABLE lt_criteris_equip LINES DATA(l_lines_crits).
+
+
+    LOOP AT lt_ofertes ASSIGNING FIELD-SYMBOL(<fs_ofertes>).
+      CLEAR: wa_dades_equi_save.
+      wa_dades_equi_save-docclass         = <fs_ofertes>-docclass.
+      wa_dades_equi_save-objectid         = <fs_ofertes>-objectid.
+      wa_dades_equi_save-z_num_ofer       = <fs_ofertes>-z_num_ofer.
+      DO l_lines_crits TIMES.
+        DATA(lv_index) = sy-index.
+        READ TABLE lt_criteris_equip ASSIGNING FIELD-SYMBOL(<fs_equip_basic>) INDEX lv_index.
+        IF sy-subrc = 0.
+          wa_dades_equi_save-z_mod_crit_punt  = <fs_equip_basic>-z_mod_crit_punt.
+          wa_dades_equi_save-z_codi_crit_punt = <fs_equip_basic>-z_codi_crit_punt.
+          LOOP AT my_equip_modificable  ASSIGNING FIELD-SYMBOL(<fs_equip_modificable>).
+            READ TABLE my_equip_to_save TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt  = wa_dades_equi_save-z_codi_crit_punt
+                                                                        z_comptador_equip = <fs_equip_modificable>-z_comptador_equip
+                                                                        z_num_ofer        = wa_dades_equi_save-z_num_ofer.
+            IF sy-subrc <> 0.
+              wa_dades_equi_save-z_comptador_equip  = <fs_equip_modificable>-z_comptador_equip.
+              wa_dades_equi_save-z_carrec_equip     = <fs_equip_modificable>-z_carrec_equip.
+              wa_dades_equi_save-z_descripcio       = <fs_equip_modificable>-z_descripcio.
+              READ TABLE lt_equip_basic_bd ASSIGNING FIELD-SYMBOL(<fs_dades_equip_basic>) WITH KEY z_carrec_equip    = <fs_equip_modificable>-z_carrec_equip.
+*                                                                                                   z_codi_crit_punt  = wa_dades_equi_save-z_codi_crit_punt
+*                                                                                                   z_num_ofer        = wa_dades_equi_save-z_num_ofer.
+              IF sy-subrc = 0.
+                READ TABLE lt_equip_basic_bd ASSIGNING FIELD-SYMBOL(<fs_dades_crit_header>) WITH KEY z_codi_crit_punt  = wa_dades_equi_save-z_codi_crit_punt.
+                IF sy-subrc = 0.
+                  wa_dades_equi_save-z_is_header      = <fs_dades_crit_header>-z_is_header.
+                ENDIF.
+                wa_dades_equi_save-z_punts          = <fs_dades_equip_basic>-z_punts.
+                wa_dades_equi_save-z_punt_max       = <fs_dades_equip_basic>-z_punt_max.
+                wa_dades_equi_save-z_sec            = <fs_dades_equip_basic>-z_sec.
+                wa_dades_equi_save-z_pes            = <fs_dades_equip_basic>-z_pes.
+                wa_dades_equi_save-z_dedicacio_min  = <fs_dades_equip_basic>-z_dedicacio_min.
+                wa_dades_equi_save-z_exclusivitat   = <fs_dades_equip_basic>-z_exclusivitat.
+                wa_dades_equi_save-z_equip_pdm      = <fs_dades_equip_basic>-z_equip_pdm.
+                wa_dades_equi_save-z_exclos         = <fs_dades_equip_basic>-z_exclos.
+                wa_dades_equi_save-z_valor_pdm      = <fs_dades_equip_basic>-z_valor_pdm.
+                APPEND wa_dades_equi_save TO my_equip_to_save.
+              ENDIF.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+      ENDDO.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD CHECK_EXPERIENCIA_DONE
+*---------------------------------------------------------------------*
+* Comprova si s'ha informat l'experiència de l'equip per poder continuar
+*---------------------------------------------------------------------*
+  METHOD check_experiencia_done.
+    r_experiencia_done = abap_on.
+    LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs_equip>) WHERE seleccio = abap_on.
+      IF <fs_equip>-z_experiencia = abap_on.
+        IF <fs_equip>-z_opcional IS INITIAL.
+          IF <fs_equip>-z_punt_max_do >= 0.
+            IF <fs_equip>-z_num_ob_oferta IS INITIAL.
+              r_experiencia_done = abap_off.
+            ENDIF.
+            IF <fs_equip>-z_num_ob_tip_ok IS INITIAL.
+              r_experiencia_done = abap_off.
+            ENDIF.
+            IF <fs_equip>-z_num_ob_acredit_ok IS INITIAL.
+              r_experiencia_done = abap_off.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SAVE_CHANGES_PUNTS
+*---------------------------------------------------------------------*
+* Guarda canvis en la puntuació de l'equip i determina quin és el màxim
+* de cada membre puntuat
+*---------------------------------------------------------------------*
+  METHOD save_changes_punts.
+    DATA: ls_punt_ofer     TYPE zrm_cl_valoracio_ofertes=>ty_s_punt_gen,
+          wa_punts_carrec  TYPE zst_equip_max,
+          lv_punts_sel     TYPE z_punts,
+          lv_suma_crit_max TYPE z_punts.
+
+    save_changes_equip( ).
+    gr_backend->get_dades_ofer_dyn( IMPORTING ex_punt_ofer_dyn_equi = DATA(lt_graella_equip_bd) ).
+    DELETE lt_graella_equip_bd WHERE z_num_ofer <> my_num_oferta.
+    "Passem les dades de la ALV per cada equip a una taula del tipus ZRM_DT_PUNT_EQUI per després poder-la guardar
+    LOOP AT my_columns ASSIGNING FIELD-SYMBOL(<fs_column>).
+      LOOP AT lt_graella_equip_bd INTO DATA(wa_graella_equip) WHERE z_comptador_equip = <fs_column>-z_comptador_equip.
+        CLEAR: lv_punts_sel.
+        LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs_punts_to_save>) WHERE seleccio          = abap_on
+                                                                                AND z_comptador_equip = wa_graella_equip-z_comptador_equip
+                                                                                AND z_codi_crit_punt  = wa_graella_equip-z_codi_crit_punt
+                                                                                AND z_num_ofer        = wa_graella_equip-z_num_ofer.
+          ADD <fs_punts_to_save>-z_punt_max_do TO lv_punts_sel.
+        ENDLOOP.
+        READ TABLE my_equip_to_save ASSIGNING FIELD-SYMBOL(<fs_equip_to_save>) WITH KEY z_comptador_equip = wa_graella_equip-z_comptador_equip
+                                                                                        z_codi_crit_punt  = wa_graella_equip-z_codi_crit_punt
+                                                                                        z_num_ofer        = wa_graella_equip-z_num_ofer.
+        IF sy-subrc <> 0.
+          wa_graella_equip-z_punts = lv_punts_sel.
+          APPEND wa_graella_equip TO my_equip_to_save.
+        ELSE.
+          <fs_equip_to_save>-z_punts = lv_punts_sel.
+        ENDIF.
+      ENDLOOP.
+      IF sy-subrc <> 0.
+        "Si no hi és, és que l'hem afegit ara com equip addicional, per tant recuperem la puntuació que se li ha donat i n'actualitzem la taula MY_EQUIP_TO_SAVE
+        LOOP AT my_equip_to_save ASSIGNING <fs_equip_to_save> WHERE z_comptador_equip = <fs_column>-z_comptador_equip.
+          CLEAR: lv_punts_sel.
+          LOOP AT my_puntuacio_equip ASSIGNING <fs_punts_to_save> WHERE seleccio          = abap_on
+                                                                    AND z_comptador_equip = <fs_equip_to_save>-z_comptador_equip
+                                                                    AND z_codi_crit_punt  = <fs_equip_to_save>-z_codi_crit_punt
+                                                                    AND z_num_ofer        = <fs_equip_to_save>-z_num_ofer.
+            ADD <fs_punts_to_save>-z_punt_max_do TO lv_punts_sel.
+          ENDLOOP.
+          <fs_equip_to_save>-z_punts = lv_punts_sel.
+        ENDLOOP.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(lt_punt_offers_tmp) = gr_backend->get_punt_offers( ).
+    DELETE lt_punt_offers_tmp WHERE z_num_gen <> my_num_oferta.
+    LOOP AT lt_punt_offers_tmp ASSIGNING FIELD-SYMBOL(<fs_max_default>).
+      <fs_max_default>-z_equip_max = abap_off.
+    ENDLOOP.
+    DATA(lt_punt_offers_aux) = lt_punt_offers_tmp[].
+    DATA(lt_punt_offers)     = lt_punt_offers_tmp[].
+    CLEAR: lt_punt_offers[].
+
+    LOOP AT lt_punt_offers_aux INTO  ls_punt_ofer.
+      DATA(lv_tabix) = sy-tabix.
+      READ TABLE my_equip_to_save TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt = ls_punt_ofer-z_codi_crit_punt
+                                                                  z_num_ofer       = ls_punt_ofer-z_num_gen.
+      IF sy-subrc EQ 0.
+        DELETE lt_punt_offers_aux INDEX lv_tabix.
+        LOOP AT my_equip_to_save ASSIGNING FIELD-SYMBOL(<fs_equip>) WHERE z_codi_crit_punt = ls_punt_ofer-z_codi_crit_punt AND
+                                                                          z_num_ofer       = ls_punt_ofer-z_num_gen.
+          READ TABLE lt_punt_offers TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt = ls_punt_ofer-z_codi_crit_punt
+                                                                    z_num_gen        = ls_punt_ofer-z_num_gen
+                                                                    z_num_equip      = <fs_equip>-z_comptador_equip.
+          IF sy-subrc = 0. "si ja s'ha afegit no cal tornar-hi, continuem
+            CONTINUE.
+          ENDIF.
+          ls_punt_ofer-z_punts          = <fs_equip>-z_punts.
+          ls_punt_ofer-z_punts_no_pond  = <fs_equip>-z_punts.
+          ls_punt_ofer-z_num_equip      = <fs_equip>-z_comptador_equip.
+          ls_punt_ofer-z_carrec_equip   = <fs_equip>-z_carrec_equip.
+          APPEND ls_punt_ofer TO lt_punt_offers.
+        ENDLOOP.
+*      ELSE.
+*        APPEND ls_punt_ofer TO lt_punt_offers.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR: my_max_punts_carrec[].
+    "Recorrerem tots els punts de cada equip i en comprovarem quin és el càrrec amb MAX_PUNTS i serà el que acumularem al TOTAL i al seu immediat superior
+    DATA(lt_num_equips) = my_equip_to_save[].
+    SORT lt_num_equips BY z_num_ofer z_comptador_equip z_carrec_equip.
+    DELETE ADJACENT DUPLICATES FROM lt_num_equips COMPARING z_num_ofer z_comptador_equip z_carrec_equip.
+    DESCRIBE TABLE lt_num_equips LINES DATA(lv_num_equips).
+
+    DATA(lt_num_ofertes) = lt_punt_offers[].
+    DELETE lt_num_ofertes WHERE z_num_gen <> my_num_oferta.
+    DELETE ADJACENT DUPLICATES FROM lt_num_ofertes COMPARING z_num_gen.
+    DESCRIBE TABLE lt_num_ofertes LINES DATA(l_num_ofertes).
+    DO l_num_ofertes TIMES.
+      READ TABLE lt_num_ofertes ASSIGNING FIELD-SYMBOL(<fs_num_oferta>) INDEX sy-index.
+      CHECK sy-subrc = 0.
+      DATA(lv_index_oferta) = CONV z_num_ofer( <fs_num_oferta>-z_num_gen ).
+      "Per cada oferta recorrem l'equip sencer, buscant el màxim de cada càrrec
+      LOOP AT lt_num_equips ASSIGNING FIELD-SYMBOL(<fs_equip_oferta>) WHERE z_num_ofer = lv_index_oferta.
+        DATA(lv_index_carrec)     = CONV z_carrec_equip( <fs_equip_oferta>-z_carrec_equip ).
+        DATA(lv_comptador_equip)  = CONV z_compta_equip( <fs_equip_oferta>-z_comptador_equip ).
+
+        CLEAR: wa_punts_carrec.
+        READ TABLE my_columns ASSIGNING FIELD-SYMBOL(<fs_info_equip>) WITH KEY z_comptador_equip = lv_comptador_equip.
+        IF sy-subrc = 0.
+          READ TABLE my_carrecs ASSIGNING FIELD-SYMBOL(<fs_carrec>) WITH KEY z_carrec_equip = lv_index_carrec.
+          IF sy-subrc = 0.
+            wa_punts_carrec-z_text_carrec     = <fs_carrec>-z_descripcio.
+          ENDIF.
+          wa_punts_carrec-z_descripcio      = <fs_info_equip>-z_descripcio.
+        ENDIF.
+        wa_punts_carrec-z_carrec_equip    = lv_index_carrec.
+        wa_punts_carrec-z_comptador_equip = lv_comptador_equip.
+        wa_punts_carrec-z_num_ofer        = my_num_oferta.
+        wa_punts_carrec-z_pes             = CONV i( <fs_equip_oferta>-z_pes ).
+        LOOP AT lt_punt_offers ASSIGNING FIELD-SYMBOL(<fs_punts>) WHERE z_num_gen      = lv_index_oferta
+                                                                   AND z_carrec_equip = lv_index_carrec
+                                                                   AND z_num_equip    = lv_comptador_equip.
+          wa_punts_carrec-z_punts = wa_punts_carrec-z_punts + <fs_punts>-z_punts.
+        ENDLOOP.
+        wa_punts_carrec-z_punts_pes = CONV z_punts( wa_punts_carrec-z_punts * ( wa_punts_carrec-z_pes / 100 ) ).
+        READ TABLE my_max_punts_carrec ASSIGNING FIELD-SYMBOL(<fs_punts_carrec>) WITH KEY z_carrec_equip = lv_index_carrec.
+        IF sy-subrc <> 0.
+          APPEND wa_punts_carrec TO my_max_punts_carrec.
+        ELSE.
+          IF <fs_punts_carrec>-z_punts < wa_punts_carrec-z_punts.
+            <fs_punts_carrec>-z_punts           = wa_punts_carrec-z_punts.
+            <fs_punts_carrec>-z_comptador_equip = wa_punts_carrec-z_comptador_equip.
+            <fs_punts_carrec>-z_punts_pes       = wa_punts_carrec-z_punts_pes.
+            <fs_punts_carrec>-z_descripcio      = <fs_info_equip>-z_descripcio.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+      LOOP AT my_max_punts_carrec ASSIGNING <fs_punts_carrec>.
+        LOOP AT lt_punt_offers ASSIGNING <fs_punts> WHERE z_num_gen      = lv_index_oferta
+                                                      AND z_carrec_equip = <fs_punts_carrec>-z_carrec_equip
+                                                      AND z_num_equip    = <fs_punts_carrec>-z_comptador_equip.
+          <fs_punts>-z_equip_max = abap_on.
+        ENDLOOP.
+      ENDLOOP.
+      my_punt_offers = lt_punt_offers[].
+    ENDDO.
+
+    "READ_AND_CHECK_PUNT_OFER
+    "ZRM_CL_VALORACIO_OFERTES->RECALCULATE_CRIT_EQUIP_MAX
+    "recorrem tota la taula i, per cada membre d'equip, anem sumant els seus criteris.
+    "Un cop sumats tots els criteris de tots els equips, comparem els del mateix equip per determinar-ne el màxim
+
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD GET_MAX_PUNTUACIONS
+*---------------------------------------------------------------------*
+* Retorn quin és el màxim de cada membre puntuat i
+* la taula d'ofertes actualitzada per a la oferta tractada
+*---------------------------------------------------------------------*
+  METHOD get_max_puntuacions.
+    DATA: wa_puntuacio TYPE zrm_cl_valoracio_ofertes=>ty_s_puntuacio_subapartats,
+          wa_equi      TYPE zrm_dt_punt_equi,
+          wa_punt_sel  TYPE zrm_dt_punt_sel.
+
+    et_max_punts_carrec[] = my_max_punts_carrec[].
+    et_punt_offers[]      = my_punt_offers[].
+    LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<fs_puntuacio_sel>) WHERE seleccio = abap_on.
+      wa_puntuacio-z_codi_crit_punt         = <fs_puntuacio_sel>-z_codi_crit_punt.
+      wa_puntuacio-z_codi_subapar_punt      = <fs_puntuacio_sel>-z_codi_subapar_punt.
+      wa_puntuacio-z_codi_subapar_punt_rel  = <fs_puntuacio_sel>-z_codi_subapar_punt_rel.
+      wa_puntuacio-cont_doc                 = <fs_puntuacio_sel>-cont_doc.
+      wa_puntuacio-docclass                 = <fs_puntuacio_sel>-docclass.
+      wa_puntuacio-objectid                 = <fs_puntuacio_sel>-objectid.
+      wa_puntuacio-z_num_ofer               = <fs_puntuacio_sel>-z_num_ofer.
+      wa_puntuacio-z_sec                    = <fs_puntuacio_sel>-z_sec.
+      wa_puntuacio-z_punts                  = <fs_puntuacio_sel>-z_punt_max_do.
+      wa_puntuacio-z_compta_rec             = <fs_puntuacio_sel>-z_compta_rec.
+      wa_puntuacio-z_pes                    = <fs_puntuacio_sel>-z_pes.
+      wa_puntuacio-z_sec_resta              = <fs_puntuacio_sel>-z_sec_resta.
+      wa_puntuacio-z_num_equip              = <fs_puntuacio_sel>-z_comptador_equip.
+      wa_puntuacio-z_experiencia            = <fs_puntuacio_sel>-z_experiencia.
+      wa_puntuacio-z_punts_no_pond          = <fs_puntuacio_sel>-z_punt_max_do.
+      wa_puntuacio-z_km_verif               = <fs_puntuacio_sel>-z_km_verif.
+      wa_puntuacio-z_km_oferta              = <fs_puntuacio_sel>-z_km_oferta.
+      wa_puntuacio-z_num_ob_oferta          = <fs_puntuacio_sel>-z_num_ob_oferta.
+      wa_puntuacio-z_num_ob_tip_ok          = <fs_puntuacio_sel>-z_num_ob_tip_ok.
+      wa_puntuacio-z_num_ob_acredit_ok      = <fs_puntuacio_sel>-z_num_ob_acredit_ok.
+      APPEND wa_puntuacio TO et_puntuacio.
+    ENDLOOP.
+    "Processem els valors per a ser guardats a la ZRM_DT_PUNT_EQUI i ZRM_DT_PUNT_SEL des del mètode ZRM_CL_VALORACIO_OFERTES=>SAVE
+    SELECT *
+      FROM zrm_dt_punt_equi
+      INTO TABLE @DATA(lt_zrm_dt_punt_equi)
+      WHERE objectid    = @my_objectid
+        AND docclass    = @my_doclass
+        AND z_num_ofer  = @my_num_oferta.
+
+*>> SPEC-60778, Inici modificació - ETLJS
+    IF my_equip_to_save IS NOT INITIAL.
+      DATA(lt_punt_equi_aux) = lt_zrm_dt_punt_equi.
+      LOOP AT lt_punt_equi_aux ASSIGNING FIELD-SYMBOL(<fs_punt_equi>)
+        WHERE z_equip_basic NE abap_true.
+        READ TABLE my_equip_to_save TRANSPORTING NO FIELDS
+          WITH KEY z_comptador_equip = <fs_punt_equi>-z_comptador_equip.
+        IF sy-subrc NE 0.
+          DELETE lt_zrm_dt_punt_equi WHERE z_comptador_equip = <fs_punt_equi>-z_comptador_equip.
+        ENDIF.
+      ENDLOOP.
+
+    ENDIF.
+*<< SPEC-60778, Final modificació - ETLJS
+
+    READ TABLE my_dm_crit_punt ASSIGNING FIELD-SYMBOL(<fs_dm_crit_punt>) INDEX 1.
+    CHECK sy-subrc = 0.
+    LOOP AT my_equip_to_save ASSIGNING FIELD-SYMBOL(<fs_equip>).
+      "Guardem/actualitzem la ZRM_DT_PUNT_EQUI
+      READ TABLE lt_zrm_dt_punt_equi ASSIGNING FIELD-SYMBOL(<punt_equi>) WITH KEY z_codi_crit_punt   = <fs_equip>-z_codi_crit_punt
+                                                                                  z_num_ofer         = <fs_equip>-z_num_ofer
+                                                                                  z_comptador_equip  = <fs_equip>-z_comptador_equip.
+      IF sy-subrc = 0.
+
+      ELSE.
+        CLEAR: wa_equi.
+        READ TABLE my_columns ASSIGNING FIELD-SYMBOL(<fs_carrec>) WITH KEY z_comptador_equip = <fs_equip>-z_comptador_equip.
+        IF sy-subrc = 0.
+          wa_equi-docclass           = my_doclass.
+          wa_equi-objectid           = my_objectid.
+          wa_equi-z_num_ofer         = <fs_equip>-z_num_ofer.
+          wa_equi-z_mod_crit_punt    = <fs_dm_crit_punt>-z_mod_crit_punt.
+          wa_equi-z_codi_crit_punt   = <fs_equip>-z_codi_crit_punt.
+          wa_equi-z_is_header        = <fs_equip>-z_is_header.
+          wa_equi-z_carrec_equip     = <fs_carrec>-z_carrec_equip.
+          READ TABLE my_dm_crit_punt ASSIGNING FIELD-SYMBOL(<fs_punts_crit>) WITH KEY z_codi_crit_punt = <fs_equip>-z_codi_crit_punt.
+          IF sy-subrc = 0.
+            wa_punt_sel-z_punt_max        = <fs_punts_crit>-z_punt_max.
+          ENDIF.
+          READ TABLE my_max_punts_carrec TRANSPORTING NO FIELDS WITH KEY z_comptador_equip = <fs_equip>-z_comptador_equip
+                                                                         z_num_ofer        = <fs_equip>-z_num_ofer.
+          IF sy-subrc = 0.
+            wa_equi-z_equip_max      = abap_on.
+          ELSE.
+            wa_equi-z_equip_max      = abap_off.
+          ENDIF.
+          wa_equi-z_descripcio       = <fs_carrec>-z_descripcio.
+          wa_equi-z_comptador_equip  = <fs_equip>-z_comptador_equip.
+          wa_equi-z_pes              = <fs_carrec>-z_pes.
+          APPEND wa_equi TO lt_zrm_dt_punt_equi.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT my_puntuacio_equip ASSIGNING FIELD-SYMBOL(<puntuacio>) WHERE seleccio     EQ abap_on.
+      "Guardem/actualitzem la ZRM_DT_PUNT_EQUI
+      READ TABLE lt_zrm_dt_punt_equi ASSIGNING <punt_equi> WITH KEY z_codi_crit_punt   = <puntuacio>-z_codi_crit_punt
+                                                                    z_num_ofer         = <puntuacio>-z_num_ofer
+                                                                    z_comptador_equip  = <puntuacio>-z_comptador_equip.
+      IF sy-subrc = 0.
+        <punt_equi>-z_punts            = <puntuacio>-z_punt_max_do.
+        <punt_equi>-z_sec              = <puntuacio>-z_sec.
+      ELSE.
+
+      ENDIF.
+
+      "Guardem/actualitzem la ZRM_DT_PUNT_SEL
+      READ TABLE my_zrm_dt_punt_sel ASSIGNING FIELD-SYMBOL(<fs_punt_sel>) WITH KEY z_codi_crit_punt   = <puntuacio>-z_codi_crit_punt
+                                                                                   z_num_ofer         = <puntuacio>-z_num_ofer
+                                                                                   z_comptador_recurs = <puntuacio>-z_comptador_equip
+                                                                                   z_sec              = <puntuacio>-z_sec.
+      IF sy-subrc = 0.
+        <fs_punt_sel>-z_sec               = <puntuacio>-z_sec.
+        <fs_punt_sel>-z_num_ob_oferta     = <puntuacio>-z_num_ob_oferta.
+        <fs_punt_sel>-z_num_ob_tip_ok     = <puntuacio>-z_num_ob_tip_ok.
+        <fs_punt_sel>-z_num_ob_acredit_ok = <puntuacio>-z_num_ob_acredit_ok.
+        <fs_punt_sel>-z_km_verif          = <puntuacio>-z_km_verif.
+        <fs_punt_sel>-z_km_oferta         = <puntuacio>-z_km_oferta.
+        <fs_punt_sel>-z_num_cont_vig      = <puntuacio>-z_num_cont_vig.
+        <fs_punt_sel>-z_imp_acum_cont_vig = <puntuacio>-z_imp_acum_cont_vig.
+      ELSE.
+        CLEAR: wa_punt_sel.
+        READ TABLE my_columns ASSIGNING <fs_carrec> WITH KEY z_comptador_equip = <puntuacio>-z_comptador_equip.
+        IF sy-subrc = 0.
+          wa_punt_sel-docclass            = my_doclass.
+          wa_punt_sel-objectid            = my_objectid.
+          wa_punt_sel-z_num_ofer          = <puntuacio>-z_num_ofer.
+          wa_punt_sel-z_mod_crit_punt     = <fs_dm_crit_punt>-z_mod_crit_punt.
+          wa_punt_sel-z_codi_crit_punt    = <puntuacio>-z_codi_crit_punt.
+          wa_punt_sel-z_comptador_recurs  = <puntuacio>-z_comptador_equip.
+          wa_punt_sel-z_sec               = <puntuacio>-z_sec.
+          wa_punt_sel-z_punts             = <puntuacio>-z_punt_max_do.
+          READ TABLE my_dm_crit_punt ASSIGNING <fs_punts_crit> WITH KEY z_codi_crit_punt = <puntuacio>-z_codi_crit_punt.
+          IF sy-subrc = 0.
+            wa_punt_sel-z_punt_max        = <fs_punts_crit>-z_punt_max.
+          ENDIF.
+          wa_punt_sel-z_sec_resta         = <puntuacio>-z_sec_resta.
+          wa_punt_sel-z_pes               = <fs_carrec>-z_pes.
+          wa_punt_sel-z_num_ob_oferta     = <puntuacio>-z_num_ob_oferta.
+          wa_punt_sel-z_num_ob_tip_ok     = <puntuacio>-z_num_ob_tip_ok.
+          wa_punt_sel-z_num_ob_acredit_ok = <puntuacio>-z_num_ob_acredit_ok.
+          wa_punt_sel-z_km_verif          = <puntuacio>-z_km_verif.
+          wa_punt_sel-z_km_oferta         = <puntuacio>-z_km_oferta.
+          wa_punt_sel-z_num_cont_vig      = <puntuacio>-z_num_cont_vig.
+          wa_punt_sel-z_imp_acum_cont_vig = <puntuacio>-z_imp_acum_cont_vig.
+          APPEND wa_punt_sel TO my_zrm_dt_punt_sel.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+*    "Passem les dades a GT_PUNT_SEL_EQUI per a poder guardar les dades a la BD
+    DELETE gt_punt_sel_equi WHERE z_num_ofer = my_num_oferta.
+    DELETE gt_punt_equi_max WHERE z_num_ofer = my_num_oferta. "SPEC-51135
+    DELETE gt_delete_equips WHERE z_num_ofer = my_num_oferta. "SPEC-51135
+    DATA(lt_zrm_dt_punt_sel_ofer) = my_zrm_dt_punt_sel[].
+    DELETE lt_zrm_dt_punt_sel_ofer WHERE z_num_ofer <> my_num_oferta.
+    APPEND LINES OF lt_zrm_dt_punt_sel_ofer TO gt_punt_sel_equi[].
+
+    APPEND LINES OF lt_zrm_dt_punt_equi     TO gt_punt_equi_max[].
+    APPEND LINES OF my_delete_equip_table   TO gt_delete_equips[].
+*    gt_punt_sel_equi = my_zrm_dt_punt_sel[].
+*    gt_punt_equi_max = lt_zrm_dt_punt_equi[].
+*    gt_delete_equips = my_delete_equip_table[].
+
+  ENDMETHOD.
+
+ENDCLASS.

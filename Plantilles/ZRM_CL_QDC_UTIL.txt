@@ -1,0 +1,2873 @@
+CLASS zrm_cl_qdc_util DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    TYPES:
+      BEGIN OF ty_s_exp_cont,
+        docclass      TYPE zrm_dt_exp_cont-docclass,
+        objectid      TYPE zrm_dt_exp_cont-objectid,
+        z_descrip_abr TYPE zrm_dt_exp_cont-z_descrip_abr,
+        z_exp_lot_num TYPE zrm_dt_exp_cont-z_exp_lot_num,
+      END OF ty_s_exp_cont .
+    TYPES:
+      ty_t_exp_cont TYPE STANDARD TABLE OF ty_s_exp_cont .
+    TYPES:
+      BEGIN OF ty_s_crit_punt,
+        z_codi_crit_punt   TYPE zrm_dm_crit_punt-z_codi_crit_punt,
+        z_descripcio       TYPE zrm_dm_crit_punt-z_descripcio,
+        z_punt_min         TYPE zrm_dm_crit_punt-z_punt_min,
+        z_punt_max         TYPE zrm_dm_crit_punt-z_punt_max,
+        z_crit_ve          TYPE zrm_dm_crit_punt-z_crit_ve,
+        z_crit_q2          TYPE zrm_dm_crit_punt-z_crit_q2,
+        z_crit_q3          TYPE zrm_dm_crit_punt-z_crit_q3,
+        z_crit_q4          TYPE zrm_dm_crit_punt-z_crit_q4,
+        z_nivell_criteri   TYPE zrm_dm_crit_punt-z_nivell_criteri,
+        z_bold_text        TYPE xfeld,
+        z_prefix_comptador TYPE char4,
+        z_comptador        TYPE zrm_dm_crit_punt-z_codi_crit_punt,
+      END OF ty_s_crit_punt .
+    TYPES:
+      ty_t_crit_punt TYPE STANDARD TABLE OF ty_s_crit_punt .
+    TYPES:
+      BEGIN OF ty_s_punt_form,
+        docclass         TYPE zrm_dt_punt_form-docclass,
+        objectid         TYPE zrm_dt_punt_form-objectid,
+*           z_mod_crit_punt  TYPE zrm_dt_punt_form-z_mod_crit_punt,
+        z_codi_crit_punt TYPE zrm_dt_punt_form-z_codi_crit_punt,
+        z_no_aplica      TYPE zrm_dt_punt_form-z_no_aplica,
+      END OF ty_s_punt_form .
+    TYPES:
+      ty_t_punt_form TYPE STANDARD TABLE OF ty_s_punt_form .
+
+    CONSTANTS gc_repid TYPE zsap_dt_param_hc-repid VALUE 'LZRM_QDC' ##NO_TEXT.
+    CONSTANTS gc_tag_sapscript_qdc TYPE string VALUE '_ZQDC_' ##NO_TEXT.
+    CONSTANTS gc_simbol_euro TYPE char1 VALUE '€' ##NO_TEXT.
+    CONSTANTS gc_simbol_perc TYPE char1 VALUE '%' ##NO_TEXT.
+    CONSTANTS gc_tag_logo_materials TYPE string VALUE 'LOGO/Taula_materials' ##NO_TEXT.
+    CONSTANTS gc_logo_materials TYPE string VALUE '{IMATGE_MATERIALS}' ##NO_TEXT.
+
+    CLASS-METHODS get_detall_crit
+      IMPORTING
+        !iv_docclass        TYPE sdok_class
+        !iv_objectid        TYPE sdok_docid
+        !is_docid           TYPE sdokobject OPTIONAL
+        !iv_template_doc_id TYPE string OPTIONAL
+      RETURNING
+        VALUE(ro_data)      TYPE REF TO data .
+    CLASS-METHODS get_formula_revisio_preus
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+        !iv_lots       TYPE zvrm_qdc_cap_imp-z_lots
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_qdc_crit_punt
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_text_revisio_preus
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_desglos_import_iva
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_perc_iva_qdc
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_tab_qdc_vec
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+        !iv_lot        TYPE z_lots DEFAULT 'N'
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_tab_presup_lots
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_text_sapscript
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+        !iv_tdid       TYPE thead-tdid
+        !iv_tdobject   TYPE thead-tdobject
+        !iv_tdname     TYPE thead-tdname
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS change_tables_crit_plec
+      IMPORTING
+        !io_container    TYPE REF TO zrm_cl_container
+      CHANGING
+        !ct_table_office TYPE zrm_cl_documents=>ty_t_table_office_publ
+        !ct_tables_opt_f TYPE zrm_cl_documents=>ty_t_opt_table_publ
+        !ct_tables_opt_c TYPE zrm_cl_documents=>ty_t_opt_table_publ .
+    CLASS-METHODS get_textid_import_lots
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_hora_pres_ofer_mes_1
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_zerm_quadre_lots
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_zerm_qdc_rapli
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_zerm_quadre_matco2
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_zerm_qdc_docs
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_zerm_qdc_clo_lic
+      IMPORTING
+        !iv_docclass   TYPE sdok_class
+        !iv_objectid   TYPE sdok_docid
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+    CLASS-METHODS get_dades_singularitat
+      IMPORTING
+        !iv_docclass        TYPE sdok_class
+        !iv_objectid        TYPE sdok_docid
+        !is_docid           TYPE sdokobject
+        !iv_template_doc_id TYPE string
+      RETURNING
+        VALUE(ro_data)      TYPE REF TO data .
+    CLASS-METHODS get_matco2_infjust
+      IMPORTING
+        !iv_docclass        TYPE sdok_class
+        !iv_objectid        TYPE sdok_docid
+        !is_docid           TYPE sdokobject
+        !iv_template_doc_id TYPE string
+      RETURNING
+        VALUE(ro_data)      TYPE REF TO data .
+    CLASS-METHODS check_set_is_qdc
+      IMPORTING
+        !iv_template_docid TYPE srmgu_doc_template-tmpl_doc_id
+        !iv_exp_docclass   TYPE sdok_class
+        !iv_exp_objectid   TYPE sdok_docid .
+    CLASS-METHODS get_generate_table_matco2
+      RETURNING
+        VALUE(ro_data) TYPE REF TO data .
+PROTECTED SECTION.
+
+  TYPES:
+    BEGIN OF ty_s_proveidor,
+      nom_proveidor TYPE string,
+      real_konzs    TYPE lfa1-konzs,
+      zute          TYPE lfa1-zute,
+    END OF ty_s_proveidor .
+  TYPES:
+    ty_t_qdc_vec  TYPE TABLE OF zerm_qdc_tab_qdc_vec.
+  TYPES:
+    ty_t_pres_lots TYPE TABLE OF zerm_qdc_tab_presup_lots.
+  TYPES:
+    ty_t_quadre_lots   TYPE TABLE OF zerm_quadre_lots .
+  TYPES:
+    ty_t_qdc_rapli     TYPE TABLE OF zerm_qdc_rapli .
+  TYPES:
+    ty_t_quadre_matco2 TYPE TABLE OF zerm_quadre_matco2 .
+  TYPES:
+    ty_t_qdc_docs      TYPE TABLE OF zerm_qdc_docs .
+  TYPES:
+    ty_t_qdc_clo_lic   TYPE TABLE OF zerm_qdc_clo_lic .
+  TYPES:
+    ty_t_lot_form_rev_preus TYPE TABLE OF zerm_qdc_form_rev_preus.
+private section.
+
+  class-methods _ITERATE_TABLES_CRIT_PLEC
+    importing
+      !IT_CRIT_PUNT type ZRM_CL_QDC_UTIL=>TY_T_CRIT_PUNT
+      !IT_PUNT_FORM type ZRM_CL_QDC_UTIL=>TY_T_PUNT_FORM
+      !IT_EXPEDIENT type ZRM_CL_QDC_UTIL=>TY_T_EXP_CONT
+    changing
+      !CT_TABLES_OFFICE type ZRM_CL_DOCUMENTS_WORD=>TY_T_TABLE_OFFICE_PUBL .
+ENDCLASS.
+
+
+
+CLASS ZRM_CL_QDC_UTIL IMPLEMENTATION.
+
+
+  METHOD change_tables_crit_plec.
+
+    CONSTANTS: lc_lot                    TYPE string                     VALUE 'Lot',
+               lc_idplec                 TYPE string                     VALUE '[idPlec',
+               lc_idplec2                TYPE string                     VALUE '[idPlec2]',
+               lc_idplec3                TYPE string                     VALUE '[idPlec3]',
+               lc_check_nivells          TYPE zsap_dt_param_hc-value3    VALUE 'Z_NIVELL_CRITERI',
+               lc_check_prefix_comptador TYPE zsap_dt_param_hc-value3    VALUE 'PREFIX_COMPTADOR',
+               lc_crit_tec               TYPE zsap_dt_param_hc-value3    VALUE 'T',
+               lc_crit_obj               TYPE zsap_dt_param_hc-value3    VALUE 'O',
+               lc_bold                   TYPE string                     VALUE 'BOLD',
+               lc_param_q2               TYPE string                     VALUE 'PLEC_IDPLEC2',
+               lc_param_q3               TYPE string                     VALUE 'PLEC_IDPLEC3'.
+
+    DATA: lt_tables     TYPE zrm_cl_documents=>ty_t_table_office_publ,
+          ls_opt_table  TYPE zrm_cl_documents=>ty_s_opt_table_publ,
+          lt_punt_form  TYPE zrm_cl_qdc_util=>ty_t_punt_form,
+          lt_crit_punt  TYPE zrm_cl_qdc_util=>ty_t_crit_punt,
+          lt_expedient  TYPE zrm_cl_qdc_util=>ty_t_exp_cont,
+          ls_expedient  TYPE zrm_cl_qdc_util=>ty_s_exp_cont,
+          lv_name_table TYPE string,
+          lv_docclass   TYPE sdok_class,
+          lv_objectid   TYPE sdok_docid.
+
+    lt_tables = ct_table_office.
+    LOOP AT lt_tables ASSIGNING FIELD-SYMBOL(<fs_table_office>) WHERE name CS lc_idplec.
+      "La macro del Word torna també els caràcters finals 0x0D i 0x07 que després fan nosa perquè generen un retorn de línia que cal eliminar
+      DATA(lv_length) = strlen( <fs_table_office>-name ) .
+      IF lv_length GT 2.
+        lv_length = lv_length - 2.
+      ENDIF .
+      <fs_table_office>-name = <fs_table_office>-name(lv_length).
+      CLEAR:lv_length.
+    ENDLOOP.
+
+    CHECK io_container IS NOT INITIAL.
+    lv_docclass  = io_container->glob_docid-class.
+    lv_objectid  = io_container->glob_docid-objid.
+
+    CHECK lv_objectid IS NOT INITIAL.
+    SELECT DISTINCT cap~z_doc_impuls AS docclass, cap~z_obj_impuls AS objectid,
+           CAST( po~z_exp_lot_num AS CHAR ) AS z_exp_lot_num_char,
+           cap~z_descrip_abr AS z_descrip_abr,
+           cap~z_exp_hdr     AS z_exp_hdr
+      FROM zmm_dt_imp_cap      AS cap
+      INNER JOIN zmm_dt_imp_po AS po
+        ON cap~z_codi_exp = po~z_codi_exp
+      INTO TABLE @DATA(lt_expedient_temp)
+      WHERE z_doc_impuls = @lv_docclass
+        AND z_obj_impuls = @lv_objectid.
+
+    IF sy-subrc = 0.
+
+      LOOP AT lt_expedient_temp ASSIGNING FIELD-SYMBOL(<fs_exp_temp>).
+        CLEAR: ls_expedient.
+        ls_expedient-docclass = <fs_exp_temp>-docclass.
+        ls_expedient-objectid = <fs_exp_temp>-objectid.
+        IF <fs_exp_temp>-z_exp_hdr = 'X'.
+          SHIFT <fs_exp_temp>-z_exp_lot_num_char LEFT DELETING LEADING '0'.
+          "ls_expedient-z_descrip_abr = |{ <fs_exp_temp>-z_descrip_abr } { lc_lot }  { <fs_exp_temp>-z_exp_lot_num_char }|.
+          ls_expedient-z_descrip_abr = |{ lc_lot }  { <fs_exp_temp>-z_exp_lot_num_char }|.
+        ELSE.
+          "ls_expedient-z_descrip_abr = <fs_exp_temp>-z_descrip_abr.
+        ENDIF.
+        APPEND ls_expedient TO lt_expedient.
+      ENDLOOP.
+
+      DATA(lv_impuls) = abap_true.
+      "Lògica quan s'accedeix des d'un expedient d'impuls.
+      SELECT SINGLE a~z_mod_crit_punt                   "#EC CI_NOORDER
+        FROM zrm_dm_plecs AS a
+        INNER JOIN zvrm_qdc_cap_imp AS b
+        ON a~z_num_plec = b~z_num_plec
+        INTO @DATA(lv_mod_crit)
+        WHERE objectid = @lv_objectid.
+      CHECK sy-subrc = 0.
+    ELSE.
+      lv_impuls = abap_false.
+
+      "Lògica quan s'accedeix des d'un expedient de licitació
+      SELECT SINGLE z_mod_crit_punt                     "#EC CI_NOORDER
+        FROM zrm_dm_plecs AS a
+        INNER JOIN zrm_dt_exp_cont AS b
+        ON a~z_num_plec = b~z_num_plec
+        INTO @lv_mod_crit
+        WHERE objectid = @lv_objectid.
+      CHECK sy-subrc = 0.
+    ENDIF.
+    CHECK lv_mod_crit IS NOT INITIAL.
+
+    SELECT z_codi_crit_punt, z_descripcio, z_punt_min, z_punt_max, z_crit_ve,
+           z_crit_q2, z_crit_q3, z_crit_q4, z_nivell_criteri
+      FROM zrm_dm_crit_punt
+      INTO CORRESPONDING FIELDS OF TABLE @lt_crit_punt
+      WHERE z_mod_crit_punt = @lv_mod_crit
+        AND z_resta         = @abap_false.
+    CHECK sy-subrc = 0.
+
+    LOOP AT lt_tables ASSIGNING <fs_table_office>.
+      CLEAR: ls_opt_table.
+      ls_opt_table-table_int  = <fs_table_office>-index.
+      ls_opt_table-table_name = <fs_table_office>-name.
+      APPEND ls_opt_table TO ct_tables_opt_f. "Taula amb els identificadors de les taules que cal optimitzar en funció de la finestra
+    ENDLOOP.
+
+    IF lv_impuls = abap_true.
+      CHECK lt_expedient IS NOT INITIAL.
+      SELECT docclass, objectid, z_codi_crit_punt, z_no_aplica
+       FROM zvrm_qdc_cpu_imp
+          INTO TABLE @lt_punt_form
+          FOR ALL ENTRIES IN @lt_expedient
+          WHERE docclass        = @lt_expedient-docclass
+            AND objectid        = @lt_expedient-objectid.
+      CHECK sy-subrc = 0.
+
+    ELSE.
+      "Recuperem els lots, que indicaran el numero de columnes a mostrar,
+      "si no hi ha lots, mostrem 1 columna amb la descripció de l'expedient
+      SELECT SINGLE z_exp_hdr, z_codi_exp
+        FROM zrm_dt_exp_cont
+        INTO (@DATA(lv_exp_hdr),@DATA(lv_codi_exp_hdr))
+        WHERE docclass = @lv_docclass
+          AND objectid = @lv_objectid.
+      CHECK sy-subrc = 0.
+      IF lv_exp_hdr IS NOT INITIAL.
+        "Amb lots
+        SELECT docclass, objectid, z_descrip_abr, z_exp_lot_num "#EC CI_NO_TRANSFORM "#EC WARN_OK
+          FROM zrm_dt_exp_cont
+          INTO CORRESPONDING FIELDS OF TABLE @lt_expedient
+          WHERE z_exp_hdr_code = @lv_codi_exp_hdr
+            AND z_estat       <> 'ZCA'.
+        CHECK sy-subrc = 0.
+
+        SELECT docclass, objectid, z_codi_crit_punt, z_no_aplica "#EC CI_NO_TRANSFORM "#EC WARN_OK
+          FROM zrm_dt_punt_form
+          INTO TABLE @lt_punt_form
+          FOR ALL ENTRIES IN @lt_expedient
+          WHERE docclass        = @lt_expedient-docclass
+            AND objectid        = @lt_expedient-objectid
+            AND z_mod_crit_punt = @lv_mod_crit.
+        CHECK sy-subrc = 0.
+      ELSE.
+        "NO LOTS
+        SELECT docclass, objectid, z_descrip_abr, z_exp_lot_num
+          FROM zrm_dt_exp_cont
+          INTO CORRESPONDING FIELDS OF TABLE @lt_expedient
+          WHERE docclass   = @lv_docclass
+            AND objectid   = @lv_objectid
+            AND z_estat   <> 'ZCA'.
+        CHECK sy-subrc = 0.
+
+        SELECT docclass, objectid, z_codi_crit_punt, z_no_aplica
+          FROM zrm_dt_punt_form
+          INTO TABLE @lt_punt_form
+          WHERE docclass        = @lv_docclass
+            AND objectid        = @lv_objectid
+            AND z_mod_crit_punt = @lv_mod_crit.
+        CHECK sy-subrc = 0.
+      ENDIF.
+
+      LOOP AT lt_expedient ASSIGNING FIELD-SYMBOL(<fs_exp>).
+        IF <fs_exp>-z_exp_lot_num IS NOT INITIAL.
+          DATA(lv_num_lot) = CONV i( <fs_exp>-z_exp_lot_num ).
+          <fs_exp>-z_descrip_abr = |{ lc_lot }  { lv_num_lot }|.
+        ELSE.
+          CLEAR: <fs_exp>-z_descrip_abr.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    "CRITERIS   "EXP 1"EXP 2"EXP 3"
+    "CRITERI 1  "     "     "     "
+    "CRITERI 1.1"     "     "     "
+    "CRITERI 1.2"     "     "     "
+
+    SELECT field_info, value, value2, value3, value4
+        FROM zsap_dt_param_hc
+        INTO TABLE @DATA(lt_param_crits)
+        WHERE repid      = @gc_repid
+          AND ( field_info = @lc_param_q2 OR
+                field_info = @lc_param_q3 )
+          AND value      = @lv_mod_crit.
+    CHECK sy-subrc = 0.
+
+    """LINIES Q2"""""""""
+    DATA(lt_tables_q2) = lt_tables.
+    CLEAR: lt_tables_q2.
+    LOOP AT lt_tables ASSIGNING FIELD-SYMBOL(<fs_tq2>) WHERE name CS lc_idplec2.
+      APPEND <fs_tq2> TO lt_tables_q2.
+    ENDLOOP.
+    DELETE lt_tables WHERE name CS lc_idplec2.
+
+    DATA(lt_crit_q2) = lt_crit_punt.
+    DELETE lt_crit_q2 WHERE z_crit_q3 = abap_true.
+
+    DATA(lt_punt_form_q2) = lt_punt_form.
+    LOOP AT lt_punt_form_q2 ASSIGNING FIELD-SYMBOL(<fs_form_aux>).
+      READ TABLE lt_crit_q2 TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt = <fs_form_aux>-z_codi_crit_punt.
+      IF sy-subrc <> 0.
+        DELETE lt_punt_form_q2.
+        CONTINUE.
+      ENDIF.
+    ENDLOOP.
+
+    DATA(lv_comptador_crit) = 1.
+*      "Eliminem els criteris que no tenen el nivell parametritzat
+    LOOP AT lt_crit_q2 ASSIGNING FIELD-SYMBOL(<fs_crit_q2>).
+      READ TABLE lt_param_crits ASSIGNING FIELD-SYMBOL(<fs_param_crits>) WITH KEY field_info = lc_param_q2
+                                                                                  value2     = lc_check_nivells
+                                                                                  value3     = <fs_crit_q2>-z_codi_crit_punt.
+      IF sy-subrc = 0.
+        IF <fs_param_crits>-value4 = lc_bold.
+          <fs_crit_q2>-z_bold_text = abap_true.
+          <fs_crit_q2>-z_comptador = <fs_crit_q2>-z_codi_crit_punt.
+        ELSE.
+          <fs_crit_q2>-z_comptador = lv_comptador_crit.
+          ADD 1 TO lv_comptador_crit.
+        ENDIF.
+      ELSE.
+        DELETE lt_crit_q2.
+      ENDIF.
+    ENDLOOP.
+
+
+    IF lt_punt_form_q2 IS NOT INITIAL.
+      _iterate_tables_crit_plec( EXPORTING it_crit_punt     = lt_crit_q2
+                                           it_punt_form     = lt_punt_form_q2
+                                           it_expedient     = lt_expedient
+                                 CHANGING  ct_tables_office = lt_tables_q2 ).
+      LOOP AT lt_tables_q2 ASSIGNING FIELD-SYMBOL(<fs_table_q2>).
+        CLEAR: ls_opt_table.
+        ls_opt_table-table_int  = <fs_table_q2>-index.
+        ls_opt_table-table_name = <fs_table_q2>-name.
+        APPEND ls_opt_table TO ct_tables_opt_f. "Taula amb els identificadors de les taules que cal optimitzar en funció de la finestra
+      ENDLOOP.
+      APPEND LINES OF lt_tables_q2 TO lt_tables.
+    ENDIF.
+
+    """LINIES Q3"""""""""
+    DATA(lt_tables_q3) = lt_tables.
+    CLEAR: lt_tables_q3.
+    LOOP AT lt_tables ASSIGNING FIELD-SYMBOL(<fs_tq3>) WHERE name CS lc_idplec3.
+      APPEND <fs_tq3> TO lt_tables_q3.
+    ENDLOOP.
+    DELETE lt_tables WHERE name CS lc_idplec3.
+
+    DATA(lt_crit_q3) = lt_crit_punt.
+    DELETE lt_crit_q3 WHERE z_crit_q2 = abap_true.
+
+
+    READ TABLE lt_param_crits ASSIGNING <fs_param_crits> WITH KEY field_info = lc_param_q3
+                                                                  value2     = lc_check_nivells
+                                                                  value3     = lc_crit_obj.
+    IF sy-subrc = 0.
+      "Eliminem els criteris que no tenen el nivell parametritzat
+      DELETE lt_crit_q3 WHERE z_nivell_criteri <> <fs_param_crits>-value4.
+    ENDIF.
+    READ TABLE lt_param_crits ASSIGNING <fs_param_crits> WITH KEY field_info = lc_param_q3
+                                                                  value2     = lc_check_prefix_comptador.
+    IF sy-subrc = 0.
+      DATA(lv_prefix_comptador) = <fs_param_crits>-value3.
+    ENDIF.
+
+    DATA(lt_punt_form_q3) = lt_punt_form.
+    LOOP AT lt_punt_form_q3 ASSIGNING <fs_form_aux>.
+      READ TABLE lt_crit_q3 ASSIGNING FIELD-SYMBOL(<fs_crit_q3>) WITH KEY z_codi_crit_punt = <fs_form_aux>-z_codi_crit_punt.
+      IF sy-subrc <> 0.
+        DELETE lt_punt_form_q3.
+      ELSE.
+      ENDIF.
+    ENDLOOP.
+
+    lv_comptador_crit = 1.
+    LOOP AT lt_crit_q3 ASSIGNING <fs_crit_q3>.
+      READ TABLE lt_param_crits ASSIGNING <fs_param_crits> WITH KEY field_info = lc_param_q3
+                                                                    value2     = lc_check_nivells.
+
+      IF sy-subrc = 0 .
+        IF <fs_crit_q3>-z_nivell_criteri = <fs_crit_q3>-z_nivell_criteri.
+          <fs_crit_q3>-z_comptador        = |{ lv_prefix_comptador } { lv_comptador_crit } |.
+          CONDENSE <fs_crit_q3>-z_comptador.
+          <fs_crit_q3>-z_prefix_comptador = lv_prefix_comptador.
+          ADD 1 TO lv_comptador_crit.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    IF lt_punt_form_q3 IS NOT INITIAL.
+      _iterate_tables_crit_plec( EXPORTING it_crit_punt     = lt_crit_q3
+                                           it_punt_form     = lt_punt_form_q3
+                                           it_expedient     = lt_expedient
+                                 CHANGING  ct_tables_office = lt_tables_q3 ).
+      LOOP AT lt_tables_q3 ASSIGNING FIELD-SYMBOL(<fs_table_q3>).
+        CLEAR: ls_opt_table.
+        ls_opt_table-table_int  = <fs_table_q3>-index.
+        ls_opt_table-table_name = <fs_table_q3>-name.
+        APPEND ls_opt_table TO ct_tables_opt_f. "Taula amb els identificadors de les taules que cal optimitzar en funció de la finestra
+      ENDLOOP.
+      APPEND LINES OF lt_tables_q3 TO lt_tables.
+    ENDIF.
+*******************
+    ct_table_office = lt_tables.
+    "Ordenem la taula final per a que tingui la seqüència correlativa de cadascuna de les posicions
+    SORT ct_table_office BY index ASCENDING row_count ASCENDING col_count ASCENDING.
+    SORT ct_tables_opt_f ASCENDING.
+    DELETE ADJACENT DUPLICATES FROM ct_tables_opt_f.
+    SORT ct_tables_opt_c ASCENDING.
+    DELETE ADJACENT DUPLICATES FROM ct_tables_opt_c.
+  ENDMETHOD.
+
+
+*********  METHOD change_tables_crit_plec.
+*********
+*********    CONSTANTS: lc_lot     TYPE string VALUE 'Lot',
+*********               lc_idplec  TYPE string VALUE '[idPlec',
+*********               lc_idplec2 TYPE string VALUE '[idPlec2]',
+*********               lc_idplec3 TYPE string VALUE '[idPlec3]'.
+*********
+*********    DATA: lt_tables     TYPE zrm_cl_documents=>ty_t_table_office_publ,
+*********          ls_opt_table  TYPE zrm_cl_documents=>ty_s_opt_table_publ,
+*********          lt_punt_form  TYPE zrm_cl_qdc_util=>ty_t_punt_form,
+*********          lt_crit_punt  TYPE zrm_cl_qdc_util=>ty_t_crit_punt,
+*********          lt_expedient  TYPE zrm_cl_qdc_util=>ty_t_exp_cont,
+*********          ls_expedient  TYPE zrm_cl_qdc_util=>ty_s_exp_cont,
+*********          lv_name_table TYPE string,
+*********          lv_docclass   TYPE sdok_class,
+*********          lv_objectid   TYPE sdok_docid.
+*********
+*********    lt_tables = ct_table_office.
+*********    LOOP AT lt_tables ASSIGNING FIELD-SYMBOL(<fs_table_office>) WHERE name CS lc_idplec.
+*********      "La macro del Word torna també els caràcters finals 0x0D i 0x07 que després fan nosa perquè generen un retorn de línia que cal eliminar
+*********      DATA(lv_length) = strlen( <fs_table_office>-name ) .
+*********      IF lv_length GT 2.
+*********        lv_length = lv_length - 2.
+*********      ENDIF .
+*********      <fs_table_office>-name = <fs_table_office>-name(lv_length).
+*********      CLEAR:lv_length.
+*********    ENDLOOP.
+*********
+*********    CHECK io_container IS NOT INITIAL.
+*********    lv_docclass  = io_container->glob_docid-class.
+*********    lv_objectid  = io_container->glob_docid-objid.
+*********
+*********    CHECK lv_objectid IS NOT INITIAL.
+**********    SELECT z_doc_impuls AS docclass, z_obj_impuls AS objectid, z_descrip_abr
+**********      FROM zmm_dt_imp_cap
+**********      INTO CORRESPONDING FIELDS OF TABLE @lt_expedient
+**********      WHERE z_doc_impuls = @lv_docclass
+**********        AND z_obj_impuls = @lv_objectid.
+*********    SELECT DISTINCT cap~z_doc_impuls AS docclass, cap~z_obj_impuls AS objectid,
+*********           CAST( po~z_exp_lot_num AS CHAR ) AS z_exp_lot_num_char,
+*********           cap~z_descrip_abr AS z_descrip_abr,
+*********           cap~z_exp_hdr     AS z_exp_hdr
+**********           CASE WHEN cap~z_exp_hdr = 'X'
+**********                THEN cap~z_descrip_abr && ' Lot' && po~z_exp_lot_num
+**********                ELSE cap~z_descrip_abr
+**********           END AS z_descrip_abr
+*********      FROM zmm_dt_imp_cap      AS cap
+*********      INNER JOIN zmm_dt_imp_po AS po
+*********        ON cap~z_codi_exp = po~z_codi_exp
+*********      INTO TABLE @DATA(lt_expedient_temp)
+**********      INTO CORRESPONDING FIELDS OF TABLE @lt_expedient
+*********      WHERE z_doc_impuls = @lv_docclass
+*********        AND z_obj_impuls = @lv_objectid.
+*********
+*********    IF sy-subrc = 0.
+*********
+*********      LOOP AT lt_expedient_temp ASSIGNING FIELD-SYMBOL(<fs_exp_temp>).
+*********        CLEAR: ls_expedient.
+*********        ls_expedient-docclass = <fs_exp_temp>-docclass.
+*********        ls_expedient-objectid = <fs_exp_temp>-objectid.
+*********        IF <fs_exp_temp>-z_exp_hdr = 'X'.
+*********          SHIFT <fs_exp_temp>-z_exp_lot_num_char LEFT DELETING LEADING '0'.
+*********          ls_expedient-z_descrip_abr = |{ <fs_exp_temp>-z_descrip_abr } { lc_lot }  { <fs_exp_temp>-z_exp_lot_num_char }|.
+*********        ELSE.
+*********          ls_expedient-z_descrip_abr = <fs_exp_temp>-z_descrip_abr.
+*********        ENDIF.
+*********        APPEND ls_expedient TO lt_expedient.
+*********      ENDLOOP.
+*********
+*********      DATA(lv_impuls) = abap_true.
+*********      "Lògica quan s'accedeix des d'un expedient d'impuls.
+**********      ZVRM_QDC_CAP_IMP
+*********      SELECT SINGLE a~z_mod_crit_punt "#EC CI_NOORDER
+*********        FROM zrm_dm_plecs AS a
+*********        INNER JOIN zvrm_qdc_cap_imp AS b
+*********        ON a~z_num_plec = b~z_num_plec
+*********        INTO @DATA(lv_mod_crit)
+*********        WHERE objectid = @lv_objectid.
+*********      CHECK sy-subrc = 0.
+*********    ELSE.
+*********      lv_impuls = abap_false.
+*********
+*********      "Lògica quan s'accedeix des d'un expedient de licitació
+*********      SELECT SINGLE z_mod_crit_punt "#EC CI_NOORDER
+*********        FROM zrm_dm_plecs AS a
+*********        INNER JOIN zrm_dt_exp_cont AS b
+*********        ON a~z_num_plec = b~z_num_plec
+*********        INTO @lv_mod_crit
+*********        WHERE objectid = @lv_objectid.
+*********      CHECK sy-subrc = 0.
+*********    ENDIF.
+*********    CHECK lv_mod_crit IS NOT INITIAL.
+*********
+*********    SELECT z_codi_crit_punt, z_descripcio, z_punt_min, z_punt_max, z_crit_ve,
+*********           z_crit_q2, z_crit_q3, z_crit_q4
+*********      FROM zrm_dm_crit_punt
+*********      INTO TABLE @lt_crit_punt
+*********      WHERE z_mod_crit_punt = @lv_mod_crit.
+*********    CHECK sy-subrc = 0.
+*********
+*********    LOOP AT lt_tables ASSIGNING <fs_table_office>.
+*********      CLEAR: ls_opt_table.
+*********      ls_opt_table-table_int  = <fs_table_office>-index.
+*********      ls_opt_table-table_name = <fs_table_office>-name.
+*********      APPEND ls_opt_table TO ct_tables_opt_f. "Taula amb els identificadors de les taules que cal optimitzar en funció de la finestra
+*********    ENDLOOP.
+*********
+*********    IF lv_impuls = abap_true.
+*********      CHECK lt_expedient IS NOT INITIAL.
+*********      SELECT docclass, objectid, z_codi_crit_punt, z_no_aplica
+*********       FROM zvrm_qdc_cpu_imp
+*********          INTO TABLE @lt_punt_form
+*********          FOR ALL ENTRIES IN @lt_expedient
+*********          WHERE docclass        = @lt_expedient-docclass
+*********            AND objectid        = @lt_expedient-objectid.
+*********      CHECK sy-subrc = 0.
+*********
+*********    ELSE.
+*********      "Recuperem els lots, que indicaran el numero de columnes a mostrar,
+*********      "si no hi ha lots, mostrem 1 columna amb la descripció de l'expedient
+*********      SELECT SINGLE z_exp_hdr, z_codi_exp
+*********        FROM zrm_dt_exp_cont
+*********        INTO (@DATA(lv_exp_hdr),@DATA(lv_codi_exp_hdr))
+*********        WHERE docclass = @lv_docclass
+*********          AND objectid = @lv_objectid.
+*********      CHECK sy-subrc = 0.
+*********      IF lv_exp_hdr IS NOT INITIAL.
+*********        "Amb lots
+*********        SELECT docclass, objectid, z_descrip_abr   "#EC CI_NO_TRANSFORM
+*********          FROM zrm_dt_exp_cont
+*********          INTO CORRESPONDING FIELDS OF TABLE @lt_expedient
+*********          WHERE z_exp_hdr_code = @lv_codi_exp_hdr
+*********            AND z_estat       <> 'ZCA'.
+*********        CHECK sy-subrc = 0.
+*********
+*********        SELECT docclass, objectid, z_codi_crit_punt, z_no_aplica "#EC CI_NO_TRANSFORM
+*********          FROM zrm_dt_punt_form
+*********          INTO TABLE @lt_punt_form
+*********          FOR ALL ENTRIES IN @lt_expedient
+*********          WHERE docclass        = @lt_expedient-docclass
+*********            AND objectid        = @lt_expedient-objectid
+*********            AND z_mod_crit_punt = @lv_mod_crit.
+*********        CHECK sy-subrc = 0.
+*********      ELSE.
+*********        "NO LOTS
+*********        SELECT docclass, objectid, z_descrip_abr
+*********          FROM zrm_dt_exp_cont
+*********          INTO TABLE @lt_expedient
+*********          WHERE docclass   = @lv_docclass
+*********            AND objectid   = @lv_objectid
+*********            AND z_estat   <> 'ZCA'.
+*********        CHECK sy-subrc = 0.
+*********
+*********        SELECT docclass, objectid, z_codi_crit_punt, z_no_aplica
+*********          FROM zrm_dt_punt_form
+*********          INTO TABLE @lt_punt_form
+*********          WHERE docclass        = @lv_docclass
+*********            AND objectid        = @lv_objectid
+*********            AND z_mod_crit_punt = @lv_mod_crit.
+*********        CHECK sy-subrc = 0.
+*********      ENDIF.
+*********    ENDIF.
+*********
+*********    "CRITERIS   "EXP 1"EXP 2"EXP 3"
+*********    "CRITERI 1  "     "     "     "
+*********    "CRITERI 1.1"     "     "     "
+*********    "CRITERI 1.2"     "     "     "
+*********
+*********
+*********    """LINIES Q2"""""""""
+*********    DATA(lt_tables_q2) = lt_tables.
+*********    CLEAR: lt_tables_q2.
+*********    LOOP AT lt_tables ASSIGNING FIELD-SYMBOL(<fs_tq2>) WHERE name CS lc_idplec2.
+*********      APPEND <fs_tq2> TO lt_tables_q2.
+*********    ENDLOOP.
+*********    DELETE lt_tables WHERE name CS lc_idplec2.
+*********
+*********    DATA(lt_crit_q2) = lt_crit_punt.
+*********    DELETE lt_crit_q2 WHERE z_crit_q3 = abap_true.
+*********
+*********    DATA(lt_punt_form_q2) = lt_punt_form.
+*********    LOOP AT lt_punt_form_q2 ASSIGNING FIELD-SYMBOL(<fs_form_aux>).
+*********      READ TABLE lt_crit_q2 TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt = <fs_form_aux>-z_codi_crit_punt.
+*********      IF sy-subrc <> 0.
+*********        DELETE lt_punt_form_q2.
+*********      ENDIF.
+*********    ENDLOOP.
+*********
+*********    IF lt_punt_form_q2 IS NOT INITIAL.
+*********      _iterate_tables_crit_plec( EXPORTING it_crit_punt     = lt_crit_q2
+*********                                           it_punt_form     = lt_punt_form_q2
+*********                                           it_expedient     = lt_expedient
+*********                                 CHANGING  ct_tables_office = lt_tables_q2 ).
+*********      LOOP AT lt_tables_q2 ASSIGNING FIELD-SYMBOL(<fs_table_q2>).
+*********        CLEAR: ls_opt_table.
+*********        ls_opt_table-table_int  = <fs_table_q2>-index.
+*********        ls_opt_table-table_name = <fs_table_q2>-name.
+*********        APPEND ls_opt_table TO ct_tables_opt_f. "Taula amb els identificadors de les taules que cal optimitzar en funció de la finestra
+*********      ENDLOOP.
+*********      APPEND LINES OF lt_tables_q2 TO lt_tables.
+*********    ENDIF.
+*********
+*********    """LINIES Q3"""""""""
+*********    DATA(lt_tables_q3) = lt_tables.
+*********    CLEAR: lt_tables_q3.
+*********    LOOP AT lt_tables ASSIGNING FIELD-SYMBOL(<fs_tq3>) WHERE name CS lc_idplec3.
+*********      APPEND <fs_tq3> TO lt_tables_q3.
+*********    ENDLOOP.
+*********    DELETE lt_tables WHERE name CS lc_idplec3.
+*********
+*********    DATA(lt_crit_q3) = lt_crit_punt.
+*********    DELETE lt_crit_q3 WHERE z_crit_q2 = abap_true.
+*********
+*********    DATA(lt_punt_form_q3) = lt_punt_form.
+*********    LOOP AT lt_punt_form_q3 ASSIGNING <fs_form_aux>.
+*********      READ TABLE lt_crit_q3 TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt = <fs_form_aux>-z_codi_crit_punt.
+*********      IF sy-subrc <> 0.
+*********        DELETE lt_punt_form_q3.
+*********      ENDIF.
+*********    ENDLOOP.
+*********    IF lt_punt_form_q3 IS NOT INITIAL.
+*********      _iterate_tables_crit_plec( EXPORTING it_crit_punt     = lt_crit_q3
+*********                                           it_punt_form     = lt_punt_form_q3
+*********                                           it_expedient     = lt_expedient
+*********                                 CHANGING  ct_tables_office = lt_tables_q3 ).
+*********      LOOP AT lt_tables_q3 ASSIGNING FIELD-SYMBOL(<fs_table_q3>).
+*********        CLEAR: ls_opt_table.
+*********        ls_opt_table-table_int  = <fs_table_q3>-index.
+*********        ls_opt_table-table_name = <fs_table_q3>-name.
+*********        APPEND ls_opt_table TO ct_tables_opt_f. "Taula amb els identificadors de les taules que cal optimitzar en funció de la finestra
+*********      ENDLOOP.
+*********      APPEND LINES OF lt_tables_q3 TO lt_tables.
+*********    ENDIF.
+****************************
+*********    ct_table_office = lt_tables.
+*********    "Ordenem la taula final per a que tingui la seqüència correlativa de cadascuna de les posicions
+*********    SORT ct_table_office BY index ASCENDING row_count ASCENDING col_count ASCENDING.
+*********    SORT ct_tables_opt_f ASCENDING.
+*********    DELETE ADJACENT DUPLICATES FROM ct_tables_opt_f.
+*********    SORT ct_tables_opt_c ASCENDING.
+*********    DELETE ADJACENT DUPLICATES FROM ct_tables_opt_c.
+*********  ENDMETHOD.
+
+
+  METHOD check_set_is_qdc.
+    CONSTANTS: lc_template_codi_plan TYPE zsap_dt_param_hc-field_info VALUE 'Z_CODI_PLAN'.
+
+    DATA: lv_is_qdc            TYPE abap_bool,
+          lv_template_aux      TYPE string,
+          lv_template_docclass TYPE bapidclass,
+          lv_template_objectid TYPE bapiguid.
+
+    lv_is_qdc = abap_false.
+    SET PARAMETER ID 'IS_QDC' FIELD lv_is_qdc.
+
+    lv_template_aux = iv_template_docid.
+    CONDENSE lv_template_aux.
+    SPLIT lv_template_aux AT space INTO lv_template_docclass lv_template_objectid. "#EC CI_NOORDER
+
+    SELECT SINGLE z_codi_plan                           "#EC CI_NOORDER
+      FROM zrm_dm_plan_ass
+      INTO @DATA(lv_codi_plan)
+      WHERE docclass = @lv_template_docclass
+        AND objectid = @lv_template_objectid.
+    CHECK sy-subrc = 0.
+
+*    SELECT COUNT(*)
+    SELECT repid
+      UP TO 1 ROWS
+      FROM zsap_dt_param_hc
+      INTO @DATA(lv_exists)
+      WHERE repid      = @gc_repid
+        AND field_info = @lc_template_codi_plan
+        AND value      = @lv_codi_plan.
+    ENDSELECT.
+    CHECK sy-subrc = 0.
+
+*    SELECT COUNT(*)
+    SELECT z_codi_qdc
+      UP TO 1 ROWS
+      FROM zvrm_qdc_cap_lic
+      INTO @DATA(lv_exists2)
+      WHERE docclass = @iv_exp_docclass
+        AND objectid = @iv_exp_objectid.
+    ENDSELECT.
+    CHECK sy-subrc = 0.
+
+    lv_is_qdc = abap_true.
+    SET PARAMETER ID 'IS_QDC' FIELD lv_is_qdc.
+    "Es llegeix des de:
+    """-enhancement 1 a mètode CHECK_VALUES de CL_SRM_PROP_ALV_SAPGUI
+
+
+
+  ENDMETHOD.
+
+
+  METHOD get_dades_singularitat.
+    DEFINE _format_number .
+      write &1 to lv_char80 decimals 2 left-justified . "#EC UOM_IN_MES
+      &2 = lv_char80 .
+    END-OF-DEFINITION .
+    CONSTANTS: lc_text_no_singularitat    TYPE string VALUE 'ZTEXT_IJ_NO_SINGULARITAT',
+               lc_text_fix_titol_imin_tip TYPE string VALUE 'ZTEXT_IJ_SINGULARITAT',
+               lc_text_sapscript_formula  TYPE string VALUE 'ZTEXT_IJ_SINGULARITAT2',
+               lc_imin                    TYPE string VALUE 'Import Mínim: ',
+               lc_tipologia               TYPE string VALUE 'Tipologia: '.
+
+    TYPES: BEGIN OF ty_s_singularitat,
+             zz_num_lot    TYPE stringval,
+             z_descrip_lot TYPE zvrm_qdc_clo_imp-z_descrip_lot,
+             z_sing        TYPE zvrm_qdc_clo_imp-z_sing,
+             z_sing_tip    TYPE stringval,
+             z_sing_imin   TYPE stringval,
+           END OF ty_s_singularitat.
+    DATA: lt_string_tab        TYPE string_table,
+          lo_text_singularitat TYPE REF TO data.
+    FIELD-SYMBOLS: <fs_tab_text>        TYPE string_table,
+                   <fs_tab_string_temp> TYPE ANY TABLE.
+
+    DATA: lo_reference          TYPE REF TO data,
+          lo_container          TYPE REF TO zrm_cl_container,
+          lt_singularitat       TYPE TABLE OF ty_s_singularitat,
+          ls_dades_singularitat TYPE ty_s_singularitat,
+          lv_string_aux         TYPE string,
+          lv_result_string      TYPE string,
+          lv_char80             TYPE char80.
+
+    CREATE DATA lo_text_singularitat TYPE string_table.
+    ro_data = lo_text_singularitat .
+    ASSIGN lo_text_singularitat->* TO <fs_tab_text> .
+
+    CALL METHOD zrm_cl_documents_word=>get_container_from_guid
+      EXPORTING
+        iv_docclass  = iv_docclass
+        iv_objectid  = iv_objectid
+      IMPORTING
+        er_container = lo_container.
+
+    SELECT docclass, objectid, z_codi_qdc, zz_num_lot, z_descrip_lot, z_sing,
+           z_sing_imin, z_sing_tip, z_imin
+      FROM zvrm_qdc_clo_imp
+      INTO TABLE @DATA(lt_clo_imp)
+      WHERE docclass = @iv_docclass
+        AND objectid = @iv_objectid.
+     CHECK sy-subrc = 0.
+
+    SORT lt_clo_imp BY z_codi_qdc zz_num_lot.
+
+
+    LOOP AT lt_clo_imp ASSIGNING FIELD-SYMBOL(<fs_qdc_lot_imp>).
+      CLEAR: ls_dades_singularitat.
+      ls_dades_singularitat-z_descrip_lot      = <fs_qdc_lot_imp>-z_descrip_lot.
+      ls_dades_singularitat-zz_num_lot         = <fs_qdc_lot_imp>-zz_num_lot.
+      SHIFT ls_dades_singularitat-zz_num_lot LEFT DELETING LEADING '0'.
+      ls_dades_singularitat-z_sing             = <fs_qdc_lot_imp>-z_sing.
+      _format_number: <fs_qdc_lot_imp>-z_sing_tip   ls_dades_singularitat-z_sing_tip.
+      _format_number: <fs_qdc_lot_imp>-z_sing_imin  ls_dades_singularitat-z_sing_imin.
+      APPEND ls_dades_singularitat TO lt_singularitat.
+    ENDLOOP.
+
+    LOOP AT lt_singularitat ASSIGNING FIELD-SYMBOL(<fs_dades_singularitat>).
+      ls_dades_singularitat = <fs_dades_singularitat>.
+      AT NEW zz_num_lot.
+        IF ls_dades_singularitat-zz_num_lot IS NOT INITIAL.
+          DATA(lv_titol_lot) = | { zrm_cl_documents_word=>gc_set_bold_text_ini } { ls_dades_singularitat-z_descrip_lot } { zrm_cl_documents_word=>gc_set_bold_text_fin } { cl_abap_char_utilities=>cr_lf }|.
+          IF lv_result_string IS INITIAL.
+            lv_result_string = | { lv_titol_lot }|.
+          ELSE.
+            "Si ja hi ha text, fem dos salts de línia per separar entre lots
+            lv_result_string = |{ lv_result_string }{ cl_abap_char_utilities=>cr_lf } { cl_abap_char_utilities=>cr_lf } { lv_titol_lot }|.
+          ENDIF.
+        ENDIF.
+      ENDAT.
+      IF ls_dades_singularitat-z_sing = abap_true.
+        "Aplica singularitat
+*       """""TAG: "per tenir..."
+        TRY.
+            lv_string_aux = zrm_cl_documents=>get_docu_as_string( lc_text_fix_titol_imin_tip ).
+          CATCH zcx_rm_documents.
+            CLEAR: lv_string_aux.
+        ENDTRY.
+        IF lv_result_string IS INITIAL.
+          lv_result_string = |{ lv_string_aux }{ cl_abap_char_utilities=>cr_lf }|.
+        ELSE.
+          lv_result_string = |{ lv_result_string } { lv_string_aux }{ cl_abap_char_utilities=>cr_lf }|.
+        ENDIF.
+*       """""TAG: TIPOLOGIA_IMPORT ZVRM_QQDC_CLO_IMP-Z_SING & Z_IMIN
+        DATA(lv_text_tipologia) = |{ lc_tipologia } { ls_dades_singularitat-z_sing_tip }{ cl_abap_char_utilities=>cr_lf }|.
+        DATA(lv_text_imin)      = |{ lc_imin } { ls_dades_singularitat-z_sing_imin }{ cl_abap_char_utilities=>cr_lf }|.
+        lv_result_string = |{ lv_result_string }{ lv_text_tipologia }{ lv_text_imin }{ cl_abap_char_utilities=>cr_lf }|.
+*        """""TAG: TEXT_SAPSCRIPT+FORMULA IMIN
+        TRY.
+            DATA(lv_text_script) = zrm_cl_documents_word=>co_operator_return_textid && '/' && lc_text_sapscript_formula.
+            CALL METHOD zrm_cl_documents=>execute_command
+              EXPORTING
+                im_script               = lv_text_script
+                im_container            = lo_container
+                im_as_table             = abap_true
+                im_template_document_id = iv_template_doc_id
+                im_template_object      = is_docid
+                im_template_description = lc_text_sapscript_formula
+              IMPORTING
+                re_result               = lo_reference.
+          CATCH zcx_rm_documents.
+            CONTINUE.
+        ENDTRY.
+        CHECK lo_reference IS BOUND .
+        ASSIGN lo_reference->* TO <fs_tab_string_temp>.
+        IF <fs_tab_string_temp> IS ASSIGNED.
+          LOOP AT <fs_tab_string_temp> ASSIGNING FIELD-SYMBOL(<fs_string_temp>). "#EC CI_NESTED.
+            " Accedir al component 'A' que conté el text
+            ASSIGN COMPONENT 'A' OF STRUCTURE <fs_string_temp> TO FIELD-SYMBOL(<fs_field_a>).
+            IF <fs_field_a> IS ASSIGNED AND <fs_field_a> IS NOT INITIAL.
+              lv_result_string = |{ lv_result_string } { <fs_field_a> } { cl_abap_char_utilities=>cr_lf }|.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+      ELSE.
+        TRY.
+            lv_string_aux = zrm_cl_documents=>get_docu_as_string( lc_text_no_singularitat ).
+          CATCH zcx_rm_documents.
+            CLEAR: lv_string_aux.
+        ENDTRY.
+
+        IF lv_result_string IS INITIAL.
+          lv_result_string = |{ lv_string_aux }{ cl_abap_char_utilities=>cr_lf }|.
+        ELSE.
+          lv_result_string = |{ lv_result_string }{ lv_string_aux }|.
+        ENDIF.
+
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_result_string IS NOT INITIAL.
+      APPEND lv_result_string TO lt_string_tab.
+*      cl_demo_output=>display( lv_result_string ).
+    ENDIF.
+
+    <fs_tab_text> = lt_string_tab.
+    ro_data = lo_text_singularitat.
+
+
+  ENDMETHOD.
+
+
+  METHOD get_desglos_import_iva.
+
+    FIELD-SYMBOLS: <fs_data>    TYPE zvrm_qdc_cap_imp-z_pressup_licit.
+    DATA: lv_string         TYPE string,
+          lo_desglos_import TYPE REF TO data.
+
+    CREATE DATA lo_desglos_import TYPE zvrm_qdc_cap_imp-z_pressup_licit.
+    ro_data = lo_desglos_import .
+    ASSIGN ro_data->* TO <fs_data>.
+
+    SELECT SINGLE z_pressup_licit, z_pres_licit_b "#EC CI_NOORDER
+      FROM zvrm_qdc_cap_imp
+      INTO (@DATA(lv_z_pressup_licit),@DATA(lv_z_pres_licit_b))
+      WHERE docclass = @iv_docclass
+        AND objectid = @iv_objectid.
+    CHECK sy-subrc = 0.
+
+    <fs_data> = lv_z_pressup_licit - lv_z_pres_licit_b.
+
+    ro_data = lo_desglos_import .
+  ENDMETHOD.
+
+
+  METHOD get_detall_crit.
+    CONSTANTS: lc_text_modcrit  TYPE zsap_dt_param_hc-field_info VALUE 'ZDETALL_CRITERIS',
+               lc_tag_comptador TYPE string                      VALUE '{COMPTADOR}',
+               lc_text_fix      TYPE string                      VALUE 'ZTEXT_QDC_'.
+
+
+    DATA: lo_reference     TYPE REF TO data,
+          lo_container     TYPE REF TO zrm_cl_container,
+          lv_result_string TYPE string.
+
+    DATA: lt_string_tab       TYPE string_table,
+          lo_text_detall_crit TYPE REF TO data.
+    FIELD-SYMBOLS: <fs_tab_text>        TYPE string_table,
+                   <fs_tab_string_temp> TYPE ANY TABLE.
+
+    CREATE DATA lo_text_detall_crit TYPE string_table.
+    ro_data = lo_text_detall_crit .
+    ASSIGN lo_text_detall_crit->* TO <fs_tab_text> .
+
+
+    SELECT SINGLE b~z_codi_qdc, a~z_mod_crit_punt,a~z_descripcio,a~z_no_mostra_ajust_q3 "#EC CI_NOORDER
+      FROM zrm_dm_mod_crit AS a
+      INNER JOIN zvrm_qdc_cap_imp AS b
+      ON a~z_mod_crit_punt = b~z_mod_crit_punt
+      INTO @DATA(ls_dm_mod_crit)
+      WHERE b~docclass = @iv_docclass
+        AND b~objectid = @iv_objectid.
+    CHECK sy-subrc = 0.
+
+    "Ens quedem amb els registres on a almenys un dels lots/expedients el criteri aplica
+    SELECT DISTINCT b~docclass, b~objectid, b~z_codi_qdc," b~zz_num_lot,
+           a~z_mod_crit_punt, a~z_codi_crit_punt, a~z_descripcio, "b~z_no_aplica,
+           a~z_punt_min, a~z_punt_max, a~z_nivell_criteri, a~z_crit_ve, a~z_sumatori,
+           a~z_crit_q2, a~z_crit_q3
+      FROM zrm_dm_crit_punt AS a
+      INNER JOIN zvrm_qdc_cpu_imp AS b
+        ON a~z_codi_crit_punt = b~z_codi_crit_punt
+      INTO TABLE @DATA(lt_qdc_crit_punt_aux)
+      WHERE a~z_mod_crit_punt = @ls_dm_mod_crit-z_mod_crit_punt
+        AND b~z_codi_qdc      = @ls_dm_mod_crit-z_codi_qdc
+        AND a~z_crit_q3       = @abap_true
+        AND EXISTS ( SELECT 1
+                     FROM zvrm_qdc_cpu_imp AS sub
+                     WHERE sub~z_codi_qdc       = b~z_codi_qdc
+                       AND sub~z_codi_crit_punt = b~z_codi_crit_punt
+                       AND sub~z_no_aplica      = @abap_false ).
+     CHECK sy-subrc = 0.
+
+    SORT lt_qdc_crit_punt_aux BY z_codi_crit_punt z_nivell_criteri.
+
+    SELECT value AS z_mod_crit_punt, value2 AS z_codi_crit_punt, value3 AS option, value4 AS value
+      FROM zsap_dt_param_hc
+      INTO TABLE @DATA(lt_param_hc)
+      WHERE repid      = @gc_repid
+        AND field_info = @lc_text_modcrit
+        AND value      = @ls_dm_mod_crit-z_mod_crit_punt.
+    CHECK sy-subrc = 0.
+
+    DATA(lv_comptador) = 1.
+
+    CALL METHOD zrm_cl_documents_word=>get_container_from_guid
+      EXPORTING
+        iv_docclass  = iv_docclass
+        iv_objectid  = iv_objectid
+      IMPORTING
+        er_container = lo_container.
+
+    LOOP AT lt_qdc_crit_punt_aux ASSIGNING FIELD-SYMBOL(<fs_criteri>).
+
+      DATA(lv_codi_crit) = <fs_criteri>-z_codi_crit_punt.
+      REPLACE ALL OCCURRENCES OF '.' IN lv_codi_crit WITH '_'.
+      DATA(lv_text_dinamic) = zrm_cl_documents_word=>co_operator_return_textid && '/' && lc_text_fix && <fs_criteri>-z_mod_crit_punt && '_' && lv_codi_crit.
+      TRY.
+          CALL METHOD zrm_cl_documents=>execute_command
+            EXPORTING
+              im_script               = lv_text_dinamic
+              im_container            = lo_container
+              im_as_table             = abap_true
+              im_template_document_id = iv_template_doc_id
+              im_template_object      = is_docid
+              im_template_description = lv_text_dinamic
+            IMPORTING
+              re_result               = lo_reference.
+        CATCH zcx_rm_documents.
+          CONTINUE.
+      ENDTRY.
+
+      CHECK lo_reference IS BOUND .
+      ASSIGN lo_reference->* TO <fs_tab_string_temp>.
+      IF <fs_tab_string_temp> IS ASSIGNED.
+        LOOP AT <fs_tab_string_temp> ASSIGNING FIELD-SYMBOL(<fs_string_temp>). "#EC CI_NESTED.
+          " Accedir al component 'A' que conté el text
+          ASSIGN COMPONENT 'A' OF STRUCTURE <fs_string_temp> TO FIELD-SYMBOL(<fs_field_a>).
+          IF <fs_field_a> IS ASSIGNED AND <fs_field_a> IS NOT INITIAL.
+            REPLACE ALL OCCURRENCES OF lc_tag_comptador IN <fs_field_a> WITH CONV string( lv_comptador ).
+            IF lv_result_string IS INITIAL.
+              lv_result_string = <fs_field_a>.
+            ELSE.
+              lv_result_string = |{ lv_result_string }{ cl_abap_char_utilities=>cr_lf }{ <fs_field_a> }|.
+            ENDIF.
+            UNASSIGN <fs_field_a>.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+      ADD 1 TO lv_comptador.
+    ENDLOOP.
+
+    IF lv_result_string IS NOT INITIAL.
+      APPEND lv_result_string TO lt_string_tab.
+*      cl_demo_output=>display( lv_result_string ).
+    ENDIF.
+
+    <fs_tab_text> = lt_string_tab.
+    ro_data = lo_text_detall_crit.
+
+
+  ENDMETHOD.
+
+
+  METHOD get_formula_revisio_preus.
+    CONSTANTS: lc_si      TYPE zvrm_qdc_cap_imp-z_lots        VALUE 'S',
+               lc_form_rp TYPE zrm_dm_formul_rp-z_tipus_form VALUE 'RP'.
+
+    FIELD-SYMBOLS: <fs_data>     TYPE string,
+                   <fs_data_tab> TYPE ty_t_lot_form_rev_preus.
+    DATA: lo_lot_form_rev_preus TYPE REF TO data,
+          ls_form_rev_preus_lot TYPE zerm_qdc_form_rev_preus,
+          lo_form_rev_preus     TYPE REF TO data.
+
+    DATA(lv_lots) = iv_lots.
+
+    IF lv_lots = lc_si.
+      CREATE DATA lo_lot_form_rev_preus TYPE ty_t_lot_form_rev_preus .
+      ro_data = lo_lot_form_rev_preus .
+      ASSIGN ro_data->* TO <fs_data_tab>.
+    ELSE.
+      CREATE DATA lo_form_rev_preus TYPE string.
+      ro_data = lo_form_rev_preus .
+      ASSIGN ro_data->* TO <fs_data>.
+    ENDIF.
+
+    SELECT zz_num_lot, z_form_rev, z_formula
+      FROM zvrm_qdc_clo_imp AS a
+      INNER JOIN zrm_dm_formul_rp AS b
+      ON a~z_form_rev = b~z_codi_form
+      INTO TABLE @DATA(lt_clo_imp)
+      WHERE docclass      = @iv_docclass
+        AND objectid      = @iv_objectid
+        AND z_tipus_form  = @lc_form_rp.
+    IF sy-subrc = 0.
+
+      IF lv_lots = lc_si.
+        LOOP AT lt_clo_imp ASSIGNING FIELD-SYMBOL(<fs_clo_imp>).
+          CLEAR: ls_form_rev_preus_lot.
+          ls_form_rev_preus_lot-zz_num_lot = <fs_clo_imp>-zz_num_lot.
+          SHIFT ls_form_rev_preus_lot-zz_num_lot LEFT DELETING LEADING '0'.
+          CHECK ls_form_rev_preus_lot-zz_num_lot IS NOT INITIAL.
+          ls_form_rev_preus_lot-z_form_rp = <fs_clo_imp>-z_formula.
+          APPEND ls_form_rev_preus_lot TO <fs_data_tab>.
+        ENDLOOP.
+      ELSE.
+        READ TABLE lt_clo_imp ASSIGNING <fs_clo_imp> INDEX 1.
+        CHECK sy-subrc = 0.
+        <fs_data> = <fs_clo_imp>-z_formula.
+      ENDIF.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_generate_table_matco2.
+    CONSTANTS: lc_param_co2        TYPE zsap_dt_param_hc-field_info VALUE 'Z_EMISSIONS',
+               lc_param_co2_header TYPE zsap_dt_param_hc-field_info VALUE 'ZRM_PARAM_CO2_HDR',
+               lc_domname          TYPE dd07l-domname               VALUE 'Z_EMISSIONS',
+               lc_border           TYPE c                           VALUE '|',
+               lc_tab              TYPE c                           VALUE 'ø', "valor "espai en blanc que substituirem amb macros
+               lc_tab_size         TYPE i                           VALUE 24.
+
+
+    TYPES: BEGIN OF ty_s_row_param_co2,
+             tipus     TYPE string,       " Dièsel / Gas Natural / ...
+             mma1      TYPE stringval,
+             mma2      TYPE stringval,
+             mma3      TYPE stringval,
+             mma4      TYPE stringval,
+             tabneeded TYPE i,
+           END OF ty_s_row_param_co2.
+    TYPES ty_t_row_param_co2 TYPE STANDARD TABLE OF ty_s_row_param_co2.
+
+    TYPES: BEGIN OF ty_s_col_length,
+             num_colum TYPE i,
+             fieldname TYPE char20,
+             max_len   TYPE i,
+           END OF ty_s_col_length.
+    TYPES ty_t_col_length TYPE STANDARD TABLE OF ty_s_col_length WITH KEY num_colum.
+
+    FIELD-SYMBOLS: <fs_data>     TYPE string.
+    DATA: lo_string_table  TYPE REF TO data,
+          lv_line          TYPE string,
+          lv_header        TYPE string,
+          lv_output        TYPE string,
+          lv_field_value   TYPE string,
+          lv_field_name    TYPE string,
+          lv_tabs_needed   TYPE i,
+          lv_tabs          TYPE string,
+          lv_row           TYPE string,
+          lt_row_param_co2 TYPE ty_t_row_param_co2,
+          ls_row_param_co2 TYPE ty_s_row_param_co2,
+          lt_dd07v         TYPE STANDARD TABLE OF dd07v,
+          lt_col_lengths   TYPE ty_t_col_length,
+          ls_col_length    TYPE ty_s_col_length.
+
+    CREATE DATA lo_string_table TYPE string.
+    ro_data = lo_string_table.
+    ASSIGN ro_data->* TO <fs_data>.
+
+    SELECT value AS z_emissions                    "#EC CI_NO_TRANSFORM
+      FROM zsap_dt_param_hc
+      INTO TABLE @DATA(lt_param_emissions)
+      WHERE repid      = @gc_repid
+        AND field_info = @lc_param_co2.
+    CHECK sy-subrc = 0.
+
+    SELECT field_info2 AS num_colum, value AS hdr_column "#EC CI_NO_TRANSFORM
+      FROM zsap_dt_param_hc
+      INTO TABLE @DATA(lt_param_hdr_cols)
+      WHERE repid      = @gc_repid
+        AND field_info = @lc_param_co2_header.
+    CHECK sy-subrc = 0.
+
+    SELECT z_emissions,z_mma1,z_mma2,z_mma3,z_mma4 "#EC CI_NO_TRANSFORM
+      FROM zrm_param_co2
+      INTO TABLE @DATA(lt_param_co2)
+      FOR ALL ENTRIES IN @lt_param_emissions
+      WHERE z_emissions = @lt_param_emissions-z_emissions(4).
+    CHECK sy-subrc = 0.
+
+    CLEAR: lt_dd07v.
+    CALL FUNCTION 'GET_DOMAIN_VALUES'
+      EXPORTING
+        domname         = lc_domname
+      TABLES
+        values_tab      = lt_dd07v
+      EXCEPTIONS
+        no_values_found = 1
+        OTHERS          = 2.
+    CHECK sy-subrc = 0.
+
+    LOOP AT lt_param_co2 ASSIGNING FIELD-SYMBOL(<fs_param_co2>).
+      READ TABLE lt_dd07v INTO DATA(ls_dd07v) WITH KEY domvalue_l = <fs_param_co2>-z_emissions.
+      CHECK sy-subrc = 0.
+      ls_row_param_co2-tipus = ls_dd07v-ddtext.
+      ls_row_param_co2-mma1  = |{ <fs_param_co2>-z_mma1 }|.
+      ls_row_param_co2-mma2  = |{ <fs_param_co2>-z_mma2 }|.
+      ls_row_param_co2-mma3  = |{ <fs_param_co2>-z_mma3 }|.
+      ls_row_param_co2-mma4  = |{ <fs_param_co2>-z_mma4 }|.
+      APPEND ls_row_param_co2 TO lt_row_param_co2.
+    ENDLOOP.
+
+
+    " Inicialitzar amb les longituds de les capçaleres
+    LOOP AT lt_param_hdr_cols ASSIGNING FIELD-SYMBOL(<fs_hdr_cols>) WHERE num_colum > 0.
+      ls_col_length-num_colum = <fs_hdr_cols>-num_colum.
+      ls_col_length-max_len   = strlen( <fs_hdr_cols>-hdr_column ).
+      ls_col_length-fieldname = to_lower( <fs_hdr_cols>-hdr_column ).
+      APPEND ls_col_length TO lt_col_lengths.
+    ENDLOOP.
+
+    DESCRIBE TABLE lt_col_lengths LINES DATA(lv_num_cols).
+
+    " Comprovar longituds de les dades
+    LOOP AT lt_row_param_co2 INTO ls_row_param_co2.
+      DATA(lv_col_index) = 0.
+      DO lv_num_cols TIMES.                              "#EC CI_NESTED
+        DATA(lv_num_col_count) = sy-index.
+        READ TABLE lt_col_lengths INTO ls_col_length INDEX lv_num_col_count.
+        IF sy-subrc = 0.
+          lv_field_name = ls_col_length-fieldname.
+          ASSIGN COMPONENT lv_field_name OF STRUCTURE ls_row_param_co2 TO FIELD-SYMBOL(<fs_field_val>).
+          IF sy-subrc = 0.
+            lv_field_value = <fs_field_val>.
+            IF lv_num_col_count = 1.
+              DATA(lv_len) = strlen( lv_field_value ).
+            ELSE.
+              lv_len = strlen( lv_field_value ) + 1.
+            ENDIF.
+
+            " Actualitzar longitud màxima si cal
+            READ TABLE lt_col_lengths ASSIGNING FIELD-SYMBOL(<fs_col_len>)
+                 WITH KEY num_colum = lv_num_col_count.
+            IF sy-subrc = 0 AND lv_len > <fs_col_len>-max_len.
+              <fs_col_len>-max_len = lv_len.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDDO.
+    ENDLOOP.
+
+    " ============================================================
+    " FORMAT AMB TABULADORS per Word via OLE Links
+    " ============================================================
+* Títol
+    SORT lt_param_hdr_cols BY num_colum ASCENDING.
+    READ TABLE lt_param_hdr_cols ASSIGNING FIELD-SYMBOL(<fs_hdr_title>) INDEX 1.
+    IF sy-subrc = 0.
+      lv_line = <fs_hdr_title>-hdr_column && cl_abap_char_utilities=>newline.
+      CONCATENATE zrm_cl_documents_word=>gc_set_format_text_ini lv_output lv_line cl_abap_char_utilities=>newline INTO lv_output.
+    ENDIF.
+
+
+* Capçalera columnes
+    LOOP AT lt_param_hdr_cols ASSIGNING <fs_hdr_cols> WHERE num_colum > 0.
+      lv_header = lv_header && lc_border && <fs_hdr_cols>-hdr_column.
+      READ TABLE lt_col_lengths INTO ls_col_length
+           WITH KEY num_colum = <fs_hdr_cols>-num_colum.
+      IF sy-subrc = 0.
+        lv_tabs_needed = ls_col_length-max_len - strlen( <fs_hdr_cols>-hdr_column ).
+        lv_tabs = repeat( val = lc_tab occ = lv_tabs_needed ).
+        lv_header = lv_header && lv_tabs.
+      ENDIF.
+    ENDLOOP.
+    CONCATENATE lv_output lv_header lc_border cl_abap_char_utilities=>newline INTO lv_output.
+
+
+* Cos de la taula amb les dades
+    " Files de dades
+    LOOP AT lt_row_param_co2 ASSIGNING FIELD-SYMBOL(<fs_row_param_co2>). "INTO ls_row_param_co2.
+      ls_row_param_co2 = <fs_row_param_co2>.
+
+      lv_row = lc_border.
+      lv_col_index = 1.
+
+      LOOP AT lt_param_hdr_cols ASSIGNING <fs_hdr_cols> WHERE num_colum > 0. "#EC CI_NESTED.
+        " Obtenir valor del camp corresponent
+        CASE lv_col_index.
+          WHEN 1.
+            lv_field_value = ls_row_param_co2-tipus.
+          WHEN 2.
+            lv_field_value = ls_row_param_co2-mma1.
+          WHEN 3.
+            lv_field_value = ls_row_param_co2-mma2.
+          WHEN 4.
+            lv_field_value = ls_row_param_co2-mma3.
+          WHEN 5.
+            lv_field_value = ls_row_param_co2-mma4.
+        ENDCASE.
+
+        lv_row = lv_row && lv_field_value.
+
+        READ TABLE lt_col_lengths INTO ls_col_length
+             WITH KEY num_colum = lv_col_index.
+        IF sy-subrc = 0.
+          lv_tabs_needed = ls_col_length-max_len - strlen( lv_field_value ).
+          <fs_row_param_co2>-tabneeded = lv_tabs_needed.
+
+          lv_tabs = repeat( val = lc_tab occ = lv_tabs_needed ).
+          lv_row = lv_row && lv_tabs && lc_border.
+        ENDIF.
+
+        lv_col_index = lv_col_index + 1.
+      ENDLOOP.
+      lv_output = lv_output && lv_row && cl_abap_char_utilities=>newline.
+    ENDLOOP.
+    lv_output = lv_output && zrm_cl_documents_word=>gc_set_format_text_fin.
+
+
+
+*    cl_demo_output=>display( lv_output ).
+
+    <fs_data> = lv_output.
+
+  ENDMETHOD.
+
+
+  METHOD get_hora_pres_ofer_mes_1.
+    FIELD-SYMBOLS: <fs_data>    TYPE zrm_dt_exp_cont-z_hora_pres_ofer.
+    DATA: lv_string                 TYPE string,
+          lo_my_hora_pres_ofer_add1 TYPE REF TO data.
+
+    DATA: lv_tstamp     TYPE timestamp,
+          lv_new_tstamp TYPE timestamp,
+          lv_new_date   TYPE datum,
+          lv_new_uzeit  TYPE uzeit,
+          lv_timezone   TYPE ttzz-tzone.
+
+*    IF my_hora_pres_ofer_add1 IS BOUND .
+*      ro_data = lo_my_hora_pres_ofer_add1 .
+*      RETURN .
+*    ENDIF .
+
+    CREATE DATA lo_my_hora_pres_ofer_add1 TYPE zrm_dt_exp_cont-z_hora_pres_ofer .
+    ro_data = lo_my_hora_pres_ofer_add1 .
+    ASSIGN ro_data->* TO <fs_data> .
+
+    SELECT SINGLE z_data_pres_ofer,z_hora_pres_ofer
+      FROM zrm_dt_exp_cont
+      INTO (@DATA(lv_data_pres_ofer),@DATA(lv_hora_pres_ofer))
+      WHERE docclass = @iv_docclass
+        AND objectid = @iv_objectid.
+    IF sy-subrc = 0 AND lv_hora_pres_ofer IS NOT INITIAL.
+      lv_timezone = sy-zonlo.
+
+      CONVERT DATE lv_data_pres_ofer TIME lv_hora_pres_ofer
+       INTO TIME STAMP lv_tstamp
+       TIME ZONE lv_timezone.
+
+      lv_new_tstamp = cl_abap_tstmp=>add( tstmp = lv_tstamp
+                                          secs  = 1 ).
+      CONVERT TIME STAMP lv_new_tstamp
+       TIME ZONE lv_timezone
+       INTO DATE lv_new_date
+            TIME lv_new_uzeit.
+    ENDIF.
+    <fs_data> = lv_new_uzeit.
+  ENDMETHOD.
+
+
+  METHOD get_matco2_infjust.
+    DEFINE _format_number .
+      write &1 to lv_char80 decimals 2 left-justified . "#EC UOM_IN_MES
+      &2 = lv_char80 .
+    END-OF-DEFINITION .
+    CONSTANTS: lc_tonelades        TYPE string                      VALUE 'TN',
+               lc_km               TYPE string                      VALUE 'KM',
+               lc_param_co2_header TYPE zsap_dt_param_hc-field_info VALUE 'ZRM_PARAM_CO2_HDR',
+               lc_border           TYPE c                           VALUE '|',
+               lc_tab              TYPE c                           VALUE 'ø'. "valor "espai en blanc que substituirem amb macros
+
+    TYPES: BEGIN OF ty_s_matco2,
+*             zz_num_lot    TYPE stringval,
+             z_descrip_lot TYPE zvrm_qdc_clo_imp-z_descrip_lot,
+             z_material    TYPE zvrm_qdc_mat_imp-z_descripcio,
+             z_tonelada    TYPE stringval,
+             z_distancia   TYPE stringval,
+             tabneeded     TYPE i,
+           END OF ty_s_matco2.
+    TYPES ty_t_row_param_co2 TYPE STANDARD TABLE OF ty_s_matco2.
+
+    TYPES: BEGIN OF ty_s_col_length,
+             num_colum TYPE i,
+             fieldname TYPE char20,
+             max_len   TYPE i,
+           END OF ty_s_col_length.
+    TYPES ty_t_col_length TYPE STANDARD TABLE OF ty_s_col_length WITH KEY num_colum.
+
+    "ZVRM_QDC_MAT_IMP
+*    DATA: lt_string_tab  TYPE string_table,
+*          lo_text_matco2 TYPE REF TO data.
+*    FIELD-SYMBOLS: <fs_tab_text>        TYPE string_table,
+*                   <fs_tab_string_temp> TYPE ANY TABLE.
+    FIELD-SYMBOLS: <fs_data>     TYPE string.
+    DATA: lo_string_table  TYPE REF TO data.
+
+    DATA: lo_reference     TYPE REF TO data,
+          lo_container     TYPE REF TO zrm_cl_container,
+          lt_matco2        TYPE TABLE OF ty_s_matco2,
+          ls_matco2        TYPE ty_s_matco2,
+          lv_string_aux    TYPE string,
+*          lv_result_string TYPE string,
+          lv_output        TYPE string,
+          lv_distancia     TYPE string,
+          lv_tonelada      TYPE string,
+          lv_char80        TYPE char80,
+          lv_header        TYPE string,
+          lv_tabs          TYPE string,
+          lv_row           TYPE string,
+          lv_tabs_needed   TYPE i,
+          lv_field_value   TYPE string,
+          lv_field_name    TYPE string,
+          ls_row_param_co2 TYPE ty_s_matco2,
+          lt_col_lengths   TYPE ty_t_col_length,
+          ls_col_length    TYPE ty_s_col_length..
+
+*    CREATE DATA lo_text_matco2 TYPE string_table.
+*    ro_data = lo_text_matco2 .
+*    ASSIGN lo_text_matco2->* TO <fs_tab_text> .
+    CREATE DATA lo_string_table TYPE string.
+    ro_data = lo_string_table.
+    ASSIGN ro_data->* TO <fs_data>.
+
+    SELECT field_info2 AS num_colum, value AS hdr_column "#EC CI_NO_TRANSFORM
+      FROM zsap_dt_param_hc
+      INTO TABLE @DATA(lt_param_hdr_cols) "capçalera de les columnes
+      WHERE repid      = @gc_repid
+        AND field_info = @lc_param_co2_header.
+    CHECK sy-subrc = 0.
+
+    SELECT DISTINCT a~zz_num_lot,
+           b~z_descrip_lot,
+           a~z_codi_mat,
+           a~z_descripcio,
+           SUM( a~z_tonelada ) AS z_tonelada,
+           MAX( a~z_distancia ) AS z_distancia
+      FROM zvrm_qdc_mat_imp AS a
+      INNER JOIN zvrm_qdc_clo_imp AS b
+        ON a~z_codi_qdc = b~z_codi_qdc AND
+           a~zz_num_lot = b~zz_num_lot
+      INTO TABLE @DATA(lt_matco2_temp)
+      WHERE b~docclass = @iv_docclass
+        AND b~objectid = @iv_objectid
+      GROUP BY a~zz_num_lot,
+               b~z_descrip_lot,
+               a~z_codi_mat,
+               a~z_descripcio.
+    CHECK sy-subrc = 0.
+
+    LOOP AT lt_matco2_temp ASSIGNING FIELD-SYMBOL(<fs_matco2_temp>).
+      CLEAR: ls_matco2, lv_tonelada, lv_distancia.
+      ls_matco2-z_material    = <fs_matco2_temp>-z_descripcio.
+      IF <fs_matco2_temp>-zz_num_lot IS NOT INITIAL.
+        DATA(lv_has_lots) = abap_true.
+        ls_matco2-z_descrip_lot =  | { <fs_matco2_temp>-z_descrip_lot } |.
+      ENDIF.
+*      ls_matco2-z_descrip_lot = <fs_matco2_temp>-z_descrip_lot.
+*      ls_matco2-zz_num_lot    = <fs_matco2_temp>-zz_num_lot.
+*      SHIFT ls_matco2-zz_num_lot LEFT DELETING LEADING '0'.
+      _format_number: <fs_matco2_temp>-z_tonelada  lv_tonelada,
+                      <fs_matco2_temp>-z_distancia lv_distancia.
+      ls_matco2-z_tonelada  = | { '(' } { lv_tonelada } { lc_tonelades } { ')' } |.
+      ls_matco2-z_distancia = | { '(' } { lv_distancia } { lc_km } { ')' } |.
+
+      APPEND ls_matco2 TO lt_matco2.
+    ENDLOOP.
+
+    " Inicialitzar amb les longituds de les capçaleres
+    IF lv_has_lots = abap_false.
+      DELETE lt_param_hdr_cols WHERE num_colum = 1.
+    ENDIF.
+    LOOP AT lt_param_hdr_cols ASSIGNING FIELD-SYMBOL(<fs_hdr_cols>) WHERE num_colum > 0.
+      ls_col_length-num_colum = <fs_hdr_cols>-num_colum.
+      ls_col_length-max_len   = strlen( <fs_hdr_cols>-hdr_column ).
+      ls_col_length-fieldname = to_lower( <fs_hdr_cols>-hdr_column ).
+      APPEND ls_col_length TO lt_col_lengths.
+    ENDLOOP.
+
+    DESCRIBE TABLE lt_col_lengths LINES DATA(lv_num_cols).
+    " Comprovar longituds de les dades
+    LOOP AT lt_matco2 INTO ls_row_param_co2.
+      DATA(lv_col_index) = 0.
+      DO lv_num_cols TIMES.                              "#EC CI_NESTED
+        DATA(lv_num_col_count) = sy-index.
+        READ TABLE lt_col_lengths INTO ls_col_length INDEX lv_num_col_count.
+        IF sy-subrc = 0.
+          lv_field_name = ls_col_length-fieldname.
+          ASSIGN COMPONENT lv_field_name OF STRUCTURE ls_row_param_co2 TO FIELD-SYMBOL(<fs_field_val>).
+          IF sy-subrc = 0.
+            lv_field_value = <fs_field_val>.
+            IF lv_num_col_count = 1.
+              DATA(lv_len) = strlen( lv_field_value ).
+            ELSE.
+              lv_len = strlen( lv_field_value ) + 1.
+            ENDIF.
+
+            " Actualitzar longitud màxima si cal
+            READ TABLE lt_col_lengths ASSIGNING FIELD-SYMBOL(<fs_col_len>)
+                 WITH KEY num_colum = lv_num_col_count.
+            IF sy-subrc = 0 AND lv_len > <fs_col_len>-max_len.
+              <fs_col_len>-max_len = lv_len.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDDO.
+    ENDLOOP.
+
+    " ============================================================
+    " FORMAT AMB TABULADORS per Word via OLE Links
+    " ============================================================
+    CLEAR: lv_output.
+    CONCATENATE zrm_cl_documents_word=>gc_set_format_text_ini cl_abap_char_utilities=>newline INTO lv_output.
+
+* Capçalera columnes
+    LOOP AT lt_param_hdr_cols ASSIGNING <fs_hdr_cols> WHERE num_colum > 0.
+      lv_header = lv_header && lc_border && <fs_hdr_cols>-hdr_column.
+      READ TABLE lt_col_lengths INTO ls_col_length
+           WITH KEY num_colum = <fs_hdr_cols>-num_colum.
+      IF sy-subrc = 0.
+        lv_tabs_needed  = ls_col_length-max_len - strlen( <fs_hdr_cols>-hdr_column ).
+        lv_tabs         = repeat( val = lc_tab occ = lv_tabs_needed ).
+        lv_header       = lv_header && lv_tabs.
+      ENDIF.
+    ENDLOOP.
+    CONCATENATE lv_output lv_header lc_border cl_abap_char_utilities=>newline INTO lv_output.
+
+* Cos de la taula amb les dades
+    " Files de dades
+    LOOP AT lt_matco2 ASSIGNING FIELD-SYMBOL(<fs_row_param_co2>).
+      ls_row_param_co2 = <fs_row_param_co2>.
+
+      lv_row        = lc_border.
+      lv_col_index  = 1.
+
+      LOOP AT lt_param_hdr_cols ASSIGNING <fs_hdr_cols> WHERE num_colum > 0. "#EC CI_NESTED.
+        " Obtenir valor del camp corresponent
+        IF lv_has_lots = abap_true.
+          CASE lv_col_index.
+            WHEN 1.
+              lv_field_value = ls_row_param_co2-z_descrip_lot.
+            WHEN 2.
+              lv_field_value = ls_row_param_co2-z_material.
+            WHEN 3.
+              lv_field_value = ls_row_param_co2-z_tonelada.
+            WHEN 4.
+              lv_field_value = ls_row_param_co2-z_distancia.
+          ENDCASE.
+        ELSE.
+          CASE lv_col_index.
+            WHEN 1.
+              lv_field_value = ls_row_param_co2-z_material.
+            WHEN 2.
+              lv_field_value = ls_row_param_co2-z_tonelada.
+            WHEN 3.
+              lv_field_value = ls_row_param_co2-z_distancia.
+          ENDCASE.
+        ENDIF.
+
+        lv_row = lv_row && lv_field_value.
+
+        READ TABLE lt_col_lengths INTO ls_col_length
+             WITH KEY num_colum = lv_col_index.
+        IF sy-subrc = 0.
+          lv_tabs_needed = ls_col_length-max_len - strlen( lv_field_value ).
+          <fs_row_param_co2>-tabneeded = lv_tabs_needed.
+
+          lv_tabs = repeat( val = lc_tab occ = lv_tabs_needed ).
+          lv_row = lv_row && lv_tabs && lc_border.
+        ENDIF.
+
+        lv_col_index = lv_col_index + 1.
+      ENDLOOP.
+      lv_output = lv_output && lv_row && cl_abap_char_utilities=>newline.
+    ENDLOOP.
+    lv_output = lv_output && zrm_cl_documents_word=>gc_set_format_text_fin.
+    cl_demo_output=>display( lv_output ).
+
+    <fs_data> = lv_output.
+
+
+***********************************************************************************
+*    LOOP AT lt_matco2 ASSIGNING FIELD-SYMBOL(<fs_matco2>).
+*      ls_matco2 = <fs_matco2>.
+*      AT NEW zz_num_lot.
+*        IF ls_matco2-zz_num_lot IS NOT INITIAL.
+*          DATA(lv_titol_lot) = | { zrm_cl_documents_word=>gc_set_bold_text_ini } { ls_matco2-z_descrip_lot } { zrm_cl_documents_word=>gc_set_bold_text_fin } { cl_abap_char_utilities=>cr_lf }|.
+*          IF lv_result_string IS INITIAL.
+*            lv_result_string = | { lv_titol_lot }|.
+*          ELSE.
+*            "Si ja hi ha text, fem dos salts de línia per separar entre lots
+*            lv_result_string = |{ lv_result_string }{ cl_abap_char_utilities=>cr_lf } { cl_abap_char_utilities=>cr_lf } { lv_titol_lot }|.
+*          ENDIF.
+*        ENDIF.
+*      ENDAT.
+*      "Vfcdc   ( 800,00 TN )    ( 600,00 KM )
+*      "Formigó ( 16.994,39 TN ) ( 150 KM )
+*
+*      DATA(lv_material)  = ls_matco2-z_material.
+*      DATA(lv_tonelada)  = | { '(' } { ls_matco2-z_tonelada } { lc_tonelades } { ')' } |.
+*      DATA(lv_distancia) = | { '(' } { ls_matco2-z_distancia } { lc_km } { ')' } |.
+*      DATA(lv_temp) = | { lv_material } { lv_tonelada } { lv_distancia } { cl_abap_char_utilities=>cr_lf } |.
+*      CONDENSE lv_temp.
+*      IF lv_result_string IS INITIAL.
+*        lv_result_string = lv_temp .
+*      ELSE.
+*        lv_result_string = |{ lv_result_string }{ lv_temp }|.
+*        CONDENSE lv_result_string.
+*      ENDIF.
+*
+*    ENDLOOP.
+
+
+
+*    IF lv_result_string IS NOT INITIAL.
+*      APPEND lv_result_string TO lt_string_tab.
+*    ENDIF.
+
+*    <fs_tab_text> = lt_string_tab.
+*    ro_data = lo_text_matco2.
+
+
+  ENDMETHOD.
+
+
+  METHOD get_perc_iva_qdc.
+
+    FIELD-SYMBOLS: <fs_data>    TYPE rtax1u15-wmwst.
+    DATA: lo_value_conversion TYPE REF TO zrm_cl_value_conversion,
+          lo_perc_iva         TYPE REF TO data.
+
+    CREATE DATA lo_perc_iva TYPE rtax1u15-wmwst.
+    ro_data = lo_perc_iva .
+    ASSIGN ro_data->* TO <fs_data>.
+
+    SELECT SINGLE a~bukrs, b~mwskz "#EC CI_NOORDER
+      FROM zvrm_qdc_cap_imp AS a
+      INNER JOIN zvrm_qdc_po_imp AS b
+      ON ( a~docclass   = b~docclass AND
+           a~objectid   = b~objectid AND
+           a~z_codi_qdc = b~z_codi_qdc )
+      INTO (@DATA(lv_bukrs),@DATA(lv_mwskz))
+      WHERE a~docclass = @iv_docclass
+        AND a~objectid = @iv_objectid.
+    CHECK sy-subrc = 0.
+
+    CREATE OBJECT lo_value_conversion
+      EXPORTING
+        tax_code = lv_mwskz
+        company  = lv_bukrs.
+    CHECK lo_value_conversion IS BOUND.
+    <fs_data> = lo_value_conversion->get_iva( ).
+
+
+  ENDMETHOD.
+
+
+  METHOD get_qdc_crit_punt.
+    DEFINE _format_number .
+      write &1 to lv_char80 decimals 2 left-justified . "#EC UOM_IN_MES
+      &2 = lv_char80 .
+    END-OF-DEFINITION .
+    DEFINE _format_no_decim.
+      write &1 to lv_char80 decimals 0 left-justified.  "#EC UOM_IN_MES
+      &2 = lv_char80 .
+    END-OF-DEFINITION.
+
+    CONSTANTS: lc_pmax           TYPE string                      VALUE '[PMAX]',
+               lc_total_criteris TYPE string                      VALUE '[TOTAL_CRITERIS]',
+               lc_punts          TYPE string                      VALUE 'punts',
+               lc_crit_tec       TYPE zsap_dt_param_hc-value3     VALUE 'T',
+               lc_crit_obj       TYPE zsap_dt_param_hc-value3     VALUE 'O',
+               lc_crit_punt      TYPE zsap_dt_param_hc-value2     VALUE 'Z_CODI_CRIT_PUNT',
+               lc_punt_max       TYPE zsap_dt_param_hc-value4     VALUE 'Z_PUNT_MAX',
+               lc_text_modcrit   TYPE zsap_dt_param_hc-field_info VALUE 'Z_MOD_CRIT_PUNT'.
+
+    TYPES: ty_t_qdc_crit_punt TYPE TABLE OF zerm_dm_crit_punt.
+
+    DATA: lt_qdc_crit_punt  TYPE ty_t_qdc_crit_punt,
+          ls_linia_ajust    TYPE zerm_dm_crit_punt,
+          ls_qdc_crit_punt  TYPE zerm_dm_crit_punt,
+          lv_tipus_crit     TYPE zsap_dt_param_hc-value3,
+          lv_punt_max       TYPE string,
+          lv_punt_crit_max  TYPE string,
+          lv_punts_no_dec   TYPE string,
+          lv_punts_total_q2 TYPE zrm_dm_crit_punt-z_punt_max,
+          lv_punts_total_q3 TYPE zrm_dm_crit_punt-z_punt_max,
+          lo_crit_punt      TYPE REF TO data,
+          lv_char80         TYPE char80.
+
+    FIELD-SYMBOLS: <fs_qdc_crit_punt> TYPE ty_t_qdc_crit_punt,
+                   <fs_data>          TYPE REF TO data.
+
+    ASSIGN lo_crit_punt TO <fs_data>.
+    CREATE DATA <fs_data> TYPE ty_t_qdc_crit_punt.
+    ASSIGN <fs_data>->* TO <fs_qdc_crit_punt>.
+
+    <fs_qdc_crit_punt> = lt_qdc_crit_punt.
+
+    ro_data = <fs_data>.
+
+    SELECT SINGLE a~z_mod_crit_punt,a~z_descripcio,a~z_no_mostra_ajust_q3 "#EC CI_NOORDER
+      FROM zrm_dm_mod_crit AS a
+      INNER JOIN zvrm_qdc_cap_imp AS b
+      ON a~z_mod_crit_punt = b~z_mod_crit_punt
+      INTO @DATA(ls_dm_mod_crit)
+      WHERE b~docclass = @iv_docclass
+        AND b~objectid = @iv_objectid.
+    CHECK sy-subrc = 0.
+
+    SELECT z_mod_crit_punt, z_codi_crit_punt,z_descripcio, z_punt_min, z_punt_max,
+           z_nivell_criteri,z_crit_ve,z_sumatori,z_crit_q2,z_crit_q3
+      FROM zrm_dm_crit_punt
+      INTO TABLE @DATA(lt_qdc_crit_punt_aux)
+      WHERE z_mod_crit_punt = @ls_dm_mod_crit-z_mod_crit_punt.
+    CHECK sy-subrc = 0.
+
+    SELECT value2, value3, value4
+      FROM zsap_dt_param_hc
+      INTO TABLE @DATA(lt_param_hc)
+      WHERE repid      = @gc_repid
+        AND field_info = @lc_text_modcrit
+        AND value      = @ls_dm_mod_crit-z_mod_crit_punt.
+    CHECK sy-subrc = 0.
+
+
+    SORT lt_qdc_crit_punt_aux BY z_codi_crit_punt z_nivell_criteri.
+    READ TABLE lt_param_hc ASSIGNING FIELD-SYMBOL(<fs_param_crit_1>) WITH KEY value2 = lc_crit_punt
+                                                                              value4 = lc_punt_max.
+    IF sy-subrc = 0.
+      DATA(lv_codi_crit_max) = <fs_param_crit_1>-value3.
+      READ TABLE lt_qdc_crit_punt_aux ASSIGNING FIELD-SYMBOL(<fs_crit_punt_crit_max>) WITH KEY z_codi_crit_punt = lv_codi_crit_max.
+      IF sy-subrc = 0.
+        _format_no_decim: <fs_crit_punt_crit_max>-z_punt_max lv_punt_crit_max.
+      ENDIF.
+    ENDIF.
+
+    DATA(lv_comptador) = 1.
+    LOOP AT lt_qdc_crit_punt_aux ASSIGNING FIELD-SYMBOL(<fs_crit_punt>).
+      CLEAR: ls_qdc_crit_punt, lv_punt_max.
+
+
+      IF <fs_crit_punt>-z_nivell_criteri > 1.
+        "Només volem els criteris d'un determinat nivell, segons PARAM_HC
+        IF <fs_crit_punt>-z_crit_q2 = abap_on.
+          lv_tipus_crit = lc_crit_tec.
+        ENDIF.
+        IF <fs_crit_punt>-z_crit_q3 = abap_on.
+          lv_tipus_crit = lc_crit_obj.
+        ENDIF.
+
+        READ TABLE lt_param_hc ASSIGNING FIELD-SYMBOL(<fs_param_hc>) WITH KEY value3 = lv_tipus_crit.
+        IF sy-subrc = 0.
+          CHECK <fs_crit_punt>-z_nivell_criteri = <fs_param_hc>-value4.
+        ENDIF.
+      ENDIF.
+
+      MOVE-CORRESPONDING <fs_crit_punt> TO ls_qdc_crit_punt.
+
+      "Format a 2 decimals de la puntuació
+      CLEAR: ls_qdc_crit_punt-z_punt_max.
+      _format_number: <fs_crit_punt>-z_punt_max   lv_punt_max.
+      CONCATENATE lv_punt_max lc_punts INTO ls_qdc_crit_punt-z_punt_max SEPARATED BY space.
+
+      "Descripció amb text "punts" al final
+      CLEAR: ls_qdc_crit_punt-z_descripcio.
+      ls_qdc_crit_punt-z_descripcio = lv_comptador && '.' && <fs_crit_punt>-z_descripcio.
+      ADD 1 TO lv_comptador.
+
+      "Criteri capçalera
+      IF <fs_crit_punt>-z_nivell_criteri = 1.
+        lv_comptador = 1.
+        CLEAR: ls_qdc_crit_punt-z_descripcio.
+        IF ls_qdc_crit_punt-z_crit_q2 = abap_on.
+          "Primer afegim la línia d'ajust dels criteris anteriors, Q3
+          "Línia ajust
+          CLEAR: ls_linia_ajust.
+          TRY.
+              ls_linia_ajust-z_descripcio = zrm_cl_documents=>get_docu_as_string( 'ZTEXT_IJ_PMAX' ).
+            CATCH zcx_rm_documents.
+              CLEAR: ls_linia_ajust-z_descripcio.
+          ENDTRY.
+          lv_punts_no_dec = lv_punts_total_q3.
+          CLEAR: lv_punts_no_dec.
+          _format_no_decim: lv_punts_total_q3 lv_punts_no_dec.
+
+*          REPLACE lc_total_criteris IN ls_linia_ajust-z_descripcio WITH lv_punts_no_dec.
+*          REPLACE lc_pmax           IN ls_linia_ajust-z_descripcio WITH lv_punt_crit_max. "lv_punts_no_dec.
+          REPLACE lc_pmax           IN ls_linia_ajust-z_descripcio WITH lv_punts_no_dec.
+
+*[PMAX]= Suma de la puntuació màxima de tots el criteris d'aplicació
+*[TOTAL_CRITERIS] = Suma de la puntuació màxima del total de criteris de puntuació
+
+          APPEND ls_linia_ajust TO lt_qdc_crit_punt.
+          TRY.
+              ls_qdc_crit_punt-z_descripcio = zrm_cl_documents=>get_docu_as_string( 'ZTEXT_IJ_CRITERIS_TEC_CAP' ).
+            CATCH zcx_rm_documents.
+              CLEAR: ls_qdc_crit_punt-z_descripcio.
+          ENDTRY.
+          lv_punts_total_q2 = <fs_crit_punt>-z_punt_max.
+        ELSEIF ls_qdc_crit_punt-z_crit_q3 = abap_on.
+          TRY.
+              ls_qdc_crit_punt-z_descripcio = zrm_cl_documents=>get_docu_as_string( 'ZTEXT_IJ_CRITERIS_OBJ_CAP' ).
+            CATCH zcx_rm_documents.
+              CLEAR: ls_qdc_crit_punt-z_descripcio.
+          ENDTRY.
+          lv_punts_total_q3 = <fs_crit_punt>-z_punt_max.
+        ENDIF.
+      ENDIF.
+      APPEND ls_qdc_crit_punt TO lt_qdc_crit_punt.
+    ENDLOOP.
+
+    "Afegim línia TOTAL
+    CLEAR: ls_qdc_crit_punt.
+    TRY.
+        ls_qdc_crit_punt-z_descripcio = zrm_cl_documents=>get_docu_as_string( 'ZTEXT_IJ_PUNTUACIO_TOTAL' ).
+      CATCH zcx_rm_documents.
+        CLEAR: ls_qdc_crit_punt-z_descripcio.
+    ENDTRY.
+    DATA(lv_total) = lv_punts_total_q2 + lv_punts_total_q3.
+    _format_number: lv_total  lv_punt_max.
+    CONCATENATE lv_punt_max lc_punts INTO ls_qdc_crit_punt-z_punt_max SEPARATED BY space.
+    APPEND ls_qdc_crit_punt TO lt_qdc_crit_punt.
+
+    <fs_qdc_crit_punt> = lt_qdc_crit_punt.
+
+  ENDMETHOD.
+
+
+  METHOD get_tab_presup_lots.
+    DEFINE _format_number .
+      write &1 to lv_char80 decimals 2 left-justified . "#EC UOM_IN_MES
+      &2 = lv_char80 .
+    END-OF-DEFINITION .
+
+    CONSTANTS: lc_total       TYPE string VALUE 'TOTAL',
+               lc_lot_initial TYPE zvrm_qdc_clo_imp-zz_num_lot VALUE '000'.
+
+    TYPES: BEGIN OF ty_s_pres_lots_aux,
+             zz_num_lot    TYPE  zrms_de_numlot,
+             z_descrip_lot TYPE  z_descrip_lot,
+             import_base   TYPE  z_import_imp,
+             iva           TYPE  z_import_imp,
+             import_total  TYPE  z_import_impb,
+           END OF ty_s_pres_lots_aux.
+
+    DATA: lt_quadre_lots     TYPE ty_t_pres_lots,
+          lt_quadre_lots_aux TYPE TABLE OF ty_s_pres_lots_aux,
+          ls_quadre_lots_aux TYPE ty_s_pres_lots_aux,
+          ls_quadre_lots     TYPE zerm_qdc_tab_presup_lots,
+          lo_desglos_import  TYPE REF TO data,
+          lv_char80          TYPE char80.
+
+    FIELD-SYMBOLS: <fs_quadre_lots> TYPE ty_t_pres_lots,
+                   <fs_cached>      TYPE REF TO data.
+
+    ASSIGN lo_desglos_import TO <fs_cached>.
+    CREATE DATA <fs_cached> TYPE ty_t_pres_lots.
+    ASSIGN <fs_cached>->* TO <fs_quadre_lots>.
+
+    <fs_quadre_lots> = lt_quadre_lots.
+
+    SELECT a~zz_num_lot                         AS zz_num_lot,
+           a~z_descrip_lot                      AS z_descrip_lot,
+       SUM( b~z_import_imp_b )                  AS import_base,
+       SUM( b~z_import_imp - b~z_import_imp_b ) AS iva,
+       SUM( b~z_import_imp )                    AS import_total
+      FROM zvrm_qdc_clo_imp AS a
+      INNER JOIN zvrm_qdc_po_imp AS b
+      ON ( a~docclass = b~docclass      AND
+           a~objectid = b~objectid      AND
+           a~z_codi_qdc = b~z_codi_qdc  AND
+           a~zz_num_lot = b~zz_num_lot )
+      INTO TABLE @lt_quadre_lots_aux
+      WHERE a~docclass    = @iv_docclass
+        AND a~objectid    = @iv_objectid
+        AND a~zz_num_lot <> @lc_lot_initial
+      GROUP BY a~zz_num_lot,z_descrip_lot.
+    IF sy-subrc = 0.
+*     Afegir la línia TOTAL
+      DATA(ls_total) = VALUE zerm_qdc_tab_presup_lots(
+        zz_num_lot    = space
+        z_descrip_lot = lc_total
+        import_base   = REDUCE #( INIT i = 0 FOR ls IN lt_quadre_lots_aux NEXT i = i + ls-import_base )
+        iva           = REDUCE #( INIT i = 0 FOR ls IN lt_quadre_lots_aux NEXT i = i + ls-iva )
+        import_total  = REDUCE #( INIT i = 0 FOR ls IN lt_quadre_lots_aux NEXT i = i + ls-import_total )
+      ).
+      MOVE-CORRESPONDING ls_total TO ls_quadre_lots_aux.
+      APPEND ls_quadre_lots_aux TO lt_quadre_lots_aux.
+
+      LOOP AT lt_quadre_lots_aux ASSIGNING FIELD-SYMBOL(<fs_quadre_aux>).
+        CLEAR: ls_quadre_lots.
+        ls_quadre_lots-zz_num_lot     = <fs_quadre_aux>-zz_num_lot.
+        ls_quadre_lots-z_descrip_lot  = <fs_quadre_aux>-z_descrip_lot.
+        SHIFT ls_quadre_lots-zz_num_lot LEFT DELETING LEADING '0'.
+        _format_number: <fs_quadre_aux>-import_base   ls_quadre_lots-import_base,
+                        <fs_quadre_aux>-iva           ls_quadre_lots-iva,
+                        <fs_quadre_aux>-import_total  ls_quadre_lots-import_total.
+        ls_quadre_lots-import_base    = |{ ls_quadre_lots-import_base } { gc_simbol_euro }|.
+        ls_quadre_lots-iva            = |{ ls_quadre_lots-iva } { gc_simbol_euro }|.
+        ls_quadre_lots-import_total   = |{ ls_quadre_lots-import_total } { gc_simbol_euro }|.
+        APPEND ls_quadre_lots TO lt_quadre_lots.
+      ENDLOOP.
+    ENDIF.
+    <fs_quadre_lots> = lt_quadre_lots.
+
+    ro_data = <fs_cached>.
+
+  ENDMETHOD.
+
+
+  METHOD get_tab_qdc_vec.
+    DEFINE _format_number .
+      write &1 to lv_char80 decimals 2 left-justified . "#EC UOM_IN_MES
+      &2 = lv_char80 .
+    END-OF-DEFINITION .
+
+    CONSTANTS: lc_total TYPE string VALUE 'TOTAL',
+               lc_si    TYPE zvrm_qdc_cap_imp-z_modif VALUE 'S'.
+
+    TYPES: BEGIN OF ty_s_qdc_vec_temp,
+             zz_num_lot     TYPE  stringval,
+             z_import_imp_b TYPE  z_import_imp_b,
+             z_perc_mp      TYPE  z_perc_mp,
+             z_import_lot_b TYPE  z_import_lot_b,
+           END OF ty_s_qdc_vec_temp.
+
+    DATA: lt_quadre     TYPE ty_t_qdc_vec,
+          lt_quadre_aux TYPE TABLE OF ty_s_qdc_vec_temp,
+          ls_quadre_aux TYPE ty_s_qdc_vec_temp,
+          ls_quadre     TYPE zerm_qdc_tab_qdc_vec,
+          lo_my_quadre  TYPE REF TO data,
+          lv_char80     TYPE char80.
+
+    FIELD-SYMBOLS: <fs_quadre> TYPE ty_t_qdc_vec,
+                   <fs_cached> TYPE REF TO data.
+
+    ASSIGN lo_my_quadre TO <fs_cached>.
+    CREATE DATA <fs_cached> TYPE ty_t_qdc_vec.
+    ASSIGN <fs_cached>->* TO <fs_quadre>.
+
+    <fs_quadre> = lt_quadre.
+
+    ro_data = <fs_cached>.
+
+    "Si lot informat, indica que només s'ha de mostrar quan té lots
+    SELECT SINGLE z_lots  "#EC CI_NOORDER
+      FROM zvrm_qdc_cap_imp
+    INTO @DATA(lv_lots)
+    WHERE docclass = @iv_docclass
+      AND objectid = @iv_objectid.
+    CHECK lv_lots = iv_lot.
+    CHECK sy-subrc = 0.
+
+    SELECT SINGLE z_modif "#EC CI_NOORDER
+      FROM zvrm_qdc_cap_imp
+      INTO @DATA(lv_modif)
+      WHERE docclass = @iv_docclass
+        AND objectid = @iv_objectid.
+    CHECK sy-subrc = 0.
+
+    CHECK lv_modif = lc_si.
+
+    SELECT a~zz_num_lot         AS zz_num_lot,
+       SUM( b~z_import_imp_b )  AS z_import_imp_b,
+       SUM( a~z_perc_mp )       AS z_perc_mp,
+       SUM( a~z_import_lot_b )  AS z_import_lot_b
+      FROM zvrm_qdc_clo_imp AS a
+      INNER JOIN zvrm_qdc_po_imp AS b
+      ON ( a~docclass = b~docclass      AND
+           a~objectid = b~objectid      AND
+           a~z_codi_qdc = b~z_codi_qdc  AND
+           a~zz_num_lot = b~zz_num_lot  )
+      INTO TABLE @lt_quadre_aux
+      WHERE a~docclass    = @iv_docclass
+        AND a~objectid    = @iv_objectid
+      GROUP BY a~zz_num_lot.
+    CHECK sy-subrc = 0.
+
+
+    DESCRIBE TABLE lt_quadre_aux LINES DATA(lv_num_reg).
+    IF lv_num_reg > 1.
+*   "Afegir la línia TOTAL
+      DATA(ls_total) = VALUE zerm_qdc_tab_qdc_vec(
+        zz_num_lot      = lc_total
+        z_import_imp_b  = REDUCE #( INIT i = 0 FOR ls IN lt_quadre_aux NEXT i = i + ls-z_import_imp_b )
+        z_perc_mp       = REDUCE #( INIT i = 0 FOR ls IN lt_quadre_aux NEXT i = i + ls-z_perc_mp )
+        z_import_lot_b  = REDUCE #( INIT i = 0 FOR ls IN lt_quadre_aux NEXT i = i + ls-z_import_lot_b )
+      ).
+      MOVE-CORRESPONDING ls_total TO ls_quadre_aux.
+      APPEND ls_quadre_aux TO lt_quadre_aux.
+    ENDIF.
+
+    LOOP AT lt_quadre_aux ASSIGNING FIELD-SYMBOL(<fs_quadre_aux>).
+      CLEAR: ls_quadre.
+      ls_quadre-zz_num_lot = <fs_quadre_aux>-zz_num_lot.
+      SHIFT ls_quadre-zz_num_lot LEFT DELETING LEADING '0'.
+      _format_number: <fs_quadre_aux>-z_import_imp_b  ls_quadre-z_import_imp_b,
+                      <fs_quadre_aux>-z_perc_mp       ls_quadre-z_perc_mp,
+                      <fs_quadre_aux>-z_import_lot_b  ls_quadre-z_import_lot_b.
+      ls_quadre-z_import_imp_b = |{ ls_quadre-z_import_imp_b } { gc_simbol_euro }|.
+      ls_quadre-z_import_lot_b = |{ ls_quadre-z_import_lot_b } { gc_simbol_euro }|.
+      ls_quadre-z_perc_mp      = |{ ls_quadre-z_perc_mp } { gc_simbol_perc }|.
+      APPEND ls_quadre TO lt_quadre.
+    ENDLOOP.
+
+
+    <fs_quadre> = lt_quadre.
+
+
+  ENDMETHOD.
+
+
+  METHOD get_textid_import_lots.
+
+    CONSTANTS: lc_import_llindar TYPE z_pres_licit_b          VALUE '500000',
+               lc_lots_si        TYPE zvrm_qdc_cap_imp-z_lots VALUE 'S'.
+
+    FIELD-SYMBOLS: <fs_data>    TYPE string.
+    DATA: lv_string        TYPE string,
+          lo_text_imp_lots TYPE REF TO data.
+
+
+*    IF my_text_imp_lots IS BOUND .
+*      ro_data = my_text_imp_lots .
+*      RETURN .
+*    ENDIF .
+
+    CREATE DATA lo_text_imp_lots TYPE string .
+    ro_data = lo_text_imp_lots .
+    ASSIGN ro_data->* TO <fs_data> .
+
+*ZTEXT_PLEC_AP_LOTS_EG_500000 text per equal o greater
+*ZTEXT_PLEC_AP_LOTS_LT_500000 text per less than
+*ZTEXT_PLEC_AP_LOTS_MI_500000 text per alguns greater y altrs less
+
+    "Recuperem els lots, si no hi ha lots, sortim
+    SELECT SINGLE z_exp_hdr, z_codi_exp
+      FROM zrm_dt_exp_cont
+      INTO (@DATA(lv_exp_hdr),@DATA(lv_codi_exp_hdr))
+      WHERE docclass = @iv_docclass
+        AND objectid = @iv_objectid.
+    IF sy-subrc <> 0.
+      "Mirem si estem al impuls del QDC, si no es així si que sortim
+*      SELECT COUNT(*)
+      SELECT z_codi_qdc
+        UP TO 1 ROWS
+        FROM zvrm_qdc_cap_imp
+        INTO @DATA(lv_lots_qdc_imp)
+        WHERE docclass = @iv_docclass
+          AND objectid = @iv_objectid
+          AND z_lots   = @lc_lots_si.
+      ENDSELECT.
+      CHECK sy-subrc = 0.
+    ENDIF.
+
+    IF lv_lots_qdc_imp IS INITIAL.
+      SELECT objectid, z_codi_exp, z_exp_lot_num, z_pres_licit_b, z_pressup_licit, z_val_est_cont_b, z_valor_est_cont
+        FROM zrm_dt_exp_cont
+        INTO TABLE @DATA(lt_lots)
+        WHERE z_exp_hdr_code = @lv_codi_exp_hdr.
+      CHECK sy-subrc = 0.
+
+      DESCRIBE TABLE lt_lots LINES DATA(lv_regs).
+      DATA(lv_count_ge) = 0.
+      DATA(lv_count_lt) = 0.
+      LOOP AT lt_lots TRANSPORTING NO FIELDS WHERE z_pres_licit_b >= lc_import_llindar.
+        ADD 1 TO lv_count_ge.
+      ENDLOOP.
+      LOOP AT lt_lots TRANSPORTING NO FIELDS WHERE z_pres_licit_b < lc_import_llindar.
+        ADD 1 TO lv_count_lt.
+      ENDLOOP.
+
+    ELSE.
+      SELECT zz_num_lot             AS zz_num_lot,
+             SUM( z_import_imp )    AS z_import_imp,
+             SUM( z_import_imp_b )  AS z_import_imp_b,
+             SUM( z_import_pef )    AS z_import_pef
+        FROM zvrm_qdc_po_imp
+        INTO TABLE @DATA(lt_qdc_po_imp)
+        WHERE docclass = @iv_docclass
+          AND objectid = @iv_objectid
+        GROUP BY zz_num_lot.
+      CHECK sy-subrc = 0.
+
+      DESCRIBE TABLE lt_qdc_po_imp LINES lv_regs.
+      lv_count_ge = 0.
+      lv_count_lt = 0.
+      LOOP AT lt_qdc_po_imp TRANSPORTING NO FIELDS WHERE z_import_imp_b >= lc_import_llindar.
+        ADD 1 TO lv_count_ge.
+      ENDLOOP.
+      LOOP AT lt_qdc_po_imp TRANSPORTING NO FIELDS WHERE z_import_imp_b < lc_import_llindar.
+        ADD 1 TO lv_count_lt.
+      ENDLOOP.
+
+    ENDIF.
+    TRY.
+        IF lv_count_ge = lv_regs.
+          <fs_data> = zrm_cl_documents=>get_docu_as_string( 'ZTEXT_PLEC_AP_LOTS_EG_500000' ) .
+        ELSEIF lv_count_lt = lv_regs.
+          <fs_data> = zrm_cl_documents=>get_docu_as_string( 'ZTEXT_PLEC_AP_LOTS_LT_500000' ) .
+        ELSE.
+          <fs_data> = zrm_cl_documents=>get_docu_as_string( 'ZTEXT_PLEC_AP_LOTS_MI_500000' ) .
+        ENDIF.
+      CATCH zcx_rm_documents.
+        CLEAR: <fs_data>.
+    ENDTRY.
+
+
+  ENDMETHOD.
+
+
+  METHOD get_text_revisio_preus.
+    FIELD-SYMBOLS: <fs_data>    TYPE string.
+    DATA: lv_string         TYPE string,
+          lo_text_rev_preus TYPE REF TO data.
+
+    CREATE DATA lo_text_rev_preus TYPE string.
+    ro_data = lo_text_rev_preus .
+    ASSIGN ro_data->* TO <fs_data> .
+
+    SELECT z_rev_preus
+      FROM zvrm_qdc_clo_imp
+      INTO TABLE @DATA(lt_zvrm_qdc_clo_imp)
+      WHERE docclass = @iv_docclass
+        AND objectid = @iv_objectid.
+     CHECK sy-subrc = 0.
+
+    TRY.
+        <fs_data> = COND string(
+          WHEN line_exists( lt_zvrm_qdc_clo_imp[ z_rev_preus = 'S' ] )
+          THEN zrm_cl_documents=>get_docu_as_string( 'ZTEXT_IJ_SI_REV_PREUS' )
+          ELSE zrm_cl_documents=>get_docu_as_string( 'ZTEXT_IJ_NO_REV_PREUS' )
+        ).
+      CATCH zcx_rm_documents.
+        CLEAR: <fs_data>.
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD get_text_sapscript.
+    DATA: lo_sapscript      TYPE REF TO zrm_cl_sapscript_texts,
+          lo_text_sapscript TYPE REF TO data,
+          lv_string_text    TYPE string.
+
+
+    FIELD-SYMBOLS: <fs_data>  TYPE string.
+
+    CREATE DATA lo_text_sapscript TYPE string .
+    ro_data = lo_text_sapscript.
+    ASSIGN ro_data->* TO <fs_data> .
+
+    CREATE OBJECT lo_sapscript
+      EXPORTING
+        i_tdid       = iv_tdid
+        i_tdspras    = sy-langu
+        i_tdobject   = iv_tdobject
+        i_tdname     = iv_tdname
+      EXCEPTIONS
+        invalid_call = 1
+        OTHERS       = 2.
+    CHECK sy-subrc = 0 AND lo_sapscript IS BOUND.
+
+    lo_sapscript->get_text_as_string( IMPORTING ex_string = lv_string_text ).
+
+*    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf
+*                        IN lv_string_text
+*                      WITH space.
+*    CONDENSE lv_string_text .
+*      cl_demo_output=>display( lv_string_text ).
+    <fs_data> = lv_string_text.
+  ENDMETHOD.
+
+
+  METHOD get_zerm_qdc_clo_lic.
+    DEFINE _format_number .
+      write &1 to lv_char80 decimals 2 left-justified . "#EC UOM_IN_MES
+      &2 = lv_char80 .
+    END-OF-DEFINITION .
+    DATA: lt_zerm_qdc_clo_lic TYPE STANDARD TABLE OF zerm_qdc_clo_lic,
+          lo_my_qdc_clo_lic   TYPE REF TO data,
+          ls_zerm_qdc_clo_lic TYPE zerm_qdc_clo_lic,
+          lv_char80           TYPE char80.
+
+    FIELD-SYMBOLS: <fs_qdc_clo_lic> TYPE ty_t_qdc_clo_lic,
+                   <fs_cached>      TYPE REF TO data.
+
+    ASSIGN lo_my_qdc_clo_lic TO <fs_cached>.
+    CREATE DATA <fs_cached> TYPE ty_t_qdc_clo_lic.
+    ASSIGN <fs_cached>->* TO <fs_qdc_clo_lic>.
+
+    <fs_qdc_clo_lic> = lt_zerm_qdc_clo_lic.
+
+    ro_data = <fs_cached>.
+
+    SELECT zz_num_lot, z_term_lot, z_obres_sim, z_sing_tip, z_sing_imin
+     FROM zvrm_qdc_clo_lic
+     INTO TABLE @DATA(lt_zvrm_qdc_clo_lic_aux)
+     WHERE docclass     EQ @iv_docclass
+       AND objectid     EQ @iv_objectid
+       AND zz_num_lot   NE 0.
+    IF sy-subrc = 0.
+      LOOP AT lt_zvrm_qdc_clo_lic_aux ASSIGNING FIELD-SYMBOL(<fs_clo_lic_aux>).
+        CLEAR: ls_zerm_qdc_clo_lic.
+        ls_zerm_qdc_clo_lic-zz_num_lot  = <fs_clo_lic_aux>-zz_num_lot.
+        SHIFT ls_zerm_qdc_clo_lic-zz_num_lot LEFT DELETING LEADING '0'.
+        ls_zerm_qdc_clo_lic-z_term_lot  = <fs_clo_lic_aux>-z_term_lot.
+        ls_zerm_qdc_clo_lic-z_obres_sim = <fs_clo_lic_aux>-z_obres_sim.
+        ls_zerm_qdc_clo_lic-z_sing_tip  = <fs_clo_lic_aux>-z_sing_tip.
+*      ls_zerm_qdc_clo_lic-z_sing_imin = <fs_clo_lic_aux>-z_sing_imin.
+        _format_number: <fs_clo_lic_aux>-z_sing_imin ls_zerm_qdc_clo_lic-z_sing_imin.
+        ls_zerm_qdc_clo_lic-z_sing_imin = |{ ls_zerm_qdc_clo_lic-z_sing_imin } { gc_simbol_euro }|.
+        APPEND ls_zerm_qdc_clo_lic TO lt_zerm_qdc_clo_lic.
+      ENDLOOP.
+    ENDIF.
+    <fs_qdc_clo_lic> = lt_zerm_qdc_clo_lic.
+
+    ro_data = <fs_cached>.
+
+  ENDMETHOD.
+
+
+  METHOD get_zerm_qdc_docs.
+
+    CONSTANTS: lc_cond_si  TYPE char1 VALUE 'S',
+               lc_asterisc TYPE char3 VALUE '(*)'.
+
+    DATA: lt_zerm_qdc_docs  TYPE STANDARD TABLE OF zerm_qdc_docs,
+          lo_my_qdc_docs    TYPE REF TO data,
+          ls_zzerm_qdc_docs TYPE zerm_qdc_docs,
+          lv_char80         TYPE char80.
+
+
+    FIELD-SYMBOLS: <fs_qdc_docs> TYPE ty_t_qdc_docs,
+                   <fs_cached>   TYPE REF TO data.
+
+    ASSIGN lo_my_qdc_docs TO <fs_cached>.
+    CREATE DATA <fs_cached> TYPE ty_t_qdc_docs.
+    ASSIGN <fs_cached>->* TO <fs_qdc_docs>.
+
+
+    <fs_qdc_docs> = lt_zerm_qdc_docs.
+
+    ro_data = <fs_cached>.
+
+    SELECT SINGLE docclass, objectid, z_codi_exp, z_descrip_abr
+      FROM zrm_dt_exp_cont
+      INTO @DATA(ls_exp_cont)
+      WHERE docclass = @iv_docclass
+        AND objectid = @iv_objectid.
+    CHECK sy-subrc = 0.
+
+    SELECT SINGLE z_codi_qdc, z_confidencial "#EC CI_NOORDER
+*      FROM zrm_dt_qdc_cap
+      FROM zvrm_qdc_cap_lic
+      INTO @DATA(ls_qdc_cap_confid)
+      WHERE z_licitacio = @ls_exp_cont-z_codi_exp.
+    CHECK sy-subrc = 0.
+
+    IF ls_qdc_cap_confid-z_confidencial = lc_cond_si.
+      SELECT z_codi_qdc, z_document, z_confidencial
+        FROM zvrm_dt_qdc_docs
+        INTO TABLE @DATA(lt_qdc_docs)
+        WHERE docclass = @iv_docclass
+          AND objectid = @iv_objectid.
+      CHECK sy-subrc = 0.
+      LOOP AT lt_qdc_docs ASSIGNING FIELD-SYMBOL(<fs_qdc_doc>).
+        CLEAR: ls_zzerm_qdc_docs.
+        ls_zzerm_qdc_docs-z_codi_qdc     = <fs_qdc_doc>-z_codi_qdc.
+        ls_zzerm_qdc_docs-z_confidencial = <fs_qdc_doc>-z_confidencial.
+        ls_zzerm_qdc_docs-z_document     = <fs_qdc_doc>-z_document.
+        IF ls_zzerm_qdc_docs-z_confidencial = lc_cond_si.
+          ls_zzerm_qdc_docs-z_flag_confidencial = lc_asterisc.
+        ENDIF.
+        APPEND ls_zzerm_qdc_docs TO lt_zerm_qdc_docs.
+      ENDLOOP.
+    ENDIF.
+
+    <fs_qdc_docs> = lt_zerm_qdc_docs.
+
+    ro_data = <fs_cached>.
+
+
+  ENDMETHOD.
+
+
+  METHOD get_zerm_qdc_rapli.
+    CONSTANTS: lc_condicio_obe TYPE string VALUE 'O bé',
+               lc_lot          TYPE string VALUE 'Lot'.
+
+    DATA: lv_prev_group     TYPE zrm_dt_qdc_rapli-z_agrupador VALUE space,
+          lv_prev_lot       TYPE zrm_dt_qdc_rapli-z_lot_char  VALUE space,
+          lo_my_qdc_rapli   TYPE REF TO data,
+          lv_first_in_group TYPE abap_bool,
+          lv_nlot           TYPE string,
+          ls_out            TYPE zerm_qdc_rapli.
+
+    DATA: lt_zerm_qdc_rapli TYPE STANDARD TABLE OF zerm_qdc_rapli.
+
+
+    FIELD-SYMBOLS: <fs_qdc_rapli> TYPE ty_t_qdc_rapli,
+                   <fs_cached>    TYPE REF TO data.
+
+    ASSIGN lo_my_qdc_rapli TO <fs_cached>.
+    CREATE DATA <fs_cached> TYPE ty_t_qdc_rapli.
+    ASSIGN <fs_cached>->* TO <fs_qdc_rapli>.
+
+    <fs_qdc_rapli> = lt_zerm_qdc_rapli.
+    ro_data        = <fs_cached>.
+
+    SELECT a~objectid, b~z_codi_exp, a~zz_num_lot, a~z_descrip_lot, b~z_valor_est_cont, b~z_val_est_cont_b "#EC CI_NO_TRANSFORM
+      FROM zvrm_qdc_clo_lic AS a
+      INNER JOIN zrm_dt_exp_cont AS b
+      ON a~objectid = b~objectid
+      INTO TABLE @DATA(lt_qdc_lot)
+      WHERE a~objectid   = @iv_objectid
+        AND b~z_estat     <> 'ZCA'.
+    IF sy-subrc <> 0.
+      "Mirem si es expedient d'impuls de QDC, sinó sortim
+      SELECT a~objectid, a~z_codi_qdc, b~z_codi_exp, a~zz_num_lot, a~z_descrip_lot, a~z_imp_mod_pr, a~z_import_lot_b "#EC CI_NO_TRANSFORM
+        FROM zvrm_qdc_clo_imp AS a
+        INNER JOIN zmm_dt_imp_cap AS b
+        ON a~objectid = b~z_obj_impuls
+      INTO TABLE @DATA(lt_qdc_lot_impuls)
+        WHERE docclass = @iv_docclass
+          AND objectid = @iv_objectid.
+      CHECK sy-subrc = 0.
+
+      SELECT z_codi_qdc, z_grup, z_subgrup, z_categoria, z_agrupador, z_opcional, z_lot_char "#EC CI_NO_TRANSFORM
+        FROM zvrm_qdc_rap_imp
+        INTO TABLE @DATA(lt_qdc_rapli)
+        FOR ALL ENTRIES IN @lt_qdc_lot_impuls
+        WHERE z_codi_qdc = @lt_qdc_lot_impuls-z_codi_qdc.
+      CHECK sy-subrc = 0.
+
+    ELSE.
+      "Expedient de licitació
+*    IF sy-subrc = 0.
+
+      "Verifiquem que sigui un expedient AMB LOTS
+*      SELECT COUNT(*)
+*        FROM zrm_dt_exp_cont
+*        WHERE objectid  = @iv_objectid
+*          AND z_exp_hdr = @abap_true.
+*      SELECT COUNT(*)
+      SELECT z_codi_exp
+        UP TO 1 ROWS
+        FROM zrm_dt_exp_cont
+        INTO @DATA(lv_codi_exp)
+        WHERE objectid  = @iv_objectid
+          AND z_exp_hdr = @abap_true.
+      ENDSELECT.
+      IF sy-subrc = 0.
+        SELECT z_codi_exp, z_exp_hdr_code, z_exp_lot_num, z_valor_est_cont, z_val_est_cont_b, z_imin "#EC CI_NO_TRANSFORM
+          FROM zrm_dt_exp_cont
+          INTO TABLE @DATA(lt_exp_cont)
+          FOR ALL ENTRIES IN @lt_qdc_lot
+          WHERE z_exp_hdr_code = @lt_qdc_lot-z_codi_exp
+            AND z_estat       <> 'ZCA'.
+        CHECK sy-subrc = 0.
+
+        SELECT z_licitacio, z_codi_qdc
+          FROM zvrm_qdc_cap_lic
+          INTO TABLE @DATA(lt_qdc_cap)
+          FOR ALL ENTRIES IN @lt_exp_cont
+          WHERE z_licitacio = @lt_exp_cont-z_exp_hdr_code.
+        CHECK sy-subrc = 0.
+      ELSE.
+        SELECT z_codi_exp, z_exp_hdr_code, z_exp_lot_num, z_valor_est_cont, z_val_est_cont_b, z_imin "#EC CI_NO_TRANSFORM
+          FROM zrm_dt_exp_cont
+          INTO TABLE @lt_exp_cont
+          FOR ALL ENTRIES IN @lt_qdc_lot
+          WHERE z_codi_exp    = @lt_qdc_lot-z_codi_exp
+            AND z_estat       <> 'ZCA'.
+        CHECK sy-subrc = 0.
+
+        SELECT z_licitacio, z_codi_qdc
+          FROM zvrm_qdc_cap_lic
+          INTO TABLE @lt_qdc_cap
+          FOR ALL ENTRIES IN @lt_exp_cont
+          WHERE z_licitacio = @lt_exp_cont-z_codi_exp.
+        CHECK sy-subrc = 0.
+      ENDIF.
+      IF lt_qdc_cap IS NOT INITIAL.
+
+        SELECT z_codi_qdc, z_grup, z_subgrup, z_categoria, z_agrupador, z_opcional, z_lot_char "#EC CI_NO_TRANSFORM
+          FROM zrm_dt_qdc_rapli
+          INTO TABLE @lt_qdc_rapli
+          FOR ALL ENTRIES IN @lt_qdc_cap
+          WHERE z_codi_qdc = @lt_qdc_cap-z_codi_qdc.
+        CHECK sy-subrc = 0.
+      ENDIF.
+    ENDIF.
+
+
+*Si no hi ha res a "opcional", el camp condició en blanc
+*Si hi ha marcat l'opcional i tots tenen el mateix grup (x ex, G01) a sota dels que no tenen res es posen els que tenen marcat opcional i grup = G01, el primer de tots que tenen això marcat no es posa res, i als de sota, es posa l'"O bé"
+*Si hi ha diferents grups G01, G02... G20, doncs igual, el primer sense l' O bé i la resta amb lo bé (G01), quan comenci el G02, igual el primer sense res i els següents amb l'O bé
+
+    " Ordenar la taula d’entrada per Z_LOT_CHAR,Z_OPCIONAL, Z_AGRUPADOR
+    SORT lt_qdc_rapli BY z_lot_char z_opcional z_agrupador.
+
+    lv_prev_group     = ''.
+    lv_first_in_group = abap_true.
+
+    LOOP AT lt_qdc_rapli INTO DATA(ls_in).
+      CLEAR ls_out.
+
+      ls_out-z_codi_qdc  = ls_in-z_codi_qdc.
+      ls_out-grup        = ls_in-z_grup.
+      ls_out-subgrup     = ls_in-z_subgrup.
+      ls_out-categoria   = ls_in-z_categoria.
+      ls_out-z_agrupador = ls_in-z_agrupador.
+      ls_out-z_opcional  = ls_in-z_opcional.
+*      ls_out-z_lot_char  = ls_in-z_lot_char.
+      lv_nlot            = ls_in-z_lot_char.
+      SHIFT lv_nlot LEFT DELETING LEADING '0'.
+      IF lv_nlot IS NOT INITIAL.
+        ls_out-z_lot_char  = |{ lc_lot } { lv_nlot }|.
+      ENDIF.
+      " Si canviem de lot, reinicialitzem el grup
+      IF ls_in-z_lot_char <> lv_prev_lot.
+        lv_prev_group = ''.
+        lv_prev_lot   = ls_in-z_lot_char.
+      ENDIF.
+
+      IF ls_in-z_opcional IS INITIAL.
+        ls_out-condicio   = ''.
+        lv_prev_group     = ''.
+        lv_first_in_group = abap_true.
+      ELSE.
+        " Grup nou
+        IF ls_in-z_agrupador <> lv_prev_group.
+          ls_out-condicio   = ''.
+          lv_prev_group     = ls_in-z_agrupador.
+          lv_first_in_group = abap_false.
+        ELSE.
+          " Següent dins el mateix grup
+*          CONCATENATE '[' zrm_cl_documents=>co_operator_return_literal '/' lc_condicio_obe ']' cl_abap_char_utilities=>cr_lf INTO ls_out-condicio.
+          ls_out-condicio = lc_condicio_obe.
+        ENDIF.
+      ENDIF.
+
+      APPEND ls_out TO lt_zerm_qdc_rapli.
+    ENDLOOP.
+
+    <fs_qdc_rapli> = lt_zerm_qdc_rapli.
+
+    ro_data = <fs_cached>.
+
+  ENDMETHOD.
+
+
+  METHOD get_zerm_quadre_lots.
+    DEFINE _format_number .
+      write &1 to lv_char80 decimals 2 left-justified . "#EC UOM_IN_MES
+      &2 = lv_char80 .
+    END-OF-DEFINITION .
+    DATA: lt_quadre_lots    TYPE ty_t_quadre_lots,
+          ls_quadre_lots    TYPE zerm_quadre_lots,
+          lo_my_quadre_lots TYPE REF TO data,
+          lv_char80         TYPE char80.
+
+    FIELD-SYMBOLS: <fs_quadre_lots> TYPE ty_t_quadre_lots,
+                   <fs_cached>      TYPE REF TO data.
+
+    ASSIGN lo_my_quadre_lots TO <fs_cached>.
+    CREATE DATA <fs_cached> TYPE ty_t_quadre_lots.
+    ASSIGN <fs_cached>->* TO <fs_quadre_lots>.
+
+    <fs_quadre_lots> = lt_quadre_lots.
+
+    ro_data = <fs_cached>.
+
+    "Mirem si es expedient d'impuls de QDC, sinó mirem si és LIC
+    SELECT a~objectid, a~z_codi_qdc, b~z_codi_exp, a~zz_num_lot, a~z_descrip_lot,
+           a~z_obres_sim, a~z_imin,
+           a~z_imp_mod_pr, a~z_import_lot_b,
+           b~z_valor_est_cont, z_val_est_cont_b, z_mod_ct_pr_l_b,
+           a~z_term_lot
+      FROM zvrm_qdc_clo_imp AS a
+      INNER JOIN zmm_dt_imp_cap AS b
+      ON a~objectid = b~z_obj_impuls
+    INTO TABLE @DATA(lt_qdc_lot_impuls)
+      WHERE docclass  = @iv_docclass
+        AND objectid  = @iv_objectid
+        AND z_exp_hdr = @abap_true.
+    IF sy-subrc = 0.
+
+      LOOP AT lt_qdc_lot_impuls ASSIGNING FIELD-SYMBOL(<fs_qdc_lot_imp>).
+        CLEAR: ls_quadre_lots.
+        ls_quadre_lots-zz_num_lot         = <fs_qdc_lot_imp>-zz_num_lot.
+        SHIFT ls_quadre_lots-zz_num_lot LEFT DELETING LEADING '0'.
+        ls_quadre_lots-z_descrip_lot      = <fs_qdc_lot_imp>-z_descrip_lot.
+        _format_number: <fs_qdc_lot_imp>-z_valor_est_cont ls_quadre_lots-z_valor_est_cont,
+                        <fs_qdc_lot_imp>-z_val_est_cont_b ls_quadre_lots-z_val_est_cont_b,
+                        <fs_qdc_lot_imp>-z_imin              ls_quadre_lots-z_imin.
+        ls_quadre_lots-z_imin      = |{ ls_quadre_lots-z_imin } { gc_simbol_euro }|.
+        ls_quadre_lots-z_obres_sim = <fs_qdc_lot_imp>-z_obres_sim.
+        ls_quadre_lots-z_tipologia = ls_quadre_lots-z_obres_sim.
+        ls_quadre_lots-z_term_lot  = ls_quadre_lots-z_term_lot.
+        APPEND ls_quadre_lots TO lt_quadre_lots.
+      ENDLOOP.
+    ELSE.
+      "Mirem si és expedient de Licitació
+      "Verifiquem que sigui un expedient AMB LOTS
+*      SELECT COUNT(*)
+      SELECT z_codi_exp
+        UP TO 1 ROWS
+        FROM zrm_dt_exp_cont
+        INTO @DATA(lv_codi_exp)
+        WHERE objectid  = @iv_objectid
+          AND z_exp_hdr = @abap_true.
+      ENDSELECT.
+      CHECK sy-subrc = 0.
+
+      SELECT a~objectid, b~z_codi_exp, a~zz_num_lot, a~z_descrip_lot, b~z_valor_est_cont, b~z_val_est_cont_b "#EC CI_NO_TRANSFORM
+        FROM zvrm_qdc_clo_lic AS a
+        INNER JOIN zrm_dt_exp_cont AS b
+        ON a~objectid = b~objectid
+        INTO TABLE @DATA(lt_qdc_lot)
+        WHERE a~objectid   = @iv_objectid
+          AND b~z_estat     <> 'ZCA'.
+      IF sy-subrc = 0.
+
+        SELECT z_codi_exp, z_exp_hdr_code, z_exp_lot_num, z_valor_est_cont, z_val_est_cont_b, z_imin "#EC CI_NO_TRANSFORM
+          FROM zrm_dt_exp_cont
+          INTO TABLE @DATA(lt_exp_cont)
+          FOR ALL ENTRIES IN @lt_qdc_lot
+          WHERE z_exp_hdr_code = @lt_qdc_lot-z_codi_exp
+            AND z_estat       <> 'ZCA'.
+        IF sy-subrc = 0.
+
+          SELECT z_licitacio, z_codi_qdc           "#EC CI_NO_TRANSFORM
+*            FROM zrm_dt_qdc_cap
+            FROM zvrm_qdc_cap_lic
+            INTO TABLE @DATA(lt_qdc_cap)
+            FOR ALL ENTRIES IN @lt_exp_cont
+            WHERE z_licitacio = @lt_exp_cont-z_exp_hdr_code.
+          IF sy-subrc = 0.
+            SELECT z_codi_qdc, zz_num_lot, z_obres_sim "#EC CI_NO_TRANSFORM
+              FROM zrm_dt_qdc_clot
+              INTO TABLE @DATA(lt_qdc_clot)
+              FOR ALL ENTRIES IN @lt_qdc_cap
+              WHERE z_codi_qdc = @lt_qdc_cap-z_codi_qdc.
+          ENDIF.
+          CHECK sy-subrc = 0.
+
+          LOOP AT lt_qdc_lot ASSIGNING FIELD-SYMBOL(<fs_qdc_lot_aux>).
+            CLEAR: ls_quadre_lots.
+            READ TABLE lt_exp_cont ASSIGNING FIELD-SYMBOL(<fs_exp_cont>) WITH KEY z_exp_hdr_code = <fs_qdc_lot_aux>-z_codi_exp
+                                                                                  z_exp_lot_num  = <fs_qdc_lot_aux>-zz_num_lot.
+            CHECK sy-subrc = 0.
+
+            ls_quadre_lots-zz_num_lot         = <fs_qdc_lot_aux>-zz_num_lot.
+            SHIFT ls_quadre_lots-zz_num_lot LEFT DELETING LEADING '0'.
+            <fs_qdc_lot_aux>-z_valor_est_cont = <fs_exp_cont>-z_valor_est_cont.
+            <fs_qdc_lot_aux>-z_val_est_cont_b = <fs_exp_cont>-z_val_est_cont_b.
+            ls_quadre_lots-z_descrip_lot      = <fs_qdc_lot_aux>-z_descrip_lot.
+            _format_number: <fs_qdc_lot_aux>-z_valor_est_cont ls_quadre_lots-z_valor_est_cont,
+                            <fs_qdc_lot_aux>-z_val_est_cont_b ls_quadre_lots-z_val_est_cont_b,
+                            <fs_exp_cont>-z_imin              ls_quadre_lots-z_imin.
+            READ TABLE lt_qdc_cap ASSIGNING FIELD-SYMBOL(<fs_qdc_cap>) WITH KEY z_licitacio = <fs_exp_cont>-z_exp_hdr_code.
+            CHECK sy-subrc = 0.
+            ls_quadre_lots-z_codi_qdc = <fs_qdc_cap>-z_codi_qdc.
+            READ TABLE lt_qdc_clot ASSIGNING FIELD-SYMBOL(<fs_qdc_clot>) WITH KEY z_codi_qdc = <fs_qdc_cap>-z_codi_qdc.
+            IF sy-subrc = 0.
+              ls_quadre_lots-z_obres_sim = <fs_qdc_clot>-z_obres_sim.
+              ls_quadre_lots-z_tipologia = ls_quadre_lots-z_obres_sim.
+            ENDIF.
+            APPEND ls_quadre_lots TO lt_quadre_lots.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    <fs_quadre_lots> = lt_quadre_lots.
+
+    ro_data = <fs_cached>.
+
+  ENDMETHOD.
+
+
+  METHOD get_zerm_quadre_matco2.
+    DEFINE _format_number .
+      write &1 to lv_char80 decimals 2 left-justified . "#EC UOM_IN_MES
+      &2 = lv_char80 .
+    END-OF-DEFINITION .
+
+    CONSTANTS: lc_lot TYPE string VALUE 'Lot',
+               lc_mat TYPE string VALUE 'Material'.
+
+    DATA: lt_zerm_quadre_matco2 TYPE STANDARD TABLE OF zerm_quadre_matco2,
+          ls_zerm_quadre_matco2 TYPE zerm_quadre_matco2,
+          lo_my_quadre_matco2   TYPE REF TO data,
+          lv_num_lot            TYPE zerm_quadre_matco2-z_num_lot,
+          lv_num_mat            TYPE zerm_quadre_matco2-z_mat,
+          lv_char80             TYPE char80.
+
+
+    FIELD-SYMBOLS: <fs_quadre_matco2> TYPE ty_t_quadre_matco2,
+                   <fs_cached>        TYPE REF TO data.
+
+    ASSIGN lo_my_quadre_matco2 TO <fs_cached>.
+    CREATE DATA <fs_cached> TYPE ty_t_quadre_matco2.
+    ASSIGN <fs_cached>->* TO <fs_quadre_matco2>.
+
+    <fs_quadre_matco2> = lt_zerm_quadre_matco2.
+
+    ro_data = <fs_cached>.
+    SELECT SINGLE z_mod_crit_punt                       "#EC CI_NOORDER
+      FROM zrm_dm_plecs AS a
+      INNER JOIN zrm_dt_exp_cont AS b
+      ON a~z_num_plec = b~z_num_plec
+      INTO @DATA(lv_mod_crit)
+      WHERE docclass = @iv_docclass
+        AND objectid = @iv_objectid.
+    IF sy-subrc = 0.
+      SELECT z_mod_crit_punt,z_formula,z_descripcio,z_param_1_co2,z_param_2_co2,z_param_3_co2
+        FROM zrm_dm_for_co2
+        INTO TABLE @DATA(lt_dm_for_co2)
+        WHERE z_mod_crit_punt = @lv_mod_crit.
+      IF sy-subrc = 0.
+        SELECT z_codi_qdc,z_mod_crit_punt,zz_num_lot,z_codi_mat,z_descripcio,z_tonelada,z_distancia
+          FROM zvrm_qdc_mat_lic
+          INTO TABLE @DATA(lt_qdc_mat_lic)
+          WHERE docclass = @iv_docclass
+            AND objectid = @iv_objectid.
+        IF sy-subrc = 0.
+
+          SORT lt_qdc_mat_lic BY zz_num_lot z_codi_mat.
+
+          LOOP AT lt_qdc_mat_lic ASSIGNING FIELD-SYMBOL(<fs_qdc_mat_lic>).
+            READ TABLE lt_dm_for_co2 ASSIGNING FIELD-SYMBOL(<fs_dm_for_co2>) WITH KEY z_mod_crit_punt = <fs_qdc_mat_lic>-z_mod_crit_punt.
+            CHECK sy-subrc = 0.
+            CLEAR: ls_zerm_quadre_matco2.
+
+            lv_num_lot = <fs_qdc_mat_lic>-zz_num_lot.
+            SHIFT lv_num_lot LEFT DELETING LEADING '0'.
+            IF lv_num_lot IS NOT INITIAL.
+              CONCATENATE lc_lot lv_num_lot INTO ls_zerm_quadre_matco2-z_num_lot SEPARATED BY space.
+            ENDIF.
+
+            lv_num_mat = <fs_qdc_mat_lic>-z_codi_mat.
+            SHIFT lv_num_mat LEFT DELETING LEADING '0'.
+            CONCATENATE lc_mat lv_num_mat INTO ls_zerm_quadre_matco2-z_mat SEPARATED BY space.
+
+            ls_zerm_quadre_matco2-z_descripcio    = <fs_qdc_mat_lic>-z_descripcio.
+
+            _format_number: <fs_qdc_mat_lic>-z_tonelada   ls_zerm_quadre_matco2-z_tmi,
+                            <fs_dm_for_co2>-z_param_3_co2 ls_zerm_quadre_matco2-z_erefi,
+                            <fs_qdc_mat_lic>-z_distancia  ls_zerm_quadre_matco2-z_drefi.
+
+            ls_zerm_quadre_matco2-z_formula       = <fs_dm_for_co2>-z_formula.
+            APPEND ls_zerm_quadre_matco2 TO lt_zerm_quadre_matco2.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    <fs_quadre_matco2> = lt_zerm_quadre_matco2.
+
+    ro_data = <fs_cached>.
+
+  ENDMETHOD.
+
+
+  METHOD _iterate_tables_crit_plec.
+    CONSTANTS: lc_criteris TYPE string VALUE 'CRITERIS',
+               lc_noaplica TYPE string VALUE 'NO APLICA',
+               lc_aplica   TYPE string VALUE 'APLICA'.
+
+    DATA(lt_punt_form)  = it_punt_form.
+    DATA(lt_expedient)  = it_expedient.
+    DATA(lt_crit_punt)  = it_crit_punt.
+
+    DESCRIBE TABLE lt_crit_punt LINES DATA(lv_num_linies).
+    "sumem 1 per tenir la capçalera buida quan son criteris subjectius
+    READ TABLE lt_crit_punt TRANSPORTING NO FIELDS WITH KEY z_crit_q3 = abap_true.
+    IF sy-subrc = 0.
+      DATA(lv_criteris_objectius) = abap_true.
+      ADD 1 TO lv_num_linies.
+    ENDIF.
+
+    DESCRIBE TABLE lt_expedient  LINES DATA(lv_num_cols).
+*    "sumem 1 per tenir la capçalera
+    ADD 1 TO lv_num_cols.
+
+    DO lv_num_linies TIMES."Recorrem tantes files com criteris s'hagin trobat .
+      DATA(lv_index_row) =  sy-index.
+
+      READ TABLE ct_tables_office ASSIGNING FIELD-SYMBOL(<fs_table_office>) WITH KEY row_count = lv_index_row.
+      CHECK sy-subrc = 0.
+
+*      "Aqui obtenim la descripció del criteri de la linia que volem pintar si aplica o no aplica
+*      READ TABLE lt_crit_punt ASSIGNING FIELD-SYMBOL(<fs_crit_punt>) INDEX ( <fs_table_office>-row_count ).
+*      CHECK sy-subrc = 0.
+      CASE <fs_table_office>-row_count.
+        WHEN 1.
+          "capçalera de titols de les columnes
+          DO ( lv_num_cols ) TIMES.                      "#EC CI_NESTED
+            DATA(lv_index) = sy-index.
+
+            IF lv_index = 1.
+
+              READ TABLE ct_tables_office ASSIGNING <fs_table_office> WITH KEY col_count = lv_index
+                                                                               row_count = lv_index_row.
+              IF sy-subrc = 0.
+                IF lv_criteris_objectius = abap_true.
+                  CONCATENATE '[' zrm_cl_documents=>co_operator_return_literal '/' 'ø' ']'
+                              cl_abap_char_utilities=>cr_lf INTO <fs_table_office>-name.
+                ELSE.
+                  "Aqui obtenim la descripció del criteri de la linia que volem pintar si aplica o no aplica
+                  READ TABLE lt_crit_punt ASSIGNING FIELD-SYMBOL(<fs_crit_punt>) INDEX ( lv_index_row ). "#EC CI_NOORDER
+                  CHECK sy-subrc = 0.
+
+                  DATA(lv_name_crit_hdr) = | { <fs_crit_punt>-z_comptador } { '.' } { <fs_crit_punt>-z_descripcio } |.
+                  CONDENSE lv_name_crit_hdr.
+                  REPLACE ALL OCCURRENCES OF ',' IN lv_name_crit_hdr WITH space.
+                  REPLACE ALL OCCURRENCES OF '/' IN lv_name_crit_hdr WITH space.
+                  REPLACE ALL OCCURRENCES OF ':' IN lv_name_crit_hdr WITH space.
+                  IF <fs_crit_punt>-z_bold_text IS INITIAL.
+                    CONCATENATE '[' zrm_cl_documents=>co_operator_return_literal '/' lv_name_crit_hdr ']'
+                      cl_abap_char_utilities=>cr_lf INTO <fs_table_office>-name.
+                  ELSE.
+                    CONCATENATE zrm_cl_documents_word=>gc_set_bold_text_ini
+                      '[' zrm_cl_documents=>co_operator_return_literal '/' lv_name_crit_hdr ']'
+                      zrm_cl_documents_word=>gc_set_bold_text_fin
+                      cl_abap_char_utilities=>cr_lf INTO <fs_table_office>-name.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+            ELSE.
+              READ TABLE ct_tables_office ASSIGNING <fs_table_office> WITH KEY col_count = lv_index
+                                                                               row_count = lv_index_row.
+              IF sy-subrc = 0.
+                "Descripció breu de l'expedient
+                READ TABLE lt_expedient ASSIGNING FIELD-SYMBOL(<fs_exp>) INDEX ( lv_index - 1 ). "#EC CI_NOORDER
+                CHECK sy-subrc = 0.
+                DATA(lv_exp_name) = <fs_exp>-z_descrip_abr.
+                REPLACE ALL OCCURRENCES OF ',' IN lv_exp_name WITH space.
+                REPLACE ALL OCCURRENCES OF '/' IN lv_exp_name WITH space.
+                REPLACE ALL OCCURRENCES OF ':' IN lv_exp_name WITH space.
+                CONCATENATE zrm_cl_documents_word=>gc_set_bold_text_ini
+                  '[' zrm_cl_documents=>co_operator_return_literal '/' lv_exp_name ']'
+                  zrm_cl_documents_word=>gc_set_bold_text_fin
+                  cl_abap_char_utilities=>cr_lf INTO <fs_table_office>-name.
+              ENDIF.
+            ENDIF.
+          ENDDO.
+        WHEN OTHERS.
+          "posicions taula de lv_num_lines X lv_num_Cols
+          "aqui ja llegim les posicions de lt_punt_form/lt_crit_punt dels criteris a mostrar
+          DO ( lv_num_cols ) TIMES.                      "#EC CI_NESTED
+            lv_index = sy-index.
+
+            "Aqui obtenim la descripció del criteri de la linia que volem pintar si aplica o no aplica
+            IF lv_criteris_objectius = abap_true.
+              DATA(lv_index_crit) = lv_index_row - 1.
+            ELSE.
+              lv_index_crit = lv_index_row.
+            ENDIF.
+            READ TABLE lt_crit_punt ASSIGNING <fs_crit_punt> INDEX ( lv_index_crit ).
+            CHECK sy-subrc = 0.
+
+            IF lv_index = 1.
+              "Criteris
+*              IF <fs_crit_punt> IS ASSIGNED.
+              DATA(lv_crit_name) = | { <fs_crit_punt>-z_comptador } { '.' } { <fs_crit_punt>-z_descripcio } |.
+              CONDENSE lv_crit_name.
+              REPLACE ALL OCCURRENCES OF ',' IN lv_crit_name WITH space.
+              REPLACE ALL OCCURRENCES OF '/' IN lv_crit_name WITH space.
+              REPLACE ALL OCCURRENCES OF ':' IN lv_crit_name WITH space.
+              IF <fs_crit_punt>-z_bold_text = abap_true.
+                CONCATENATE zrm_cl_documents_word=>gc_set_bold_text_ini
+                '[' zrm_cl_documents=>co_operator_return_literal '/' lv_crit_name ']'
+                zrm_cl_documents_word=>gc_set_bold_text_fin
+                cl_abap_char_utilities=>cr_lf INTO <fs_table_office>-name.
+              ELSE.
+                CONCATENATE '[' zrm_cl_documents=>co_operator_return_literal '/' lv_crit_name ']' cl_abap_char_utilities=>cr_lf INTO <fs_table_office>-name.
+              ENDIF.
+              CLEAR: lv_crit_name.
+*              ENDIF.
+            ELSE.
+              READ TABLE ct_tables_office ASSIGNING <fs_table_office> WITH KEY col_count = lv_index
+                                                                               row_count = lv_index_row.
+              IF sy-subrc = 0.
+                READ TABLE lt_expedient ASSIGNING FIELD-SYMBOL(<fs_exp_read_crit_form>) INDEX ( lv_index - 1 ).
+                IF sy-subrc = 0.
+                  READ TABLE lt_punt_form ASSIGNING FIELD-SYMBOL(<fs_crit_form>) WITH KEY objectid         = <fs_exp_read_crit_form>-objectid
+                                                                                          z_codi_crit_punt = <fs_crit_punt>-z_codi_crit_punt.
+
+                  IF sy-subrc = 0.
+                    "Valor de si aplica o no aplica
+                    IF <fs_crit_form> IS ASSIGNED.
+                      IF <fs_crit_form>-z_no_aplica = abap_true.
+                        CONCATENATE '[' zrm_cl_documents=>co_operator_return_literal '/' lc_noaplica ']' cl_abap_char_utilities=>cr_lf INTO <fs_table_office>-name.
+                      ELSE.
+                        CONCATENATE '[' zrm_cl_documents=>co_operator_return_literal '/' lc_aplica ']' cl_abap_char_utilities=>cr_lf INTO <fs_table_office>-name.
+                      ENDIF.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+          ENDDO.
+      ENDCASE.
+
+    ENDDO.
+
+  ENDMETHOD.
+ENDCLASS.

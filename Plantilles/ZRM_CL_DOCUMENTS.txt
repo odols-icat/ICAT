@@ -1,0 +1,2863 @@
+class ZRM_CL_DOCUMENTS definition
+  public
+  create public .
+
+*"* public components of class ZRM_CL_DOCUMENTS
+*"* do not include other source files here!!!
+*"* protected components of class ZRM_CL_DOCUMENTS
+*"* do not include other source files here!!!
+*"* protected components of class ZRM_CL_DOCUMENTS
+*"* do not include other source files here!!!
+*"* protected components of class ZRM_CL_DOCUMENTS
+*"* do not include other source files here!!!
+*"* protected components of class ZRM_CL_DOCUMENTS
+*"* do not include other source files here!!!
+public section.
+  type-pools SBDST .
+
+  types:
+    ty_t_element TYPE STANDARD TABLE OF swcelement .
+  types:
+    BEGIN OF ty_s_table_office_publ,
+        index     TYPE i,
+        name      TYPE text255,
+        col_count TYPE i,
+        row_count TYPE i,
+      END   OF ty_s_table_office_publ .
+  types:
+    ty_t_table_office_publ TYPE STANDARD TABLE OF ty_s_table_office_publ
+                      WITH NON-UNIQUE DEFAULT KEY .
+  types:
+    BEGIN OF ty_s_opt_table_publ,
+        table_int  TYPE int4,
+        table_name TYPE string,
+      END OF ty_s_opt_table_publ .
+  types:
+    ty_t_opt_table_publ TYPE STANDARD TABLE OF ty_s_opt_table_publ .
+
+  constants CO_TIPUS_PLANT_PDF type Z_TIPUS_PLANTILLA value 'P' ##NO_TEXT.
+  constants CO_TIPUS_PLANT_EXCEL type Z_TIPUS_PLANTILLA value 'E' ##NO_TEXT.
+  constants CO_COLOR_EXCLUSIO_PLEC type I value 15 ##NO_TEXT.
+  constants CO_BDS_CLASSNAME type SBDST_CLASSNAME value 'ZRMSPEC' ##NO_TEXT.
+  constants CO_BDS_CLASSTYPE type SBDST_CLASSTYPE value 'OT' ##NO_TEXT.
+  constants CO_BDS_OBJECT_KEY type SBDST_OBJECT_KEY value 'LOGOS' ##NO_TEXT.
+  constants CO_FIELD_DESCRIPTION type STRING value 'DESCRIPCIO' ##NO_TEXT.
+  constants CO_FIELD_DESCRIPTION_CA type STRING value 'DESCRIPCIO_CA' ##NO_TEXT.
+  constants CO_FIELD_DESCRIPTION_ES type STRING value 'DESCRIPCIO_ES' ##NO_TEXT.
+  constants CO_FIELD_DESCRIPTION_IMPULS type STRING value 'DESCRIPCIO_LLARGA_IMPULS' ##NO_TEXT.
+  constants CO_OPERATOR_AND type STRING value 'I' ##NO_TEXT.
+  constants CO_OPERATOR_COMPUTE_COUNT type STRING value 'COMPTAR' ##NO_TEXT.
+  constants CO_OPERATOR_CONDITION_EQ type STRING value 'IGUAL' ##NO_TEXT.
+  constants CO_OPERATOR_CONDITION_GE type STRING value 'MES_GRAN=' ##NO_TEXT.
+  constants CO_OPERATOR_CONDITION_GT type STRING value 'MES_GRAN' ##NO_TEXT.
+  constants CO_OPERATOR_CONDITION_INITIAL type STRING value 'INICIAL' ##NO_TEXT.
+  constants CO_OPERATOR_CONDITION_LE type STRING value 'MES_PETIT=' ##NO_TEXT.
+  constants CO_OPERATOR_CONDITION_LT type STRING value 'MES_PETIT' ##NO_TEXT.
+  constants CO_OPERATOR_CONDITION_NE type STRING value 'DIFERENT' ##NO_TEXT.
+  constants CO_OPERATOR_CONDITION_NOT_INI type STRING value 'NO_INICIAL' ##NO_TEXT.
+  constants CO_OPERATOR_SPELL type STRING value 'SPELL' ##NO_TEXT.
+  constants CO_OPERATOR_EVALUATE type STRING value 'ES' ##NO_TEXT.
+  constants CO_OPERATOR_EXIT type STRING value 'FI' ##NO_TEXT.
+  constants CO_OPERATOR_FILTER type STRING value 'FILTRAR' ##NO_TEXT.
+  constants CO_OPERATOR_FORMAT_DATE type STRING value '@' ##NO_TEXT.
+  constants CO_OPERATOR_FORMAT_NUMBER type STRING value '#' ##NO_TEXT.
+  constants CO_OPERATOR_GET type STRING value 'GET' ##NO_TEXT.
+  constants CO_OPERATOR_IF type STRING value 'SI' ##NO_TEXT.
+  constants CO_OPERATOR_OR type STRING value 'O' ##NO_TEXT.
+  constants CO_OPERATOR_PICTURE type STRING value 'LOGO' ##NO_TEXT.
+  constants CO_OPERATOR_RETURN_DESCRIPTION type STRING value 'RETORNA_TEXT' ##NO_TEXT.
+  constants CO_OPERATOR_RETURN_LITERAL type STRING value 'RETORNA_LITERAL' ##NO_TEXT.
+  constants CO_OPERATOR_RETURN_TEXTID type STRING value 'TEXTID' ##NO_TEXT.
+  constants CO_OPERATOR_SET type STRING value 'SET' ##NO_TEXT.
+  constants CO_OPERATOR_TEMPLATE_DESCRIP type STRING value 'DESCRIPCIO_PLANTILLA' ##NO_TEXT.
+  constants CO_SEPARATOR_ARGUMENTS type CHAR1 value '/' ##NO_TEXT.
+  constants CO_SEPARATOR_COMMANDS type CHAR1 value ',' ##NO_TEXT.
+  constants CO_SEPARATOR_OPERATORS type CHAR1 value ':' ##NO_TEXT.
+  constants CO_OPERATOR_NET_AMOUNT type STRING value 'BASE' ##NO_TEXT.
+
+  class-methods CLASS_CONSTRUCTOR .
+  class-methods EXECUTE_COMMAND
+    importing
+      value(IM_SCRIPT) type STRING
+      !IM_CONTAINER type ref to ZRM_CL_CONTAINER
+      !IM_AS_TABLE type XFELD
+      !IM_TEMPLATE_DOCUMENT_ID type STRING
+      !IM_TEMPLATE_DESCRIPTION type STRING
+      !IM_TEMPLATE_OBJECT type SDOKOBJECT
+    exporting
+      value(RE_RESULT) type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods FORMAT_DATE
+    importing
+      !IM_DATE_FORMAT type STRING
+      !IM_DATE type D
+    returning
+      value(RE_STRING) type STRING .
+  class-methods GET_DOCU_AS_STRING
+    importing
+      !IM_OBJECT type CLIKE
+    returning
+      value(RE_TEXT) type STRING
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_SPELL_INT
+    importing
+      !IM_NUMBER type NUMERIC
+      !IM_CURRENCY type WAERS
+    returning
+      value(EX_STRING) type STRING
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods RAISE_DOI_ERROR
+    importing
+      !IM_ERROR type ref to I_OI_ERROR optional
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods SET_ATTRIBUTES_BOTH
+    importing
+      !IM_GENERIC_SP type ref to IF_SRM_GENERIC_SP
+      !IM_PROPERTIES type SRMGS_PROPERTY_TAB
+    raising
+      CX_SRM .
+  methods SET_DYNAMIC_ATTRIBUTES
+    importing
+      !IM_CONTAINER type ref to ZRM_CL_CONTAINER
+      !IM_GENERIC_SP type ref to IF_SRM_GENERIC_SP optional
+    changing
+      !CH_ATTRIBUTES type SRMGS_PROPERTY_TAB
+    raising
+      ZCX_RM_DOCUMENTS .
+  methods SET_DYNAMIC_DATA
+    importing
+      !IM_CONTAINER type ref to ZRM_CL_CONTAINER
+      !IM_VALORACIO_OFERTES type ref to ZRM_CL_VALORACIO_OFERTES optional
+      !I_TEXT_DOCUMENT type STRING optional
+      !LOCAL type BOOLEAN optional
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods SET_MAINT_ATTRIBUTES
+    importing
+      !IM_SRM_PROPERTIES type ref to IF_SRM_GSP_PROPERTIES
+      !IM_PROPERTIES type SRMGS_PROPERTY_TAB
+    raising
+      CX_SRM .
+  class-methods SET_READONLY
+    importing
+      !IM_PROXY type ref to I_OI_DOCUMENT_PROXY
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods GET_INSTANCE
+    importing
+      !IM_CONTROL type ref to I_OI_CONTAINER_CONTROL
+      !IM_PROXY type ref to I_OI_DOCUMENT_PROXY
+      !IM_TEMPLATE_ID type STRING
+      !IM_TASK type Z_TASCA_GD
+    returning
+      value(RE_REF) type ref to ZRM_CL_DOCUMENTS
+    raising
+      ZCX_RM_DOCUMENTS .
+  methods CONSTRUCTOR
+    importing
+      !IM_CONTROL type ref to I_OI_CONTAINER_CONTROL
+      !IM_PROXY type ref to I_OI_DOCUMENT_PROXY
+      !IM_TEMPLATE_ID type STRING
+      !IM_TASK type Z_TASCA_GD
+    raising
+      ZCX_RM_DOCUMENTS .
+protected section.
+
+  types:
+    ty_t_log TYPE STANDARD TABLE OF zrm_dt_gmd_scrip
+                  WITH DEFAULT KEY .
+  types:
+    BEGIN OF ty_s_variable,
+      name TYPE string,
+      data TYPE REF TO data,
+    END   OF ty_s_variable .
+  types:
+    ty_t_variable TYPE HASHED TABLE OF ty_s_variable
+              WITH UNIQUE KEY name .
+  types:
+    ty_s_link_office(1000) TYPE c .
+  types:
+    ty_t_link_office TYPE STANDARD TABLE OF ty_s_link_office
+                          WITH NON-UNIQUE DEFAULT KEY .
+  types:
+    BEGIN OF ty_s_table_office,
+      index     TYPE i,
+      name      TYPE text255,
+      col_count TYPE i,
+      row_count TYPE i,
+    END   OF ty_s_table_office .
+  types:
+    ty_t_table_office TYPE STANDARD TABLE OF ty_s_table_office
+                    WITH NON-UNIQUE DEFAULT KEY .
+  types:
+    BEGIN OF ty_s_command,
+*           tabname   TYPE string,
+*           fieldname TYPE string,
+      operators TYPE STANDARD TABLE OF string WITH NON-UNIQUE DEFAULT KEY,
+    END   OF ty_s_command .
+  types:
+    ty_t_command TYPE STANDARD TABLE OF ty_s_command WITH NON-UNIQUE DEFAULT KEY .
+  types:
+    BEGIN OF ty_s_common,
+      commands TYPE ty_t_command,
+*           tabname   TYPE string,
+*           fieldname TYPE string,
+*           operators TYPE STANDARD TABLE OF string WITH NON-UNIQUE DEFAULT KEY,
+      full     TYPE string,
+    END   OF ty_s_common .
+  types:
+    BEGIN OF ty_s_textid.
+          INCLUDE TYPE ty_s_common.
+  TYPES:      offset TYPE i,
+              length TYPE i,
+              END   OF ty_s_textid .
+  types:
+    ty_t_textid TYPE STANDARD TABLE OF ty_s_textid WITH NON-UNIQUE DEFAULT KEY .
+  types:
+    BEGIN OF ty_s_table,
+*  INCLUDE TYPE ty_s_common.
+*  TYPES: index      TYPE i,
+      index      TYPE i,
+      t_textid   TYPE ty_t_textid,
+      info_table TYPE soi_cols_table,
+      startrow   TYPE i,
+      startcol   TYPE i,
+      full       TYPE string,
+      send_whole TYPE xfeld, "S'ha de volcar tota la taula de cop
+    END   OF ty_s_table .
+  types:
+    ty_t_table TYPE STANDARD TABLE OF ty_s_table WITH NON-UNIQUE DEFAULT KEY .
+  types TY_S_LINK type TY_S_COMMON .
+  types:
+    ty_t_link TYPE STANDARD TABLE OF ty_s_link .
+  types:
+    BEGIN OF ty_s_attr,
+      prop_name TYPE zrm_dm_plan_att-prop_name,
+      value     TYPE zrm_dm_plan_att-value.
+          INCLUDE TYPE ty_s_link.
+  TYPES: END   OF ty_s_attr .
+  types:
+    ty_t_attr TYPE STANDARD TABLE OF ty_s_attr WITH NON-UNIQUE KEY prop_name .
+  types:
+    BEGIN OF ty_s_opt_table,
+           table_int  TYPE int4,
+           table_name TYPE string,
+         END OF ty_s_opt_table .
+  types:
+    ty_t_opt_table TYPE STANDARD TABLE OF ty_s_opt_table .
+
+  constants CO_MACRO_NETEJA_TAULES_BUIDES type TEXT40 value 'EliminarTablaSiSegundaFilaVacia' ##NO_TEXT.
+  constants CO_MACRO_DELETE_EMPTY_COLS type TEXT40 value 'eliminarColumnesAmbBuides' ##NO_TEXT.
+  constants CO_MACRO_DELETE_TABLES type TEXT40 value 'delete_tables' ##NO_TEXT.
+  constants CO_MACRO_AUTOFIT_CONTENT type TEXT40 value 'optimitzar_columnes_contingut' ##NO_TEXT.
+  constants CO_MACRO_AUTOFIT_WINDOW type TEXT40 value 'optimitzar_columnes_finestra' ##NO_TEXT.
+  constants CO_MACRO_GET_LINK_LIST type TEXT40 value 'Obtenir_Llista_de_Vincles' ##NO_TEXT.
+  constants CO_MACRO_GET_TABLE_LIST type TEXT40 value 'Obtenir_Llista_de_Taules' ##NO_TEXT.
+  constants CO_MACRO_UPDATE_LINKS type TEXT40 value 'Actualitza_Vincles' ##NO_TEXT.
+  constants CO_TABLE_LINK_LIST type TEXT40 value 'LINK_LIST' ##NO_TEXT.
+  constants CO_TABLE_TABLE_LIST type TEXT40 value 'TABLE_LIST' ##NO_TEXT.
+  data MY_CONTROL type ref to I_OI_CONTAINER_CONTROL .
+  data MY_LIST_OF_ATTRS type TY_T_ATTR .
+  data MY_PROXY type ref to I_OI_DOCUMENT_PROXY .
+  data MY_SPS_ID type STRING .
+  data MY_TEMPLATE_DESCRIPTION type STRING .
+  data MY_TEMPLATE_DOCUMENT_ID type STRING .
+  class-data MY_TEXT_IDENTIFIER type ref to ZRM_CL_TEXT_IDENTIFIER .
+  data MY_TEMPLATE_OBJECT type SDOKOBJECT .
+  data MY_TASK type Z_TASCA_GD .
+  constants CO_MACRO_CHECK_PLECPLANT_DIN type TEXT40 value 'get_si_plantilla_plec_dinamic' ##NO_TEXT.
+  constants CO_MACRO_CHECK_PLANT_DIN type TEXT40 value 'get_si_plantilla_dinamica' ##NO_TEXT.
+  constants CO_MACRO_FORMAT_BOLD type TEXT40 value 'PosarNegretaEntreCaracters' ##NO_TEXT.
+
+  methods CHECK_BEFORE_START
+    importing
+      !IM_CONTAINER type ref to ZRM_CL_CONTAINER
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods PARSE_LINK_LIST
+    exporting
+      !EX_LINK_LIST type TY_T_LINK
+    changing
+      !IM_LINK_LIST type TY_T_LINK_OFFICE .
+  class-methods APPLY_OPERATORS
+    importing
+      !IM_CONTAINER type ref to ZRM_CL_CONTAINER
+      !IM_COMMANDS type TY_T_COMMAND
+      !IM_AS_TABLE type XFELD
+      !IM_TEMPLATE_DOCUMENT_ID type STRING
+      !IM_TEMPLATE_DESCRIPTION type STRING
+      !IM_TEMPLATE_OBJECT type SDOKOBJECT
+    exporting
+      !EX_RESULT type ref to DATA
+      !EX_BINARY type XFELD
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods PARSE_TABLE_LIST
+    importing
+      !IM_TABLE_LIST type TY_T_TABLE_OFFICE
+    exporting
+      !EX_TABLE_LIST type TY_T_TABLE .
+  class-methods PARSE_TEXTID
+    importing
+      !IM_STRING type STRING
+    exporting
+      !EX_TEXTID_LIST type TY_T_TEXTID .
+  class-methods CONVERT_STRINGS_TABLE
+    importing
+      !IM_REF_TABLE type ref to DATA
+    returning
+      value(RE_REF_TABLE) type ref to DATA .
+  methods GET_DOI_INTERFACES
+  final
+    exporting
+      !EX_FORM_INTERFACE type ref to I_OI_FORM
+      !EX_TABLE_COLLECTION type ref to I_OI_TABLE_COLLECTION
+      !EX_LINK_SERVER type ref to I_OI_LINK_SERVER
+      !EX_WP_INTERFACE type ref to I_OI_WORD_PROCESSOR_DOCUMENT
+      !EX_SH_INTERFACE type ref to I_OI_SPREADSHEET
+    raising
+      ZCX_RM_DOCUMENTS .
+  methods LOG_CLEAR .
+  methods LOG_SAVE .
+  class-methods LOG_SCRIPT
+    importing
+      !IM_TEMPLATE_DOCUMENT_ID type STRING
+      !IM_WHERE type CLIKE
+      !IM_SCRIPT type STRING .
+private section.
+*"* private components of class ZRM_CL_DOCUMENTS
+*"* do not include other source files here!!!
+
+  class-data MY_SCRIPT_LOG type TY_T_LOG .
+
+  class-methods CONDITION_APPLIES
+    importing
+      value(IM_LOGICAL_OPERATOR) type STRING
+      !IM_VALUE type ANY
+      !IM_COMPARISON_VALUE type ANY
+    returning
+      value(RE_APPLIES) type XFELD
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods CREATE_ONE_COLUMN_TABLE
+    importing
+      !IM_FIELDVALUE type ANY
+      !IM_FIELDNAME type FIELDNAME
+      !IM_CREATE_FIRST_LINE type XFELD
+    exporting
+      !EX_LINE_REF type ref to DATA
+      !EX_TABLE_REF type ref to DATA
+      !EX_FIELD_REF type ref to DATA .
+  class-methods GET_PICTURE_URI
+    importing
+      !IM_PICTURE_NAME type CLIKE
+    returning
+      value(RE_PICTURE_URI) type BDS_URI
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods GET_PROFILE_ATTRIBUTES
+    importing
+      !IM_TEMPLATE_ID type SDOKOBJECT
+    exporting
+      !EX_PROFILE_ATTRS type TY_T_ATTR .
+  class-methods OPERATOR_AND
+    importing
+      !IM_VARIABLES type TY_T_VARIABLE
+      !IM_OPERATORS type STRINGTAB
+    exporting
+      !EX_APPLIES type XFELD
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_COMPUTE_COUNT
+    changing
+      !EX_RESULT type ref to DATA .
+  class-methods OPERATOR_EVALUATE
+    importing
+      !IM_FIELDNAME type CLIKE
+      !IM_LOGICAL_OPERATOR type STRING
+      !IM_COMPARISON_VALUE type STRING
+    exporting
+      !RE_APPLIES type XFELD
+    changing
+      !EX_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_FILTER
+    importing
+      !IM_FIELDNAME type CLIKE
+      !IM_LOGICAL_OPERATOR type STRING
+      !IM_COMPARISON_VALUE type STRING
+    changing
+      !EX_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_FORMAT_DATE
+    importing
+      !IM_DATE_FORMAT type STRING
+    changing
+      !EX_RESULT type ref to DATA .
+  class-methods OPERATOR_FORMAT_NUMBER
+    importing
+      value(IM_NO_GROUPING) type STRING
+      value(IM_NO_SIGN) type STRING
+      value(IM_DECIMALS) type STRING
+      value(IM_NO_ZERO) type STRING
+    changing
+      !EX_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_FORMAT_NUMBER_INT
+    importing
+      !IM_FORMAT type NUMC3
+      !IM_NUMBER type NUMERIC
+      !IM_DECIMALS type I
+      !IM_NO_ZERO type SRMBOOLEAN
+    returning
+      value(RE_STRING) type STRING
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_GET
+    importing
+      !IM_NAME type CLIKE
+      !IM_VARIABLES type TY_T_VARIABLE
+    exporting
+      !EX_DATA type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_IF
+    importing
+      !IM_FIELDNAME type CLIKE
+      !IM_LOGICAL_OPERATOR type STRING
+      !IM_COMPARISON_VALUE type STRING
+      !IM_VALUE type ref to DATA
+    exporting
+      !RE_APPLIES type XFELD
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_NET_AMOUNT
+    changing
+      !EX_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_OR
+    importing
+      !IM_VARIABLES type TY_T_VARIABLE
+      !IM_OPERATORS type STRINGTAB
+    exporting
+      !EX_APPLIES type XFELD
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_PICTURE
+    importing
+      !IM_PICTURE_NAME type CLIKE
+    changing
+      !EX_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_RETURN
+    importing
+      !IM_FIELDNAME type FIELDNAME
+      !IM_AS_TABLE type XFELD
+    changing
+      !EX_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_RETURN_DESCRIPTION
+    importing
+      !IM_FIELDNAME type CLIKE
+      !IM_LANGUAGE type CLIKE default 'CA'
+    changing
+      !EX_RESULT type ref to DATA .
+  class-methods OPERATOR_RETURN_FROM_TABLE
+    importing
+      !IM_FIELDNAME type FIELDNAME
+      !IM_AS_TABLE type XFELD
+    changing
+      !EX_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_RETURN_LITERAL
+    importing
+      !IM_LITERAL type CLIKE
+    changing
+      !EX_RESULT type ref to DATA .
+  class-methods OPERATOR_RETURN_TEXTID
+    importing
+      !IM_OBJECT type CLIKE
+      !IM_CONTAINER type ref to ZRM_CL_CONTAINER
+      !IM_TEMPLATE_DOCUMENT_ID type STRING
+      !IM_TEMPLATE_DESCRIPTION type STRING
+      !IM_TEMPLATE_OBJECT type SDOKOBJECT
+    changing
+      !EX_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods OPERATOR_SET
+    importing
+      !IM_NAME type CLIKE
+      !IM_DATA type ref to DATA
+    changing
+      !EX_VARIABLES type TY_T_VARIABLE .
+  class-methods OPERATOR_SPELL
+    importing
+      value(IM_CURRENCY) type CLIKE optional
+    changing
+      !EX_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods PARSE_COMMAND
+    exporting
+      !EX_COMMANDS type TY_T_COMMAND
+    changing
+      !IM_FULL type STRING .
+  type-pools ABAP .
+  class CL_ABAP_CHAR_UTILITIES definition load .
+ENDCLASS.
+
+
+
+CLASS ZRM_CL_DOCUMENTS IMPLEMENTATION.
+
+
+METHOD apply_operators.
+  DATA: l_operator_name TYPE string,
+        l_operator_aux  TYPE string,
+        l_operator_arg1 TYPE string,
+        l_operator_arg2 TYPE string,
+        l_operator_arg3 TYPE string,
+        l_operator_arg4 TYPE string,
+        l_operator      TYPE string,
+        lt_argument     TYPE TABLE OF string,
+        l_fieldname     TYPE fieldname,
+        lt_variable     TYPE ty_t_variable,
+        l_xfeld         TYPE xfeld.
+
+***>>> INICI Insert SPEC-47658 ETXGL
+  DATA: lv_pl_codi        TYPE z_codi_plan,
+        gt_task_templates TYPE zrm_gmd_task_template_tab,
+        exp_template      TYPE zrm_gmd_task_template,
+        it_table          TYPE TABLE OF zrm_dt_ofertes,
+        wa_table          LIKE LINE OF it_table.
+***<<< FI Insert SPEC-47658 ETXGL
+
+  ">> SPEC-68484, Inici Modificació - ETODR
+  DATA: ls_logo_comand   TYPE ty_s_command,
+        lt_logo_comand   TYPE ty_t_command,
+        lv_logo_operator TYPE string.
+  "<< SPEC-68484, Final Modificació - ETODR
+
+  FIELD-SYMBOLS: <ls_command>       TYPE ty_s_command.
+
+  "INICI - SPEC-83935 - EVMRG
+
+  FIELD-SYMBOLS:<lt_table2> TYPE table.
+
+  DATA : ls_sdkobject      TYPE sdokobject,
+         lt_zrm_dt_ofertes TYPE TABLE OF zrm_dt_ofertes,
+         ls_quadre3        TYPE zerm_quadre3.
+  "FI - SPEC-83935 - EVMRG
+
+  FIELD-SYMBOLS: <lv_generic> TYPE any,   " PSPEC-1486 - EVVSFV
+                 <lv_text>    TYPE string. " PSPEC-1486 - EVVSFV
+
+  CLEAR ex_binary .
+  LOOP AT im_commands ASSIGNING <ls_command> .
+    CLEAR: ex_result,
+           l_fieldname .
+
+    LOOP AT <ls_command>-operators INTO l_operator .
+      CLEAR: l_operator_name,
+             l_operator_arg1,
+             l_operator_arg2,
+             l_operator_arg3,
+             l_operator_arg4 .
+      SPLIT l_operator AT co_separator_arguments INTO TABLE lt_argument .
+      READ TABLE lt_argument  INTO l_operator_name INDEX 1.
+      READ TABLE lt_argument  INTO l_operator_arg1 INDEX 2.
+      READ TABLE lt_argument  INTO l_operator_arg2 INDEX 3.
+      READ TABLE lt_argument  INTO l_operator_arg3 INDEX 4.
+      READ TABLE lt_argument  INTO l_operator_arg4 INDEX 5.
+      DELETE lt_argument INDEX 1 .
+* Per si de case separen les comandes amb retorns de carro
+      REPLACE ALL OCCURRENCES OF REGEX '\s' IN l_operator_name WITH `` .
+      IF l_operator_name CA '-' .
+        SPLIT l_operator_name AT '-' INTO l_operator_name l_fieldname .
+        TRANSLATE l_fieldname TO UPPER CASE .             "#EC SYNTCHAR
+        CONDENSE l_fieldname  NO-GAPS .
+      ENDIF .
+
+      TRANSLATE l_operator_name TO UPPER CASE .           "#EC SYNTCHAR
+      CONDENSE l_operator_name NO-GAPS .
+
+      CASE l_operator_name .
+        WHEN co_operator_template_descrip .
+          GET REFERENCE OF im_template_description INTO ex_result .
+
+        WHEN co_operator_exit .
+          RETURN .
+
+        WHEN co_operator_format_date .
+          IF NOT l_fieldname IS INITIAL .
+            CALL METHOD operator_return
+              EXPORTING
+                im_fieldname = l_fieldname
+                im_as_table  = im_as_table
+              CHANGING
+                ex_result    = ex_result.
+            CLEAR l_fieldname .
+          ENDIF .
+
+          CALL METHOD operator_format_date
+            EXPORTING
+              im_date_format = l_operator_arg1
+            CHANGING
+              ex_result      = ex_result.
+
+        WHEN co_operator_net_amount .
+          IF NOT l_fieldname IS INITIAL .
+            CALL METHOD operator_return
+              EXPORTING
+                im_fieldname = l_fieldname
+                im_as_table  = im_as_table
+              CHANGING
+                ex_result    = ex_result.
+            CLEAR l_fieldname .
+          ENDIF .
+
+          CALL METHOD operator_net_amount
+            CHANGING
+              ex_result = ex_result.
+
+        WHEN co_operator_format_number .
+          IF NOT l_fieldname IS INITIAL .
+            CALL METHOD operator_return
+              EXPORTING
+                im_fieldname = l_fieldname
+                im_as_table  = im_as_table
+              CHANGING
+                ex_result    = ex_result.
+            CLEAR l_fieldname .
+          ENDIF .
+
+          CALL METHOD operator_format_number
+            EXPORTING
+              im_decimals    = l_operator_arg1
+              im_no_grouping = l_operator_arg2
+              im_no_sign     = l_operator_arg3
+              im_no_zero     = l_operator_arg4
+            CHANGING
+              ex_result      = ex_result.
+
+        WHEN co_operator_return_literal .
+          CLEAR l_fieldname .
+          CALL METHOD operator_return_literal
+            EXPORTING
+              im_literal = l_operator_arg1
+            CHANGING
+              ex_result  = ex_result.
+
+        WHEN co_operator_set .
+          CLEAR l_fieldname .
+          CALL METHOD operator_set
+            EXPORTING
+              im_name      = l_operator_arg1
+              im_data      = ex_result
+            CHANGING
+              ex_variables = lt_variable.
+
+        WHEN co_operator_get .
+          CLEAR l_fieldname .
+          CALL METHOD operator_get
+            EXPORTING
+              im_name      = l_operator_arg1
+              im_variables = lt_variable
+            IMPORTING
+              ex_data      = ex_result.
+
+        WHEN co_operator_return_description .
+          IF l_operator_arg1 IS INITIAL .
+            l_operator_arg1 = l_fieldname .
+          ENDIF .
+          CONDENSE l_operator_arg2 NO-GAPS .
+          TRANSLATE l_operator_arg2 TO UPPER CASE . "Codi ISO d'idioma
+          CLEAR l_fieldname .
+          CALL METHOD operator_return_description
+            EXPORTING
+              im_fieldname = l_operator_arg1
+              im_language  = l_operator_arg2
+            CHANGING
+              ex_result    = ex_result.
+
+        WHEN co_operator_return_textid .
+          CLEAR l_fieldname .
+          CALL METHOD operator_return_textid
+            EXPORTING
+              im_object               = l_operator_arg1
+              im_container            = im_container
+              im_template_document_id = im_template_document_id
+              im_template_description = im_template_description
+              im_template_object      = im_template_object
+            CHANGING
+              ex_result               = ex_result.
+
+        WHEN co_operator_compute_count .
+* Después de un COUNT borramos FIELDNAME para evitar problemas con sentencias del
+* estilo de TABLA-CAMPO:FILTRAR/EQ/X:COMPTAR:SI/GE/2....
+          CLEAR l_fieldname .
+          CALL METHOD operator_compute_count
+            CHANGING
+              ex_result = ex_result.
+
+        WHEN co_operator_evaluate .
+          CALL METHOD operator_evaluate
+            EXPORTING
+              im_fieldname        = l_fieldname
+              im_logical_operator = l_operator_arg1
+              im_comparison_value = l_operator_arg2
+            IMPORTING
+              re_applies          = l_xfeld
+            CHANGING
+              ex_result           = ex_result.
+
+        WHEN co_operator_and .
+          CLEAR l_fieldname .
+          CALL METHOD operator_and
+            EXPORTING
+              im_operators = lt_argument
+              im_variables = lt_variable
+            IMPORTING
+              ex_applies   = l_xfeld.
+* Si la condició no aplica ja no avaluem cap més operador.. tornem un blanc i llestos. Ho fem
+* així perquè no tenim implementat un ELSE. Si aplica, la sortida serà igual a la entrada
+          IF l_xfeld EQ space .
+            CREATE DATA ex_result TYPE xfeld .
+            EXIT. "següent comanda
+          ENDIF .
+
+        WHEN co_operator_or .
+          CLEAR l_fieldname .
+          CALL METHOD operator_or
+            EXPORTING
+              im_operators = lt_argument
+              im_variables = lt_variable
+            IMPORTING
+              ex_applies   = l_xfeld.
+* Si la condició no aplica ja no avaluem cap més operador.. tornem un blanc i llestos. Ho fem
+* així perquè no tenim implementat un ELSE. Si aplica, la sortida serà igual a la entrada
+          IF l_xfeld EQ space .
+            CREATE DATA ex_result TYPE string .
+            EXIT. "següent comanda
+          ENDIF .
+
+        WHEN co_operator_if .
+*- Hem d'evitar problemes amb els espais al final quan comparem CHAR vs STRING
+          cl_abap_string_utilities=>del_trailing_blanks( CHANGING str = l_operator_arg2 ).
+**>> INI MODIF ETODR SPEC-41123 Es comprova si l'operand 2 és un valor directe o una variable i en cas de ser-ho es busca el seu valor
+          IF l_operator_arg2 = 'Z_DATA_VALIDESA'.
+            im_container->get_element(
+              EXPORTING
+                im_element          = l_operator_arg2
+                im_extend_if_needed = space
+                im_ignore_cache     = space
+                im_template_doc_id  = im_template_document_id
+                im_template_object  = im_template_object
+              RECEIVING
+                re_reference        = DATA(l_value_operator_arg2)
+              EXCEPTIONS
+                error               = 1
+                not_found           = 2
+                OTHERS              = 3 ).
+            IF sy-subrc = 0.
+              ASSIGN l_value_operator_arg2->* TO FIELD-SYMBOL(<l_value_operator_arg2>).
+              l_operator_arg2 = <l_value_operator_arg2>.
+            ELSE.
+              CLEAR:l_value_operator_arg2.
+            ENDIF.
+          ENDIF.
+**<< FI MODIF ETODR SPEC-41123
+          CALL METHOD operator_if
+            EXPORTING
+              im_fieldname        = l_fieldname
+              im_logical_operator = l_operator_arg1
+              im_comparison_value = l_operator_arg2
+              im_value            = ex_result
+            IMPORTING
+              re_applies          = l_xfeld.
+* Si la condició no aplica ja no avaluem cap més operador.. tornem un blanc i llestos. Ho fem
+* així perquè no tenim implementat un ELSE. Si aplica, la sortida serà igual a la entrada
+          IF l_xfeld EQ space .
+            CREATE DATA ex_result TYPE xfeld .
+            EXIT. "següent comanda
+          ENDIF .
+
+        WHEN co_operator_picture .
+
+          CALL METHOD operator_picture
+            EXPORTING
+              im_picture_name = l_operator_arg1
+            CHANGING
+              ex_result       = ex_result.
+          ex_binary = 'X' .
+          RETURN .
+
+        WHEN co_operator_filter .
+*- Hem d'evitar problemes amb els espais al final quan comparem CHAR vs STRING
+          cl_abap_string_utilities=>del_trailing_blanks( CHANGING str = l_operator_arg3 ).
+          CALL METHOD operator_filter
+            EXPORTING
+              im_fieldname        = l_operator_arg1
+              im_logical_operator = l_operator_arg2
+              im_comparison_value = l_operator_arg3
+            CHANGING
+              ex_result           = ex_result.
+
+        WHEN co_operator_spell .
+          IF NOT l_fieldname IS INITIAL .
+            CALL METHOD operator_return
+              EXPORTING
+                im_fieldname = l_fieldname
+                im_as_table  = im_as_table
+              CHANGING
+                ex_result    = ex_result.
+            CLEAR l_fieldname .
+          ENDIF .
+          CALL METHOD operator_spell
+            EXPORTING
+              im_currency = l_operator_arg1
+            CHANGING
+              ex_result   = ex_result.
+
+***>>> INICI Insert SPEC-47658 ETXGL
+*        WHEN 'ZRM_DT_OFERTES'.
+*
+*         CALL METHOD im_container->get_element       " Un element del container?
+*            EXPORTING
+*              im_element          = l_operator_name
+*              im_extend_if_needed = 'X'
+*              im_ignore_cache     = space
+*              im_template_doc_id  = im_template_document_id
+*              im_template_object  = im_template_object
+*              im_arguments        = lt_argument
+*            RECEIVING
+*              re_reference        = ex_result
+*            EXCEPTIONS
+*              OTHERS              = 1.
+*
+*         IF sy-subrc = 0.
+*          CLEAR lv_pl_codi.
+*
+*          SELECT SINGLE  c~z_codi_plan
+*            INTO  lv_pl_codi
+*              FROM zcmpladocp99 AS a
+*                 INNER JOIN zcmplaphpr99 AS b
+*                    ON a~phio_id = b~object_id
+*                 INNER JOIN zrm_dm_plan_ass AS c
+*                     ON docclass = a~lo_class
+*                    AND objectid = a~loio_id
+*                      WHERE b~prop_name   = 'SRM_DOCUMENT_ID'
+*                         AND b~io_class   = 'ZCMPLAP99'
+*                         AND b~prop_value = im_template_document_id
+*                         AND b~prop_seci  = im_template_document_id.
+*
+*          IF sy-subrc = 0.
+*            SELECT a~z_tasca z_gmd b~z_codi_plan z_tram_conjunta c~docclass c~objectid  z_visualitzar
+*                     z_imprimir z_taula_iter z_camp_iter z_taula_iter_fil z_tancar_doc
+*                INTO CORRESPONDING FIELDS OF TABLE gt_task_templates
+*                  FROM zrm_dm_tasca_gmd AS h JOIN zrm_dm_tasc_plan AS a
+*                                               ON h~z_tasca EQ a~z_tasca
+*                                             JOIN zrm_dm_plan_exp AS b
+*                                               ON a~z_codi_plan EQ b~z_codi_plan
+*                                             JOIN zrm_dm_plan_ass AS c
+*                                               ON c~z_codi_plan EQ b~z_codi_plan
+*                                                 WHERE c~z_codi_plan EQ lv_pl_codi.
+*
+*            IF sy-subrc = 0.
+*
+*              CLEAR exp_template.
+*              READ TABLE gt_task_templates INTO exp_template INDEX 1.
+*
+*              CASE exp_template-z_tasca.
+*
+*                WHEN 'CP078'.
+*
+*                  CLEAR it_table.
+*                  CLEAR wa_table.
+*                  FIELD-SYMBOLS: <lt_table> LIKE it_table,
+*                                 <lw_table> LIKE wa_table.
+*
+*                  ASSIGN ex_result->* TO <lt_table>.
+*
+*                  LOOP AT <lt_table> INTO wa_table .
+*                    IF wa_table-z_adj_prov NE 'X'.
+*                      DELETE <lt_table> WHERE z_num_ofer = wa_table-z_num_ofer.
+*                    ENDIF.
+*                  ENDLOOP.
+*
+*                WHEN OTHERS.
+*
+*              ENDCASE.
+*            ENDIF.
+*           ENDIF.
+*
+*         ELSE.
+*
+*           RAISE EXCEPTION TYPE zcx_rm_documents
+*             EXPORTING
+*               operand_name = l_operator_name
+*               operand      = l_operator
+*               textid       = zcx_rm_documents=>error_operand.
+*         ENDIF.
+***<<< FI Insert SPEC-47658 ETXGL
+
+
+        WHEN OTHERS .
+
+* Un element del container?
+          CALL METHOD im_container->get_element
+            EXPORTING
+              im_element          = l_operator_name
+              im_extend_if_needed = 'X'
+              im_ignore_cache     = space
+              im_template_doc_id  = im_template_document_id
+              im_template_object  = im_template_object
+              im_arguments        = lt_argument
+            RECEIVING
+              re_reference        = ex_result
+            EXCEPTIONS
+              OTHERS              = 1.
+
+
+          "INICI - SPEC-83935 - EVMRG
+
+          IF l_operator_name = 'ZERM_QUADREO_AB' OR
+             l_operator_name =  'ZERM_QUADRE3_AB'.
+            ASSIGN ex_result->* TO <lt_table2>.
+
+            ls_sdkobject = im_container->glob_docid.
+
+            SELECT *
+              FROM zrm_dt_ofertes
+              INTO TABLE lt_zrm_dt_ofertes
+              WHERE docclass = ls_sdkobject-class AND
+                    objectid = ls_sdkobject-objid AND
+                    ( z_renun_ofert = 'X' OR z_exclos_s3 = 'X' ).
+
+            LOOP AT <lt_table2> ASSIGNING FIELD-SYMBOL(<fs_ta>).
+
+              ls_quadre3 = <fs_ta>.
+
+              READ TABLE lt_zrm_dt_ofertes TRANSPORTING NO FIELDS WITH KEY proveidor = ls_quadre3-proveidor
+                                                                           z_num_ofer =  ls_quadre3-z_num_ofer.
+              IF sy-subrc = 0.
+                DELETE <lt_table2>.
+              ENDIF.
+
+            ENDLOOP.
+
+          ENDIF.
+          "FI - SPEC-83935 - EVMRG
+
+
+          IF sy-subrc NE 0 .
+            RAISE EXCEPTION TYPE zcx_rm_documents
+              EXPORTING
+                operand_name = l_operator_name
+                operand      = l_operator
+                textid       = zcx_rm_documents=>error_operand.
+          ENDIF.
+          ">> SPEC-68484, Inici Modificació - ETODR
+
+*** INI ETOVB SPEC-69504 2022/05/23
+          """Es tracta d'un operador d'imatge (logo)?
+          SELECT SINGLE z_logo_tag
+            INTO l_operator_aux
+            FROM zrm_logos_espec
+            WHERE z_logo_tag          = l_operator_name.
+          """ Si es tracta d'una imatge/logo s'ha d'afegir
+          IF sy-subrc EQ 0.
+            "Per muntar el logo dinàmic en funció de la societat hem de forçar a que es torni a executar el APPLY_OPERATORS per executar el operand LOGO
+            CLEAR: lt_logo_comand.
+            ASSIGN ex_result->* TO FIELD-SYMBOL(<fs_result_logo>).
+            IF <fs_result_logo> IS ASSIGNED.
+              lv_logo_operator = <fs_result_logo>.
+              APPEND lv_logo_operator TO ls_logo_comand-operators.
+              APPEND ls_logo_comand TO lt_logo_comand.
+              CALL METHOD apply_operators
+                EXPORTING
+                  im_commands             = lt_logo_comand
+                  im_container            = im_container
+                  im_as_table             = space
+                  im_template_document_id = im_template_document_id
+                  im_template_description = im_template_description
+                  im_template_object      = im_template_object
+                IMPORTING
+                  ex_result               = ex_result
+                  ex_binary               = ex_binary.
+
+            ENDIF.
+          ENDIF.
+
+
+*          IF l_operator_name = 'LOGO_SOCIETAT_CAP' OR l_operator_name = 'LOGO_SOCIETAT_PEU'.
+*            "Per muntar el logo dinàmic en funció de la societat hem de forçar a que es torni a executar el APPLY_OPERATORS per executar el operand LOGO
+*            CLEAR: lt_logo_comand.
+*            ASSIGN ex_result->* TO FIELD-SYMBOL(<fs_result_logo>).
+*            IF <fs_result_logo> IS ASSIGNED.
+*              lv_logo_operator = <fs_result_logo>.
+*              APPEND lv_logo_operator TO ls_logo_comand-operators.
+*              APPEND ls_logo_comand TO lt_logo_comand.
+*              CALL METHOD apply_operators
+*                EXPORTING
+*                  im_commands             = lt_logo_comand
+*                  im_container            = im_container
+*                  im_as_table             = space
+*                  im_template_document_id = im_template_document_id
+*                  im_template_description = im_template_description
+*                  im_template_object      = im_template_object
+*                IMPORTING
+*                  ex_result               = ex_result
+*                  ex_binary               = ex_binary.
+*
+*            ENDIF.
+*          ENDIF.
+          "<< SPEC-68484, Final Modificació - ETODR
+*** FIN ETOVB SPEC-69504
+
+*INICI  PSPEC-1486 - EVVSFV
+          IF l_operator_name = 'ZRM_DT_MODIF_AUT_BBDD'.
+            IF ex_result IS INITIAL.
+              CREATE DATA ex_result TYPE string .
+              ASSIGN ex_result->* TO <lv_text> CASTING.
+              <lv_text> = 'No hi ha'.
+            ENDIF.
+          ENDIF.
+      ENDCASE.
+*FI  PSPEC-1486 - EVVSFV
+    ENDLOOP.
+*    ">> PSPEC-1482, Inici Modificació - EVODR
+*    IF l_operator = 'ZDETALL_CRITERIS'.
+*      break evodr.
+*      CALL METHOD operator_return
+*        EXPORTING
+*          im_fieldname = l_fieldname
+*          im_as_table  = abap_true
+*        CHANGING
+*          ex_result    = ex_result.
+*    ELSE.
+*      "<< PSPEC-1482, Final Modificació - EVODR
+    IF l_operator_name <> 'Z_MAIL_ADJ'. "SPEC-88170 EVCHA
+      CALL METHOD operator_return
+        EXPORTING
+          im_fieldname = l_fieldname
+          im_as_table  = im_as_table
+        CHANGING
+          ex_result    = ex_result.
+    ENDIF.
+*    ENDIF.
+  ENDLOOP .
+
+ENDMETHOD.
+
+
+METHOD check_before_start.
+
+* El motor de plantilles fa doble validació. Per una banda es crida la badi
+* quan s'obté la llista de plantilles ZRM_CL_GMD_TASK->GET_TASK_TEMPLATES
+* i ho tornem a comprovar aquí, una vegada ja s'ha escollit una plantilla.
+* Ho fem per un tema de seguretat, no fos cas que des d'algun lloc s'intentés
+* generar un document sense haver passat abans per ZRM_CL_GMD_TASK
+    zrm_cl_gmd_badi_context=>invalidate_cache( ) .
+  IF NOT my_task IS INITIAL .
+    DATA: lr_badi  TYPE REF TO zrm_badi_check_tasca .
+    TRY .
+        GET BADI lr_badi .
+        CALL BADI lr_badi->check_before_execute
+          EXPORTING
+            im_task      = my_task
+            im_container = im_container
+            im_docclass  = im_container->glob_docid-class
+            im_objectid  = im_container->glob_docid-objid.
+      CATCH cx_badi_not_implemented .                     "#EC NO CATCH
+    ENDTRY .
+  ENDIF .
+ENDMETHOD.
+
+
+METHOD class_constructor.
+  CREATE OBJECT my_text_identifier .
+ENDMETHOD.
+
+
+METHOD condition_applies.
+  CLEAR re_applies .
+  TRANSLATE im_logical_operator TO UPPER CASE .
+  CONDENSE im_logical_operator NO-GAPS .
+  CASE im_logical_operator .
+    WHEN co_operator_condition_eq OR '='  OR 'EQ'. CHECK im_value  EQ im_comparison_value .
+    WHEN co_operator_condition_ge OR '>=' OR 'GE'. CHECK im_value  GE im_comparison_value .
+    WHEN co_operator_condition_gt OR '>'  OR 'GT'. CHECK im_value  GT im_comparison_value .
+    WHEN co_operator_condition_le OR '<=' OR 'LE'. CHECK im_value  LE im_comparison_value .
+    WHEN co_operator_condition_lt OR '<'  OR 'LT'. CHECK im_value  LT im_comparison_value .
+    WHEN co_operator_condition_ne OR '<>' OR 'NE'. CHECK im_value  NE im_comparison_value .
+    WHEN co_operator_condition_not_ini .           CHECK NOT im_value  IS INITIAL .
+    WHEN co_operator_condition_initial .           CHECK im_value      IS INITIAL .
+    WHEN OTHERS .
+      RAISE EXCEPTION TYPE zcx_rm_documents
+        EXPORTING textid = zcx_rm_documents=>error_logical_exp
+                  operand = im_logical_operator  .
+  ENDCASE .
+  re_applies = 'X' .
+ENDMETHOD.
+
+
+METHOD constructor.
+
+  DATA: lt_props TYPE TABLE OF bapiproptb,
+        ls_prop  TYPE bapiproptb.
+
+  my_control     = im_control .
+  my_proxy       = im_proxy .
+  my_task        = im_task .
+
+  IF NOT im_template_id IS INITIAL .
+    my_template_object = im_template_id .
+    ls_prop-name = if_srm_document=>prop_document_id .
+    APPEND ls_prop TO lt_props .
+
+    ls_prop-name = if_srm_document=>prop_description .
+    APPEND ls_prop TO lt_props .
+    CALL FUNCTION 'BAPI_SRM_DOC_GETPROPERTIES'
+      EXPORTING
+        objectid      = my_template_object-objid
+        documentclass = my_template_object-class
+      TABLES
+        properties    = lt_props.
+    READ TABLE lt_props INTO ls_prop WITH KEY name = if_srm_document=>prop_document_id .
+    my_template_document_id = ls_prop-value .
+
+    READ TABLE lt_props INTO ls_prop WITH KEY name = if_srm_document=>prop_description .
+    my_template_description = ls_prop-value .
+
+    CALL METHOD get_profile_attributes
+      EXPORTING
+        im_template_id   = my_template_object
+      IMPORTING
+        ex_profile_attrs = my_list_of_attrs.
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD convert_strings_table.
+  FIELD-SYMBOLS: <l_table_in>  TYPE ANY TABLE,
+                 <l_table_out> TYPE ANY TABLE,
+                 <l_line_in>   TYPE ANY,
+                 <l_line_out>  TYPE ANY .
+  DATA: lr_table_descr     TYPE REF TO cl_abap_tabledescr,
+        lr_strct_descr     TYPE REF TO cl_abap_structdescr,
+        lr_ref_line        TYPE REF TO data,
+        ls_component       TYPE LINE OF abap_compdescr_tab,
+        lt_new_comp        TYPE cl_abap_structdescr=>component_table,
+        ls_new_comp        TYPE LINE OF cl_abap_structdescr=>component_table .
+
+  re_ref_table = im_ref_table .
+* No es podem enviar taules al DOI si contenen strings. Si es dona el cas, creem una nova
+* taula reconvertint a CHAR
+  lr_table_descr ?= cl_abap_tabledescr=>describe_by_data_ref( im_ref_table ) .
+  lr_strct_descr ?= lr_table_descr->get_table_line_type( ) .
+  READ TABLE lr_strct_descr->components TRANSPORTING NO FIELDS
+       WITH KEY type_kind = cl_abap_structdescr=>typekind_string.
+  IF sy-subrc NE 0 .
+    re_ref_table = im_ref_table .
+    RETURN .
+  ENDIF .
+
+  LOOP AT lr_strct_descr->components INTO ls_component.
+    ls_new_comp-name = ls_component-name .
+    IF ls_component-type_kind EQ cl_abap_structdescr=>typekind_string.
+      ls_new_comp-type = cl_abap_elemdescr=>get_c( 1000 ) .
+    ELSE .
+      ls_new_comp-type  = lr_strct_descr->get_component_type( ls_component-name ) .
+    ENDIF .
+    APPEND ls_new_comp TO lt_new_comp .
+  ENDLOOP .
+
+  lr_strct_descr = cl_abap_structdescr=>create( p_components = lt_new_comp ) .
+  lr_table_descr = cl_abap_tabledescr=>create( lr_strct_descr ) .
+
+  CREATE DATA re_ref_table TYPE HANDLE lr_table_descr .
+  CREATE DATA lr_ref_line  TYPE HANDLE lr_strct_descr .
+
+  ASSIGN im_ref_table->*   TO <l_table_in> .
+  ASSIGN re_ref_table->*   TO <l_table_out> .
+  ASSIGN lr_ref_line->*    TO <l_line_out> .
+
+  LOOP AT <l_table_in> ASSIGNING <l_line_in> .
+    MOVE-CORRESPONDING <l_line_in> TO <l_line_out> .
+    INSERT <l_line_out> INTO TABLE <l_table_out> .
+  ENDLOOP .
+
+
+ENDMETHOD.
+
+
+METHOD CREATE_ONE_COLUMN_TABLE.
+  DATA: ls_component    TYPE abap_componentdescr,
+        lt_component    TYPE abap_component_tab,
+        lr_struct_descr TYPE REF TO cl_abap_structdescr,
+        lr_table_descr  TYPE REF TO cl_abap_tabledescr.
+  FIELD-SYMBOLS: <ls_line>  TYPE ANY,
+                 <l_field>  TYPE ANY,
+                 <lt_table> TYPE STANDARD TABLE .
+
+  ls_component-name = im_fieldname .
+  ls_component-type ?= cl_abap_typedescr=>describe_by_data( im_fieldvalue ) .
+  IF     ls_component-type->type_kind EQ cl_abap_typedescr=>typekind_struct1
+      OR ls_component-type->type_kind EQ cl_abap_typedescr=>typekind_struct2 .
+    ls_component-as_include = 'X' .
+  ENDIF .
+
+  INSERT ls_component INTO TABLE lt_component .
+  lr_struct_descr = cl_abap_structdescr=>create( p_components = lt_component ) .
+  lr_table_descr  = cl_abap_tabledescr=>create( p_line_type = lr_struct_descr ) .
+
+  CREATE DATA ex_line_ref  TYPE HANDLE lr_struct_descr .
+  CREATE DATA ex_table_ref TYPE HANDLE lr_table_descr .
+
+  IF    ex_field_ref         IS SUPPLIED
+     OR im_create_first_line IS NOT INITIAL .
+    ASSIGN ex_line_ref->* TO <ls_line> .
+    IF ls_component-as_include EQ space .
+      ASSIGN COMPONENT 1 OF STRUCTURE <ls_line> TO <l_field> .
+      GET REFERENCE OF <l_field> INTO ex_field_ref .
+    ELSE .
+      ASSIGN <ls_line> TO <l_field> .
+      GET REFERENCE OF <l_field> INTO ex_field_ref .
+    ENDIF .
+  ENDIF .
+
+  IF im_create_first_line IS NOT INITIAL .
+    ASSIGN ex_table_ref->* TO <lt_table> .
+    <l_field> = im_fieldvalue .
+    APPEND <ls_line> TO <lt_table> .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD execute_command.
+  DATA: lt_command TYPE ty_t_command .
+
+  zrm_cl_gmd_badi_context=>invalidate_cache( ) .
+
+  CALL METHOD zrm_cl_documents=>parse_command
+    IMPORTING
+      ex_commands = lt_command
+    CHANGING
+      im_full     = im_script.
+
+  CALL METHOD zrm_cl_documents=>apply_operators
+    EXPORTING
+      im_container            = im_container
+      im_commands             = lt_command
+      im_as_table             = im_as_table
+      im_template_document_id = im_template_document_id
+      im_template_description = im_template_description
+      im_template_object      = im_template_object
+    IMPORTING
+      ex_result               = re_result
+*    EX_BINARY               =
+      .
+
+
+ENDMETHOD.
+
+
+METHOD FORMAT_DATE.
+  DATA: l_string       TYPE string,
+        l_date         TYPE d,
+        l_weekday      TYPE p,
+        ls_month_name  TYPE t247,
+        ls_day_name    TYPE t246.
+
+  l_date = im_date .
+  IF l_date CO '0 ' .
+    re_string = 'DATA NO INFORMADA'(e00).
+    RETURN .
+  ENDIF .
+  re_string = im_date_format .
+  IF im_date_format IS INITIAL .
+    re_string = `<D> <DMMMM> de <Y>` .
+  ENDIF .
+
+  CALL FUNCTION 'DAY_IN_WEEK'
+    EXPORTING
+      datum = l_date
+    IMPORTING
+      wotnr = l_weekday.
+
+  SELECT SINGLE * INTO ls_day_name
+           FROM t246
+          WHERE     sprsl EQ sy-langu
+                AND wotnr EQ l_weekday .
+
+  SELECT SINGLE * INTO ls_month_name
+           FROM t247
+          WHERE     spras EQ sy-langu
+                AND mnr   EQ l_date+4(2) .
+  TRANSLATE: ls_day_name-kurzt TO LOWER CASE,
+             ls_day_name-langt TO LOWER CASE,
+             ls_month_name-ktx TO LOWER CASE,
+             ls_month_name-ltx TO LOWER CASE .
+
+  IF     re_string CS '<MMMM>' .
+    "Nom complet del mes
+    REPLACE ALL OCCURRENCES OF '<MMMM>' IN re_string WITH ls_month_name-ltx .
+  ELSEIF     re_string CS '<DMMMM>' .
+    "Nom complet del mes amb 'de' al davant
+    IF ls_month_name-ltx(1) CA 'AEIOUaeiou' .
+      CONCATENATE `d'` ls_month_name-ltx INTO l_string .
+    ELSE .
+      CONCATENATE `de ` ls_month_name-ltx INTO l_string .
+    ENDIF .
+    REPLACE ALL OCCURRENCES OF '<DMMMM>' IN re_string WITH l_string .
+  ELSEIF re_string CS '<MMM>' .
+    "Nom curt de mes
+    REPLACE ALL OCCURRENCES OF '<MMM>' IN re_string WITH ls_month_name-ktx .
+  ELSEIF re_string CS '<DMMM>' .
+    "Nom curt de mes amb de al davant
+    IF ls_month_name-ktx(1) CA 'AEIOUaeiou' .
+      CONCATENATE `d'` ls_month_name-ktx INTO l_string .
+    ELSE .
+      CONCATENATE `de ` ls_month_name-ktx INTO l_string .
+    ENDIF .
+    REPLACE ALL OCCURRENCES OF '<DMMM>' IN re_string WITH l_string .
+  ELSEIF re_string CS '<MM>' . "Número del mes amb zero inicial
+    REPLACE ALL OCCURRENCES OF '<MM>' IN re_string WITH l_date+4(2).
+  ELSEIF re_string CS '<M>' .
+    SHIFT l_date+4(2) LEFT DELETING LEADING '0' .
+    REPLACE ALL OCCURRENCES OF '<M>' IN re_string WITH l_date+4(2).
+  ENDIF .
+
+  IF     re_string CS '<DDDD>' . "Nom complet del dia de la setmane
+    REPLACE ALL OCCURRENCES OF '<DDDD>' IN re_string WITH ls_day_name-langt.
+  ELSEIF re_string CS '<DDD>' .  "Nom curt del dia de la setmana
+    REPLACE ALL OCCURRENCES OF '<DDD>' IN re_string WITH ls_day_name-kurzt.
+  ELSEIF re_string CS '<DD>' .   "Número del dia, amb zero inicial
+    REPLACE ALL OCCURRENCES OF '<DD>' IN re_string WITH l_date+06(02) .
+  ELSEIF re_string CS '<D>' .    "Número del dia, sense zero
+    SHIFT l_date+6(2) LEFT DELETING LEADING '0' .
+    REPLACE ALL OCCURRENCES OF '<D>' IN re_string WITH l_date+6(2).
+  ENDIF .
+
+  REPLACE ALL OCCURRENCES OF '<Y>' IN re_string WITH l_date(4) .
+  CONDENSE re_string .
+  SHIFT re_string LEFT DELETING LEADING space .
+ENDMETHOD.
+
+
+METHOD get_docu_as_string.
+  DATA: lt_line  TYPE TABLE OF tline,
+        l_object TYPE doku_obj .
+  FIELD-SYMBOLS: <ls_line> LIKE LINE OF lt_line .
+
+  CLEAR re_text .
+
+  l_object = im_object .
+  TRANSLATE l_object TO UPPER CASE .                      "#EC SYNTCHAR
+  CALL FUNCTION 'DOCU_GET'
+    EXPORTING
+      id     = 'DT'
+      langu  = sy-langu
+      object = l_object
+    TABLES
+      line   = lt_line
+    EXCEPTIONS
+      OTHERS = 5.
+  IF sy-subrc NE 0 .
+    data: l_dokuobj like zcx_rm_documents=>doku_obj.
+    l_dokuobj = im_object .
+    RAISE EXCEPTION TYPE zcx_rm_documents
+          EXPORTING textid = zcx_rm_documents=>objectid
+                    doku_obj = l_dokuobj .
+  ENDIF .
+  LOOP AT lt_line ASSIGNING <ls_line> .
+    REPLACE ALL OCCURRENCES OF '<(>,<)>' IN <ls_line>-tdline  WITH ',' .
+    REPLACE ALL OCCURRENCES OF ',,' IN <ls_line>-tdline WITH cl_abap_char_utilities=>horizontal_tab .
+    IF sy-tabix = 1 .
+      re_text = <ls_line>-tdline .
+    ELSE .
+      CASE <ls_line>-tdformat .
+        WHEN space.
+          CONCATENATE re_text <ls_line>-tdline INTO re_text
+            SEPARATED BY space .
+
+        WHEN '=' .
+          CONCATENATE re_text <ls_line>-tdline INTO re_text .
+
+        WHEN '*' OR '/' OR '/='.
+* Ojo!!! No usamos CR+LF porque da problemas al aplicar formato de párrafo en Word. Usando
+* tan sólo CR ya funciona bien.
+          CONCATENATE re_text cl_abap_char_utilities=>cr_lf(1) <ls_line>-tdline
+                 INTO re_text.
+
+        WHEN '/*' OR '/:'. CONTINUE .
+
+      ENDCASE .
+    ENDIF .
+  ENDLOOP .
+
+ENDMETHOD.
+
+
+METHOD get_doi_interfaces.
+  DATA: lif_error TYPE REF TO i_oi_error .
+
+  IF ex_form_interface IS REQUESTED .
+    CALL METHOD my_proxy->get_form_interface
+      IMPORTING
+        error       = lif_error
+        f_interface = ex_form_interface.
+    me->raise_doi_error( lif_error ) .
+  ENDIF .
+
+  IF ex_link_server IS REQUESTED .
+    CALL METHOD my_control->get_link_server
+      IMPORTING
+        error       = lif_error
+        link_server = ex_link_server.
+    me->raise_doi_error( lif_error ) .
+  ENDIF .
+
+  IF   ex_table_collection IS REQUESTED .
+    CALL METHOD my_control->get_table_collection
+      IMPORTING
+        error            = lif_error
+        table_collection = ex_table_collection.
+    me->raise_doi_error( lif_error ) .
+  ENDIF .
+
+  IF ex_wp_interface IS REQUESTED .
+    CALL METHOD my_proxy->get_wordprocessor_interface
+      IMPORTING
+        wp_interface = ex_wp_interface
+        error        = lif_error.
+    me->raise_doi_error( lif_error ) .
+  ENDIF .
+
+
+  IF ex_sh_interface IS REQUESTED .
+    CALL METHOD my_proxy->get_spreadsheet_interface
+      IMPORTING
+        error           = lif_error
+        sheet_interface = ex_sh_interface.
+    me->raise_doi_error( lif_error ) .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD get_instance.
+  DATA: lv_excel TYPE z_excel.
+
+  SELECT SINGLE z_excel
+    FROM zrm_dm_tasca_gmd
+    INTO lv_excel
+   WHERE z_tasca EQ im_task.
+
+  IF lv_excel EQ abap_true                                      OR
+     im_task  EQ 'QUADRE1B_ESBORRANY'                           OR
+     im_task  EQ 'QUADRE2B_ESBORRANY'                           OR
+     im_task  EQ zrm_cl_documents_excel=>co_quadre_punt_tec_add OR
+     im_task  EQ zrm_cl_documents_excel=>co_inf_pt_def .
+
+    CREATE OBJECT re_ref TYPE zrm_cl_documents_excel
+      EXPORTING
+        im_control     = im_control
+        im_proxy       = im_proxy
+        im_template_id = im_template_id
+        im_task        = im_task.
+
+  ELSE.
+    CREATE OBJECT re_ref TYPE zrm_cl_documents_word
+      EXPORTING
+        im_control     = im_control
+        im_proxy       = im_proxy
+        im_template_id = im_template_id
+        im_task        = im_task.
+  ENDIF .
+ENDMETHOD.
+
+
+METHOD get_picture_uri.
+  DATA: lt_signature TYPE sbdst_signature,
+        ls_signature TYPE bapisignat,
+        lt_uri       TYPE sbdst_uri,
+        ls_uri       TYPE bapiuri .
+
+  ls_signature-prop_name = 'DESCRIPTION' .                  "#EC NOTEXT
+  ls_signature-prop_value = im_picture_name .
+  APPEND ls_signature TO lt_signature .
+
+  CALL METHOD cl_bds_document_set=>get_info_newest_only
+    EXPORTING
+      classname       = co_bds_classname
+      classtype       = co_bds_classtype
+      object_key      = co_bds_object_key
+    CHANGING
+      signature       = lt_signature
+    EXCEPTIONS
+      error_kpro      = 1
+      internal_error  = 2
+      nothing_found   = 3
+      not_allowed     = 4
+      not_authorized  = 5
+      parameter_error = 6
+      OTHERS          = 7.
+  IF    sy-subrc     NE 0
+     OR lt_signature IS INITIAL.
+    RAISE EXCEPTION TYPE zcx_rm_documents
+        EXPORTING picture_name = ls_signature-prop_value .
+  ENDIF.
+
+* En teoria hi pot haver més d'una imatge amb la mateixa descripció
+* però supossarem que només n'hi ha una
+  READ TABLE lt_signature INTO ls_signature INDEX 1 .
+
+  CALL METHOD cl_bds_document_set=>get_with_url
+    EXPORTING
+      classname       = co_bds_classname
+      classtype       = co_bds_classtype
+      object_key      = co_bds_object_key
+    CHANGING
+      uris            = lt_uri
+      signature       = lt_signature
+    EXCEPTIONS
+      nothing_found   = 1
+      error_kpro      = 2
+      internal_error  = 3
+      parameter_error = 4
+      not_authorized  = 5
+      not_allowed     = 6
+      OTHERS          = 7.
+
+  IF    sy-subrc NE 0
+     OR lt_uri  IS INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_documents
+        EXPORTING picture_name = ls_signature-prop_value .
+  ENDIF.
+
+  READ TABLE lt_uri INTO ls_uri INDEX 1 .
+  re_picture_uri = ls_uri-uri .
+ENDMETHOD.
+
+
+METHOD get_profile_attributes.
+  DATA: lt_textid TYPE ty_t_textid,
+        ls_attr   TYPE ty_s_attr,
+        l_string  TYPE string,
+        lt_attr   TYPE STANDARD TABLE OF zrm_dm_plan_att.
+  FIELD-SYMBOLS: <ls_attr>   LIKE LINE OF lt_attr,
+                 <ls_textid> TYPE ty_s_textid .
+
+  SELECT * INTO CORRESPONDING FIELDS OF TABLE lt_attr
+       FROM  zrm_dm_plan_ass AS h JOIN zrm_dm_plan_exp AS a
+                               ON a~z_codi_plan EQ h~z_codi_plan
+                                  JOIN zrm_dm_plan_att AS b
+                 ON a~z_perfil_att EQ b~z_perfil_att
+      WHERE     h~docclass EQ im_template_id-class
+            AND h~objectid EQ im_template_id-objid .
+
+  CHECK sy-subrc EQ 0 .
+
+  LOOP AT lt_attr ASSIGNING <ls_attr> .
+    REFRESH: lt_textid .
+    CONCATENATE '[' <ls_attr>-value ']' INTO l_string .
+
+    CALL METHOD parse_textid
+      EXPORTING
+        im_string      = l_string
+      IMPORTING
+        ex_textid_list = lt_textid.
+    READ TABLE lt_textid ASSIGNING <ls_textid> INDEX 1 .
+
+    ls_attr-prop_name = <ls_attr>-prop_name .
+    MOVE-CORRESPONDING <ls_textid> TO ls_attr .
+    INSERT ls_attr INTO TABLE ex_profile_attrs .
+  ENDLOOP .
+
+ENDMETHOD.
+
+
+METHOD LOG_CLEAR.
+  REFRESH my_script_log .
+ENDMETHOD.
+
+
+METHOD LOG_SAVE.
+  FIELD-SYMBOLS: <ls_log> TYPE LINE OF ty_t_log .
+
+  SORT my_script_log BY place script .
+  DELETE ADJACENT DUPLICATES FROM my_script_log COMPARING place script .
+
+  LOOP AT my_script_log ASSIGNING <ls_log> .
+    <ls_log>-posnr = sy-tabix .
+  ENDLOOP .
+
+  DELETE FROM zrm_dt_gmd_scrip WHERE template_id = my_template_document_id .
+  INSERT zrm_dt_gmd_scrip      FROM TABLE my_script_log .
+ENDMETHOD.
+
+
+METHOD LOG_SCRIPT.
+  DATA: ls_log TYPE LINE OF ty_t_log .
+
+  ls_log-template_id = im_template_document_id .
+  ls_log-place       = im_where .
+  ls_log-script      = im_script .
+  APPEND ls_log TO my_script_log .
+ENDMETHOD.
+
+
+METHOD operator_and.
+  FIELD-SYMBOLS: <l_variable> TYPE string,
+                 <l_any>      TYPE ANY .
+  DATA: l_ref   TYPE REF TO data.
+
+  ex_applies = 'X' .
+
+  LOOP AT im_operators ASSIGNING <l_variable> .
+    CALL METHOD operator_get
+      EXPORTING
+        im_name      = <l_variable>
+        im_variables = im_variables
+      IMPORTING
+        ex_data      = l_ref.
+
+    ASSIGN l_ref->*  TO <l_any> .
+    IF <l_any> IS INITIAL .
+      CLEAR ex_applies .
+      RETURN .
+    ENDIF .
+  ENDLOOP .
+
+ENDMETHOD.
+
+
+METHOD operator_compute_count.
+  FIELD-SYMBOLS: <l_table_in> TYPE ANY TABLE,
+                 <l_integer>  TYPE i .
+
+  ASSIGN ex_result->* TO <l_table_in> . "CASTING .
+  CREATE DATA ex_result TYPE i .
+  ASSIGN ex_result->* TO <l_integer> .
+  DESCRIBE TABLE <l_table_in> LINES <l_integer> .
+ENDMETHOD.
+
+
+METHOD operator_evaluate.
+  FIELD-SYMBOLS: <l_xfeld> TYPE xfeld .
+  DATA: l_ref TYPE REF TO data .
+
+  CREATE DATA l_ref TYPE xfeld .
+  ASSIGN l_ref->* TO <l_xfeld> .
+
+  CALL METHOD operator_if
+    EXPORTING
+      im_fieldname        = im_fieldname
+      im_logical_operator = im_logical_operator
+      im_comparison_value = im_comparison_value
+      im_value            = ex_result
+    IMPORTING
+      re_applies          = <l_xfeld>.
+
+  ex_result = l_ref .
+
+ENDMETHOD.
+
+
+METHOD operator_filter.
+  FIELD-SYMBOLS: <l_table_in>  TYPE ANY TABLE,
+                 <l_table_out> TYPE ANY TABLE,
+                 <l_row>       TYPE ANY,
+                 <l_field>     TYPE ANY .
+
+  DATA: lr_line          TYPE REF TO data.
+
+  ASSIGN ex_result->*  TO <l_table_in> . "CASTING .
+  CREATE DATA ex_result LIKE <l_table_in> .
+  CREATE DATA lr_line  LIKE LINE OF <l_table_in> .
+  ASSIGN lr_line->*  TO <l_row> .
+  ASSIGN ex_result->* TO <l_table_out> .
+
+  LOOP AT <l_table_in> INTO <l_row> .
+    AT FIRST .
+      IF NOT im_fieldname IS INITIAL .
+        ASSIGN COMPONENT im_fieldname OF STRUCTURE <l_row> TO <l_field> .
+      ELSE .
+        ASSIGN <l_row> TO <l_field> .
+      ENDIF .
+    ENDAT .
+    IF sy-subrc NE 0 .
+      RAISE EXCEPTION TYPE zcx_rm_documents
+               EXPORTING textid = zcx_rm_documents=>error_filter
+                         filter_field = im_fieldname .
+    ENDIF .
+    CHECK condition_applies( im_logical_operator = im_logical_operator
+                             im_value            = <l_field>
+                            im_comparison_value = im_comparison_value ) EQ 'X'.
+    INSERT <l_row> INTO TABLE <l_table_out> .
+  ENDLOOP .
+ENDMETHOD.
+
+
+METHOD operator_format_date.
+  TYPES: BEGIN OF ty_s_return,
+           formatted TYPE string,
+        END OF ty_s_return,
+        ty_t_return TYPE STANDARD TABLE OF ty_s_return WITH NON-UNIQUE DEFAULT KEY .
+
+  FIELD-SYMBOLS: <l_date>   TYPE any,
+                 <l_string> TYPE string,
+                 <lt_input> TYPE ANY TABLE,
+                 <lt_return> TYPE ty_t_return,
+                 <ls_input> TYPE ANY .
+
+  DATA: l_type      TYPE c,
+        ls_return   TYPE ty_s_return,
+        l_ref_line TYPE REF TO data .
+
+  ASSIGN ex_result->* TO <l_date> .
+  DESCRIBE FIELD <l_date> TYPE l_type .
+  IF l_type EQ 'h' .
+    ASSIGN ex_result->* TO <lt_input> .
+    CREATE DATA l_ref_line LIKE LINE OF <lt_input> .
+    ASSIGN l_ref_line->* TO <ls_input> .
+    ASSIGN COMPONENT 1 OF STRUCTURE <ls_input> TO <l_date> .
+
+    CREATE DATA ex_result TYPE ty_t_return .
+    ASSIGN ex_result->* TO <lt_return> .
+    LOOP AT <lt_input> INTO <ls_input> .
+      ls_return-formatted = format_date( im_date_format = im_date_format
+                                         im_date        = <l_date> ) .
+      APPEND ls_return TO <lt_return> .
+    ENDLOOP .
+  ELSE .
+    CREATE DATA ex_result TYPE string .
+    ASSIGN ex_result->* TO <l_string> .
+
+    <l_string> = format_date( im_date_format = im_date_format
+                              im_date        = <l_date> ) .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD operator_format_number.
+  TYPES: BEGIN OF ty_s_return,
+           formatted TYPE string,
+        END OF ty_s_return,
+        ty_t_return TYPE STANDARD TABLE OF ty_s_return WITH NON-UNIQUE DEFAULT KEY .
+
+  DATA: l_decimals TYPE i,
+        l_type     TYPE c,
+        l_format   TYPE numc3,
+        ls_return  TYPE ty_s_return,
+        l_ref_line TYPE REF TO data,
+        l_no_zero  type srmboolean.
+
+  FIELD-SYMBOLS: <l_number>    TYPE ANY,
+                 <l_string>    TYPE string,
+                 <lt_input>    TYPE ANY TABLE,
+                 <ls_input>    TYPE ANY,
+                 <lt_return>   TYPE ty_t_return .
+
+  CONDENSE im_no_grouping NO-GAPS .
+  IF im_no_grouping IS NOT INITIAL .
+    ADD 1 TO l_format .
+  ENDIF .
+
+  CONDENSE im_no_sign NO-GAPS .
+  IF im_no_sign IS NOT INITIAL .
+    ADD 10 TO l_format .
+  ENDIF .
+
+  CONDENSE im_decimals NO-GAPS .
+  IF NOT im_decimals IS INITIAL .
+    l_decimals = im_decimals .
+    ADD 100 TO l_format .
+  ENDIF .
+
+  if not im_no_zero is initial .
+    l_no_zero = if_srm=>true .
+  endif .
+
+**
+  ASSIGN ex_result->*   TO <l_number> .
+  DESCRIBE FIELD <l_number> TYPE l_type .
+
+  IF l_type EQ 'h' .
+    ASSIGN ex_result->* TO <lt_input> .
+
+    CREATE DATA ex_result TYPE ty_t_return .
+    ASSIGN ex_result->* TO <lt_return> .
+
+    CREATE DATA l_ref_line LIKE LINE OF <lt_input> .
+    ASSIGN l_ref_line->* TO <ls_input> .
+    ASSIGN COMPONENT 1 OF STRUCTURE <ls_input> TO <l_number> .
+    DESCRIBE FIELD <l_number> TYPE l_type .
+    IF l_type NA 'bIPFs'  .
+      RAISE EXCEPTION TYPE zcx_rm_documents
+            EXPORTING textid = zcx_rm_documents=>error_command_input
+                      command = co_operator_format_number .
+    ENDIF .
+
+    LOOP AT <lt_input> INTO <ls_input> .
+      ls_return-formatted = operator_format_number_int( im_format   = l_format
+                                                        im_decimals = l_decimals
+                                                        im_number   = <l_number>
+                                                        im_no_Zero  = l_no_zero ) .
+      APPEND ls_return TO <lt_return> .
+    ENDLOOP .
+  ELSEIF l_type CA 'bIPFs' .
+    CREATE DATA ex_result TYPE string .
+    ASSIGN ex_result->*   TO <l_string> .
+
+    <l_string> = operator_format_number_int( im_format   = l_format
+                                             im_decimals = l_decimals
+                                             im_number   = <l_number>
+                                             im_no_zero  = l_no_zero ) .
+  ELSE .
+    RAISE EXCEPTION TYPE zcx_rm_documents
+          EXPORTING textid = zcx_rm_documents=>error_command_input
+                    command = co_operator_format_number .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD operator_format_number_int.
+  DATA: l_char80(80),
+        l_format   LIKE im_format,
+        l_decimals TYPE i,
+        l_frac     TYPE f.
+
+  l_format   = im_format .
+  l_decimals = im_decimals .
+  IF im_no_zero EQ if_srm=>true .
+    l_frac = FRAC( im_number ) .
+    IF l_frac EQ 0 .
+      l_decimals = 0 .
+      IF l_format LT 100 .
+        ADD 100 TO l_format .
+      ENDIF .
+    ENDIF .
+  ENDIF .
+
+  CASE l_format .
+    WHEN 000 . WRITE im_number TO l_char80 LEFT-JUSTIFIED.
+    WHEN 001 . WRITE im_number TO l_char80 LEFT-JUSTIFIED NO-GROUPING .
+    WHEN 010 . WRITE im_number TO l_char80 LEFT-JUSTIFIED NO-SIGN .
+    WHEN 011 . WRITE im_number TO l_char80 LEFT-JUSTIFIED NO-GROUPING NO-SIGN .
+    WHEN 100 . WRITE im_number TO l_char80 LEFT-JUSTIFIED DECIMALS l_decimals .
+    WHEN 101 . WRITE im_number TO l_char80 LEFT-JUSTIFIED NO-GROUPING DECIMALS l_decimals .
+    WHEN 110 . WRITE im_number TO l_char80 LEFT-JUSTIFIED NO-SIGN DECIMALS l_decimals .
+    WHEN 111 . WRITE im_number TO l_char80 LEFT-JUSTIFIED NO-GROUPING NO-SIGN DECIMALS l_decimals .
+  ENDCASE .
+
+  re_string = l_char80 .
+ENDMETHOD.
+
+
+METHOD operator_get.
+  DATA: ls_variable TYPE ty_s_variable .
+
+  ls_variable-name = im_name .
+  TRANSLATE ls_variable-name TO UPPER CASE .
+  CONDENSE ls_variable-name NO-GAPS.
+  READ TABLE im_variables INTO ls_variable
+        WITH TABLE KEY name = ls_variable-name .
+  IF sy-subrc NE 0 .
+    RAISE EXCEPTION TYPE zcx_rm_documents
+    EXPORTING textid = zcx_rm_documents=>error_variable
+              operand = ls_variable-name .
+  ENDIF .
+  ex_data = ls_variable-data .
+ENDMETHOD.
+
+
+METHOD operator_if.
+  DATA: l_fieldname TYPE fieldname .
+  FIELD-SYMBOLS: <l_field> TYPE ANY,
+                 <l_row>   TYPE ANY .
+
+  IF im_fieldname IS INITIAL .
+    ASSIGN im_value->* TO <l_field> .
+  ELSE .
+    ASSIGN im_value->* TO <l_row> .
+    ASSIGN COMPONENT im_fieldname OF STRUCTURE <l_row> TO <l_field> .
+    IF sy-subrc NE 0 .
+      l_fieldname = im_fieldname .
+      RAISE EXCEPTION TYPE zcx_rm_documents
+              EXPORTING    textid = zcx_rm_documents=>error_return
+                        fieldname = l_fieldname .
+    ENDIF .
+  ENDIF .
+  CALL METHOD condition_applies
+    EXPORTING
+      im_logical_operator = im_logical_operator
+      im_value            = <l_field>
+      im_comparison_value = im_comparison_value
+    RECEIVING
+      re_applies          = re_applies.
+
+ENDMETHOD.
+
+
+METHOD operator_net_amount.
+  TYPES: BEGIN OF ty_s_return,
+           formatted TYPE string,
+        END OF ty_s_return,
+        ty_t_return TYPE STANDARD TABLE OF ty_s_return WITH NON-UNIQUE DEFAULT KEY .
+
+  DATA: l_type      TYPE c,
+        ls_return   TYPE ty_s_return,
+        l_ref_line  TYPE REF TO data,
+        l_ref_field TYPE REF TO data.
+
+  FIELD-SYMBOLS: <l_number_in>  TYPE ANY,
+                 <l_number_out> TYPE numeric,
+                 <lt_input>     TYPE ANY TABLE,
+                 <ls_input>     TYPE ANY,
+                 <ls_output>    TYPE ANY,
+                 <lt_return>    TYPE STANDARD TABLE .
+
+  ASSIGN ex_result->*  TO <l_number_in> .
+  DESCRIBE FIELD <l_number_in> TYPE l_type .
+
+  IF l_type EQ 'h' .
+    ASSIGN ex_result->* TO <lt_input> .
+
+    CREATE DATA l_ref_line LIKE LINE OF <lt_input> .
+    ASSIGN l_ref_line->* TO <ls_input> .
+    ASSIGN COMPONENT 1 OF STRUCTURE <ls_input> TO <l_number_in> .
+    DESCRIBE FIELD <l_number_in> TYPE l_type .
+    IF l_type NA 'bIPFs'  .
+      RAISE EXCEPTION TYPE zcx_rm_documents
+            EXPORTING textid = zcx_rm_documents=>error_command_input
+                      command = co_operator_format_number .
+    ENDIF .
+
+    CALL METHOD zrm_cl_documents=>create_one_column_table
+      EXPORTING
+        im_fieldvalue        = <l_number_in>
+        im_fieldname         = 'OUT'                        "#EC NOTEXT
+        im_create_first_line = space
+      IMPORTING
+        ex_line_ref          = l_ref_line
+        ex_table_ref         = ex_result
+        ex_field_ref         = l_ref_field.
+
+    ASSIGN ex_result->* TO <lt_return> .
+    ASSIGN l_ref_field->* TO <l_number_out> .
+    ASSIGN l_ref_line->* to <ls_output> .
+    <l_number_out> = <l_number_in> .
+    LOOP AT <lt_input> INTO <ls_input> .
+      <l_number_out> = <l_number_in> / '1.16' .
+      APPEND <ls_output> TO <lt_return> .
+    ENDLOOP .
+  ELSEIF l_type CA 'bIPFs' .
+    CREATE DATA ex_result LIKE <l_number_in> .
+    ASSIGN ex_result->*   TO <l_number_out>.
+
+    <l_number_out> =  <l_number_in> / '1.16' .
+  ELSE .
+    RAISE EXCEPTION TYPE zcx_rm_documents
+          EXPORTING textid = zcx_rm_documents=>error_command_input
+                    command = co_operator_format_number .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD operator_or.
+  FIELD-SYMBOLS: <l_variable> TYPE string,
+                 <l_any>      TYPE ANY .
+  DATA: l_ref TYPE REF TO data .
+
+  ex_applies = space .
+
+  LOOP AT im_operators ASSIGNING <l_variable> .
+    CALL METHOD operator_get
+      EXPORTING
+        im_name      = <l_variable>
+        im_variables = im_variables
+      IMPORTING
+        ex_data      = l_ref.
+
+    ASSIGN l_ref->*  TO <l_any> .
+    IF NOT <l_any> IS INITIAL .
+      ex_applies = 'X'.
+      RETURN .
+    ENDIF .
+  ENDLOOP .
+
+ENDMETHOD.
+
+
+METHOD OPERATOR_PICTURE.
+  FIELD-SYMBOLS: <l_uri> TYPE bapiuri-uri .
+
+  CREATE DATA ex_result TYPE bapiuri-uri.
+  ASSIGN ex_result->* TO <l_uri> .
+
+  CALL METHOD get_picture_uri
+    EXPORTING
+      im_picture_name = im_picture_name
+    RECEIVING
+      re_picture_uri  = <l_uri>.
+ENDMETHOD.
+
+
+METHOD operator_return.
+  FIELD-SYMBOLS:   <l_field>     TYPE ANY .
+  DATA: l_type       TYPE c,
+        l_fieldname  LIKE im_fieldname,
+        l_components TYPE i."#EC NEEDED "Para evitar problemas con el TYPE devuelto
+
+  ASSIGN ex_result->* TO <l_field> .
+  DESCRIBE FIELD <l_field> TYPE l_type COMPONENTS l_components.
+  IF l_type EQ 'h' .
+    CALL METHOD zrm_cl_documents=>operator_return_from_table
+      EXPORTING
+        im_fieldname = im_fieldname
+        im_as_table  = im_as_table
+      CHANGING
+        ex_result    = ex_result.
+    RETURN .
+  ELSEIF l_type CA 'uv' .
+    IF im_fieldname IS NOT INITIAL .
+      ASSIGN COMPONENT im_fieldname OF STRUCTURE <l_field>
+                   TO <l_field>.
+      IF sy-subrc NE 0 .
+        RAISE EXCEPTION TYPE zcx_rm_documents EXPORTING
+          textid = zcx_rm_documents=>error_return
+          fieldname = im_fieldname .
+      ENDIF .
+    ENDIF .
+  ENDIF .
+
+  IF im_as_table EQ 'X' .
+    l_fieldname = im_fieldname .
+    IF l_fieldname IS INITIAL .
+      l_fieldname = 'A' .                                 "#EC NOTEXT .
+    ENDIF .
+    CALL METHOD create_one_column_table
+      EXPORTING
+        im_fieldname         = l_fieldname
+        im_fieldvalue        = <l_field>
+        im_create_first_line = 'X'
+      IMPORTING
+        ex_table_ref         = ex_result.
+    RETURN .
+  ENDIF .
+
+  GET REFERENCE OF <l_field> INTO ex_result .
+ENDMETHOD.
+
+
+METHOD operator_return_description.
+  FIELD-SYMBOLS: <l_field>     TYPE ANY,
+                 <l_table_in>  TYPE ANY TABLE,
+                 <l_table_out> TYPE abaptxt255_tab,
+                 <l_text255>   TYPE text255,
+                 <l_row>       TYPE ANY .
+  DATA: l_type           TYPE c,
+        l_tabname        TYPE tabname,
+        l_fieldname      TYPE fieldname,
+        l_text           TYPE abaptxt255,
+        lr_data_descr    TYPE REF TO cl_abap_datadescr,
+        lr_table_descr   TYPE REF TO cl_abap_tabledescr,
+        l_langu          TYPE sy-langu .
+
+  l_langu = sy-langu . "Per defecte, idioma de logon
+  IF im_language IS SUPPLIED
+     AND NOT im_language IS INITIAL .
+* Si ens indiquen un idioma inexistent -> Idioma de logon
+    CALL FUNCTION 'CONVERSION_EXIT_ISOLA_INPUT'
+      EXPORTING
+        input  = im_language
+      IMPORTING
+        output = l_langu
+      EXCEPTIONS
+        OTHERS = 0.
+  ENDIF .
+
+
+  l_fieldname = im_fieldname .
+  CONDENSE l_fieldname NO-GAPS .
+  TRANSLATE l_fieldname TO UPPER CASE .                   "#EC SYNTCHAR
+  ASSIGN ex_result->* TO <l_field> .
+  DESCRIBE FIELD <l_field> TYPE l_type .
+  IF l_type EQ 'h' .
+    ASSIGN ex_result->* TO <l_table_in> .
+    lr_table_descr ?= cl_abap_tabledescr=>describe_by_data_ref( ex_result ) .
+    lr_data_descr  = lr_table_descr->get_table_line_type( ) .
+    CHECK lr_data_descr->is_ddic_type( ) EQ 'X' .
+    l_tabname = lr_data_descr->get_relative_name( ) .
+    CREATE DATA ex_result TYPE abaptxt255_tab .
+    ASSIGN ex_result->* TO <l_table_out> .
+
+    LOOP AT <l_table_in> ASSIGNING <l_row> .
+      CLEAR l_text .
+      CALL METHOD my_text_identifier->read_text
+        EXPORTING
+          tabname          = l_tabname
+          fieldname        = l_fieldname
+          record           = <l_row>
+          record_specified = 'X'
+          language         = l_langu
+        IMPORTING
+          text             = l_text-line
+        EXCEPTIONS
+          OTHERS           = 0.
+      INSERT l_text INTO TABLE <l_table_out> .
+    ENDLOOP .
+  ELSE .
+    ASSIGN ex_result->* TO <l_row> .
+    lr_data_descr ?= cl_abap_typedescr=>describe_by_data_ref( ex_result ) .
+    CHECK lr_data_descr->is_ddic_type( ) EQ 'X' .
+    l_tabname = lr_data_descr->get_relative_name( ) .
+    CREATE DATA ex_result TYPE text255 .
+    ASSIGN ex_result->* TO <l_text255> .
+    CALL METHOD my_text_identifier->read_text
+      EXPORTING
+        tabname          = l_tabname
+        fieldname        = l_fieldname
+        record           = <l_row>
+        record_specified = 'X'
+        language         = l_langu
+      IMPORTING
+        text             = <l_text255>
+      EXCEPTIONS
+        OTHERS           = 1.
+  ENDIF .
+ENDMETHOD.
+
+
+METHOD operator_return_from_table.
+  FIELD-SYMBOLS:   <l_field>     TYPE ANY,
+                   <l_table_in>  TYPE ANY TABLE,
+                   <l_table_out> TYPE STANDARD TABLE,
+                   <l_line_out>  TYPE ANY,
+                   <l_field_out> TYPE ANY,
+                   <l_row>       TYPE ANY .
+  DATA: l_fieldname  LIKE im_fieldname,
+        l_components TYPE i,"#EC NEEDED "Para evitar problemas con el TYPE devuelto
+        lr_line         TYPE REF TO data,
+        lr_field        TYPE REF TO data,
+        lr_table        TYPE REF TO data,
+        l_lines_in      TYPE i .
+
+  ASSIGN ex_result->* TO <l_table_in> .
+  IF im_as_table EQ space .
+* Hem de retornar nomes la primera línia de la taula sencera (la creem si no existeix) o
+* un camp determinat de la primera línia
+    LOOP AT <l_table_in> ASSIGNING <l_row> .
+      EXIT .
+    ENDLOOP .
+    IF sy-subrc NE 0 .
+      CREATE DATA lr_line LIKE LINE OF <l_table_in> .
+      ASSIGN lr_line->* TO <l_row> .
+    ENDIF .
+    IF NOT im_fieldname IS INITIAL .
+      ASSIGN COMPONENT im_fieldname OF STRUCTURE <l_row>
+                   TO <l_field>.
+      IF sy-subrc NE 0 .
+        RAISE EXCEPTION TYPE zcx_rm_documents EXPORTING
+          textid = zcx_rm_documents=>error_return
+          fieldname = im_fieldname .
+      ENDIF .
+      GET REFERENCE OF <l_field> INTO ex_result .
+    ELSE .
+      GET REFERENCE OF <l_row> INTO ex_result .
+    ENDIF .
+    RETURN .
+  ELSE .
+* Hem de retorna una taula. Si la taula d'entrada no té res, inserim una línia buida
+    DESCRIBE TABLE <l_table_in> LINES l_lines_in .
+    IF l_lines_in EQ 0 and not im_fieldname is initial .
+      CREATE DATA lr_table LIKE <l_table_in> .
+      ex_result = lr_table .
+      ASSIGN lr_table->* TO <l_table_in> .
+      INSERT INITIAL LINE INTO TABLE <l_table_in> .
+    ENDIF .
+* Si no demanen cap camp en concret, retornem la taula sencera
+    IF im_fieldname IS INITIAL .
+      RETURN .
+    ENDIF .
+* Si ens demanen un camp, hem de crear una taula d'una única columna y emplenarla
+    LOOP AT <l_table_in> ASSIGNING <l_row> .
+      ASSIGN COMPONENT im_fieldname OF STRUCTURE <l_row>
+                   TO <l_field>.
+      IF sy-subrc NE 0 .
+        RAISE EXCEPTION TYPE zcx_rm_documents EXPORTING
+          textid = zcx_rm_documents=>error_return
+          fieldname = im_fieldname .
+      ENDIF .
+      AT FIRST .
+*- Necessitem crear una taula amb una única columna. Hem de fer servir RTTS perquè
+* el TableLink no funciona amb taules sense estructura de línia
+        CALL METHOD create_one_column_table
+          EXPORTING
+            im_fieldname         = im_fieldname
+            im_fieldvalue        = <l_field>
+            im_create_first_line = space
+          IMPORTING
+            ex_table_ref         = ex_result
+            ex_line_ref          = lr_line
+            ex_field_ref         = lr_field.
+
+        ASSIGN lr_field->*  TO <l_field_out> .
+        ASSIGN lr_line->*   TO <l_line_out> .
+        ASSIGN ex_result->* TO <l_table_out> .
+      ENDAT .
+      <l_field_out> = <l_field> .
+      APPEND <l_line_out> TO <l_table_out> .
+    ENDLOOP .
+    IF l_lines_in EQ 0 .
+      REFRESH <l_table_out> .
+    ENDIF .
+    RETURN .
+  ENDIF .
+ENDMETHOD.
+
+
+METHOD operator_return_literal.
+  FIELD-SYMBOLS: <l_any> TYPE ANY .
+  CREATE DATA ex_result LIKE im_literal .
+  ASSIGN ex_result->* TO <l_any> .
+  <l_any> = im_literal .
+
+ENDMETHOD.
+
+
+METHOD operator_return_textid.
+  DATA: lt_textid         TYPE ty_t_textid,
+        ls_textid         TYPE ty_s_textid,
+        lr_partial_result TYPE REF TO data,
+        l_partial_string  TYPE string .
+  FIELD-SYMBOLS: <l_string> TYPE string,
+                 <l_field>  TYPE ANY .
+
+  CREATE DATA ex_result TYPE string .
+  ASSIGN ex_result->* TO <l_string> .
+  <l_string> = get_docu_as_string( im_object ) .
+
+  CALL METHOD parse_textid
+    EXPORTING
+      im_string      = <l_string>
+    IMPORTING
+      ex_textid_list = lt_textid.
+
+  LOOP AT lt_textid INTO ls_textid .
+    CALL METHOD log_script
+      EXPORTING
+        im_where                = im_object
+        im_script               = ls_textid-full
+        im_template_document_id = im_template_document_id.
+    CALL METHOD apply_operators
+      EXPORTING
+        im_container            = im_container
+        im_commands             = ls_textid-commands
+        im_as_table             = space
+        im_template_document_id = im_template_document_id
+        im_template_description = im_template_description
+        im_template_object      = im_template_object
+      IMPORTING
+        ex_result               = lr_partial_result.
+    CHECK lr_partial_result IS BOUND .
+    ASSIGN lr_partial_result->* TO <l_field> .
+    MOVE <l_field> TO l_partial_string .
+    REPLACE SECTION OFFSET ls_textid-offset
+                    LENGTH ls_textid-length
+                       OF <l_string>
+                     WITH l_partial_string
+                      IN CHARACTER MODE .
+  ENDLOOP .
+ENDMETHOD.
+
+
+METHOD operator_set.
+  DATA: ls_variable TYPE ty_s_variable .
+
+  ls_variable-name = im_name .
+  TRANSLATE ls_variable-name TO UPPER CASE .
+  CONDENSE ls_variable-name NO-GAPS.
+  ls_variable-data = im_data .
+  READ TABLE ex_variables
+        WITH TABLE KEY name = ls_variable-name
+        TRANSPORTING NO FIELDS .
+  IF sy-subrc EQ 0 .
+    MODIFY TABLE ex_variables FROM ls_variable .
+  ELSE .
+    INSERT ls_variable INTO TABLE ex_variables .
+  ENDIF .
+ENDMETHOD.
+
+
+METHOD operator_spell.
+  TYPES: BEGIN OF ty_s_return,
+           spelled TYPE string,
+        END OF ty_s_return,
+        ty_t_return TYPE STANDARD TABLE OF ty_s_return WITH NON-UNIQUE DEFAULT KEY .
+
+  DATA: l_currency TYPE t001-waers,
+        l_type     TYPE c,
+        ls_return  TYPE ty_s_return,
+        l_ref_line TYPE REF TO data.
+
+  FIELD-SYMBOLS: <l_number>    TYPE ANY,
+                 <l_string>    TYPE string,
+                 <lt_input>    TYPE ANY TABLE,
+                 <ls_input>    TYPE ANY,
+                 <lt_return>   TYPE ty_t_return .
+
+
+  CONDENSE im_currency NO-GAPS .
+  IF im_currency IS INITIAL .
+    l_currency = 'EUR' .
+  ELSE.
+    l_currency = im_currency .
+  ENDIF .
+
+  ASSIGN ex_result->*   TO <l_number> .
+  DESCRIBE FIELD <l_number> TYPE l_type .
+
+  IF l_type EQ 'h' .
+    ASSIGN ex_result->* TO <lt_input> .
+
+    CREATE DATA ex_result TYPE ty_t_return .
+    ASSIGN ex_result->* TO <lt_return> .
+
+    CREATE DATA l_ref_line LIKE LINE OF <lt_input> .
+    ASSIGN l_ref_line->* TO <ls_input> .
+    ASSIGN COMPONENT 1 OF STRUCTURE <ls_input> TO <l_number> .
+    DESCRIBE FIELD <l_number> TYPE l_type .
+    IF l_type NA 'bIPFs'  .
+      RAISE EXCEPTION TYPE zcx_rm_documents
+            EXPORTING textid = zcx_rm_documents=>error_command_input
+                      command = co_operator_spell .
+    ENDIF .
+
+    LOOP AT <lt_input> INTO <ls_input> .
+      ls_return-spelled = operator_spell_int( im_number   = <l_number>
+                                              im_currency = l_currency ) .
+      APPEND ls_return TO <lt_return> .
+    ENDLOOP .
+  ELSEIF l_type CA 'bIPFs' .
+    CREATE DATA ex_result TYPE string .
+    ASSIGN ex_result->*   TO <l_string> .
+
+    <l_string> = operator_spell_int( im_number   = <l_number>
+                                     im_currency = l_currency ) .
+  ELSE .
+    RAISE EXCEPTION TYPE zcx_rm_documents
+          EXPORTING textid = zcx_rm_documents=>error_command_input
+                    command = co_operator_format_number .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD operator_spell_int.
+  DATA: ls_spell TYPE spell .
+
+  CALL FUNCTION 'ZSPELL_AMOUNT'
+    EXPORTING
+      amount   = im_number
+      currency = im_currency
+    IMPORTING
+      in_words = ls_spell
+    EXCEPTIONS
+      OTHERS   = 3.
+  IF sy-subrc <> 0.
+    zcx_rm_documents=>raise_from_message( ) .
+  ENDIF.
+
+  IF FRAC( im_number ) EQ 0 .
+    CONCATENATE ls_spell-word ` EUROS` INTO ex_string .
+  ELSE .
+    CONCATENATE ls_spell-word ` EUROS AMB ` ls_spell-decword ` CÈNTIMS`
+           INTO ex_string .
+  ENDIF .
+ENDMETHOD.
+
+
+METHOD parse_command.
+  DATA: ls_command          TYPE ty_s_command,
+        lt_list_of_commands TYPE TABLE OF string .
+  FIELD-SYMBOLS: <l_string> TYPE string .
+
+  REFRESH ex_commands .
+
+  SPLIT im_full AT co_separator_commands INTO TABLE lt_list_of_commands .
+  LOOP AT lt_list_of_commands ASSIGNING <l_string> .
+    CLEAR ls_command .
+
+*    IF <l_string> CA co_separator_operators .
+      SPLIT <l_string> AT co_separator_operators INTO TABLE ls_command-operators .
+*      READ TABLE ls_command-operators INDEX 1 INTO l_string .
+*      IF l_string CA '-' .
+*        DELETE ls_command-operators INDEX 1 .
+*        SPLIT l_string AT '-' INTO ls_command-tabname ls_command-fieldname .
+*      ENDIF .
+*    ELSE .
+*      SPLIT <l_string> AT '-' INTO ls_command-tabname ls_command-fieldname .
+*    ENDIF .
+*    CONDENSE: ls_command-tabname   NO-GAPS,
+*              ls_command-fieldname NO-GAPS .
+    APPEND ls_command TO ex_commands .
+  ENDLOOP .
+
+ENDMETHOD.
+
+
+METHOD parse_link_list.
+  DATA: lr_matcher TYPE REF TO cl_abap_matcher,
+        lt_matches TYPE match_result_tab,
+        BEGIN OF ls_parse,
+          link      TYPE string,
+          class     TYPE string,
+          file      TYPE string,
+          field     TYPE string,
+        END OF ls_parse,
+        l_string TYPE string,
+        ls_link  TYPE ty_s_link,
+        l_count  TYPE i .
+
+  FIELD-SYMBOLS: <ls_match>    LIKE LINE OF lt_matches,
+                 <ls_submatch> LIKE LINE OF <ls_match>-submatches,
+                 <l_link>      LIKE LINE OF im_link_list .
+
+  CHECK NOT im_link_list IS INITIAL .
+
+*  SORT im_link_list .
+*  DELETE ADJACENT DUPLICATES FROM im_link_list .
+*  DELETE link_list WHERE table_line NS 'LINK' .
+
+* Una paraula pot ser:
+*  a) Una seqüència de qualsevol cosa que no sigui un espai en blanc: [^\s"]+
+*  b) Una seqüència de caràcteres entre cometes, incloent espais "([^"]+)", però no cometes
+  TRY.
+      CALL METHOD cl_abap_matcher=>create
+        EXPORTING
+*          pattern       = '([^\s"]+)|"([^"]+)"'
+          pattern       = '"([^"]+)"|([^\s"]+)'
+*          pattern       = '"([^"]+)"'
+          table         = im_link_list
+          ignore_case   = 'X'
+          simple_regex  = abap_false
+          no_submatches = ' '
+        RECEIVING
+          matcher       = lr_matcher.
+
+      CALL METHOD lr_matcher->find_all
+        RECEIVING
+          matches = lt_matches[].
+
+    CATCH cx_sy_regex
+          cx_sy_matcher .
+      RETURN.
+  ENDTRY.
+
+  DELETE lt_matches WHERE length EQ 0 .
+  LOOP AT lt_matches ASSIGNING <ls_match> .
+    AT NEW line .
+      l_count = 1 .
+      CLEAR: ls_parse .
+      READ TABLE im_link_list ASSIGNING <l_link> INDEX <ls_match>-line .
+    ENDAT .
+
+    LOOP AT <ls_match>-submatches ASSIGNING <ls_submatch> WHERE length GT 0.
+      l_string = <l_link>+<ls_submatch>-offset(<ls_submatch>-length) .
+    ENDLOOP .
+*    TRANSLATE l_string TO UPPER CASE .
+    CASE l_count .
+      WHEN 1 . ls_parse-link  = l_string .
+      WHEN 2 . ls_parse-class = l_string .
+      WHEN 3 . ls_parse-file  = l_string .
+      WHEN 4 . ls_parse-field = l_string .
+    ENDCASE .
+    ADD 1 TO l_count .
+
+    AT END OF line .
+      CLEAR ls_link .
+      TRANSLATE: ls_parse-link  to UPPER CASE,
+                 ls_parse-class to UPPER CASE,
+                 ls_parse-file  to UPPER CASE .
+      CHECK: ls_parse-link  EQ 'LINK',
+             ls_parse-class CS 'SAP.OLE',
+             ls_parse-file  EQ 'SAPOLELINKSERVER' .
+      ls_link-full = ls_parse-field .
+      CALL METHOD parse_command
+        IMPORTING
+          ex_commands = ls_link-commands
+        CHANGING
+          im_full     = ls_parse-field.
+
+*      IF ls_parse-field CA co_separator_operators .
+*        CONDENSE ls_parse-field NO-GAPS .
+*        SPLIT ls_parse-field AT co_separator_operators INTO TABLE ls_link-operators .
+*        READ TABLE ls_link-operators INDEX 1 INTO ls_parse-field .
+*        DELETE ls_link-operators INDEX 1 .
+*      ENDIF .
+*      SPLIT ls_parse-field  AT '-' INTO ls_link-tabname ls_link-fieldname .
+
+      APPEND ls_link TO ex_link_list .
+    ENDAT .
+  ENDLOOP .
+
+  SORT ex_link_list BY full ."tabname fieldname .
+  DELETE ADJACENT DUPLICATES FROM ex_link_list COMPARING full .
+*  SORT ex_link_list BY tabname fieldname .
+ENDMETHOD.
+
+
+METHOD parse_table_list.
+  DATA: ls_table   TYPE ty_s_table,
+        l_string   TYPE string,
+        l_length   TYPE i,
+        ls_info    TYPE LINE OF ty_s_table-info_table.
+
+  FIELD-SYMBOLS: <ls_table_office> TYPE LINE OF ty_t_table_office .
+
+  CHECK NOT im_table_list IS INITIAL .
+
+  LOOP AT im_table_list ASSIGNING <ls_table_office> .
+* La macro del Word ens torna també els caràcters finals 0x0D i 0x07 que després ens
+* fan nosa perquè generen un retorn de línia que no volem, així que ens els carreguem
+    l_length = STRLEN( <ls_table_office>-name ) .
+    IF l_length GT 2 .
+      l_length = l_length - 2 .
+    ENDIF .
+    l_string = <ls_table_office>-name(l_length) .
+
+*// Cas especial per volcar taules senceres, enlloc de columnes individuals. No controlem
+* si l'usuari escriu plantilles rares (per exemple, volcar dues taules ABAP en la mateix taula
+* Word)
+    ls_table-send_whole = space .
+    IF     <ls_table_office>-row_count EQ 1
+       AND <ls_table_office>-col_count EQ 1  .
+      REPLACE FIRST OCCURRENCE OF '[{' IN l_string WITH '[' .
+      IF sy-subrc EQ 0 .
+        REPLACE FIRST OCCURRENCE OF '}]' IN l_string WITH ']' .
+      ENDIF .
+      IF sy-subrc EQ 0 .
+        ls_table-send_whole = 'X' .
+      ENDIF .
+    ENDIF .
+
+    CALL METHOD parse_textid
+      EXPORTING
+        im_string      = l_string
+      IMPORTING
+        ex_textid_list = ls_table-t_textid.
+    DELETE ls_table-t_textid WHERE length EQ 0 .
+    CHECK NOT ls_table-t_textid[] IS INITIAL .
+
+    ls_info-colindex  = <ls_table_office>-col_count .
+    ls_table-startcol = <ls_table_office>-col_count .
+
+    IF ls_info-colindex IS INITIAL .
+      ls_info-colindex  = 1 .
+      ls_table-startcol = 1 .
+    ENDIF .
+    DO ls_table-startcol TIMES .
+      IF sy-index EQ ls_table-startcol .
+        ls_info-colindex = 1 .
+      ELSE .
+        ls_info-colindex = 0 .
+      ENDIF .
+      APPEND ls_info TO ls_table-info_table .
+    ENDDO .
+    ls_table-startrow = <ls_table_office>-row_count .
+    IF ls_table-startrow IS INITIAL .
+      ls_table-startrow = 1 .
+    ENDIF .
+    ls_table-full  = <ls_table_office>-name(l_length) .
+    ls_table-index = <ls_table_office>-index .
+    APPEND ls_table TO ex_table_list .
+    CLEAR ls_table .
+  ENDLOOP .
+
+ENDMETHOD.
+
+
+METHOD parse_textid.
+  DATA: lr_matcher TYPE REF TO cl_abap_matcher,
+        lt_matches TYPE match_result_tab,
+        ls_text_id TYPE ty_s_textid.
+
+  FIELD-SYMBOLS: <ls_match>        LIKE LINE OF lt_matches.
+
+  REFRESH ex_textid_list .
+  CHECK NOT im_string IS INITIAL .
+
+  TRY.
+      CALL METHOD cl_abap_matcher=>create
+        EXPORTING
+          pattern       = '\[([^\[\]]+)\]'
+          text          = im_string
+          ignore_case   = 'X'
+          simple_regex  = abap_false
+          no_submatches = 'X'
+        RECEIVING
+          matcher       = lr_matcher.
+
+      CALL METHOD lr_matcher->find_all
+        RECEIVING
+          matches = lt_matches[].
+
+    CATCH cx_sy_regex
+          cx_sy_matcher . return .
+  ENDTRY.
+
+  LOOP AT lt_matches ASSIGNING <ls_match> WHERE length GT 0 .
+    ls_text_id-offset = <ls_match>-offset .
+    ls_text_id-length = <ls_match>-length .
+    ADD 1 TO <ls_match>-offset .
+    <ls_match>-length = <ls_match>-length - 2 .
+    ls_text_id-full   = im_string+<ls_match>-offset(<ls_match>-length) .
+
+*    TRANSLATE ls_text_id-full TO UPPER CASE .
+
+    CALL METHOD parse_command
+      IMPORTING
+        ex_commands = ls_text_id-commands
+      CHANGING
+        im_full     = ls_text_id-full.
+
+*    IF ls_text_id-full CA co_separator_operators .
+*      CONDENSE ls_text_id-full NO-GAPS .
+*      SPLIT ls_text_id-full AT co_separator_operators INTO TABLE ls_text_id-operators .
+*      READ TABLE ls_text_id-operators INDEX 1 INTO l_string .
+*      DELETE ls_text_id-operators INDEX 1 .
+*      SPLIT l_string AT '-' INTO ls_text_id-tabname ls_text_id-fieldname .
+*    ELSE .
+*      SPLIT ls_text_id-full AT '-' INTO ls_text_id-tabname ls_text_id-fieldname .
+*    ENDIF .
+    APPEND ls_text_id TO ex_textid_list .
+  ENDLOOP .
+
+*-- Las sustituciones las tendremos que hacer desde el final del string hacia
+* el principio para que no tnere que recalcular el valor de OFFSET
+  SORT ex_textid_list BY offset DESCENDING .
+
+ENDMETHOD.
+
+
+METHOD raise_doi_error.
+  DATA: l_text TYPE string .
+
+  IF im_error IS SUPPLIED .
+    CALL METHOD im_error->raise_message
+      EXPORTING
+        type   = 'E'
+      EXCEPTIONS
+        OTHERS = 1.
+  ELSE .
+    CALL METHOD c_oi_errors=>raise_message
+      EXPORTING
+        type   = 'E'
+      EXCEPTIONS
+        OTHERS = 1.
+  ENDIF .
+
+  CHECK sy-subrc NE 0 .
+  MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+          INTO l_text .
+
+  RAISE EXCEPTION TYPE zcx_rm_documents
+  EXPORTING message_text = l_text
+            textid       =  zcx_rm_documents=>error_doi.
+ENDMETHOD.
+
+
+METHOD set_attributes_both.
+  DATA: lif_document      TYPE REF TO if_srm_document,
+        lif_variant       TYPE REF TO if_srm_variant,
+        lif_prop_document TYPE REF TO if_srm_gsp_properties,
+        lif_prop_variant  TYPE REF TO if_srm_gsp_properties.
+
+  CALL METHOD im_generic_sp->get_document
+    IMPORTING
+      document = lif_document.
+  lif_prop_document = lif_document->get_property_interface( ) .
+
+  lif_variant      = lif_document->get_variant( ) .
+  lif_prop_variant = lif_variant->get_property_interface( ) .
+
+  CALL METHOD set_maint_attributes
+    EXPORTING
+      im_srm_properties = lif_prop_document
+      im_properties     = im_properties.
+
+  CALL METHOD set_maint_attributes
+    EXPORTING
+      im_srm_properties = lif_prop_variant
+      im_properties     = im_properties.
+
+ENDMETHOD.
+
+
+METHOD set_dynamic_attributes.
+  DATA: lr_reference    TYPE REF TO data,
+        ls_attribute    TYPE LINE OF srmgs_property_tab,
+        lif_sp_document TYPE REF TO if_srm_sp_document,
+        lx_srm          TYPE REF TO cx_srm.
+
+  FIELD-SYMBOLS: <ls_attr>  TYPE ty_s_attr,
+                 <l_field>  TYPE ANY .
+
+*  CHECK  im_document IS SUPPLIED
+*     AND im_document IS BOUND .
+  LOOP AT my_list_of_attrs ASSIGNING <ls_attr> .
+    ls_attribute-name = <ls_attr>-prop_name .
+    CALL METHOD log_script
+      EXPORTING
+        im_where                = 'ATRIBUT_DOCUMENT'
+        im_script               = <ls_attr>-full
+        im_template_document_id = my_template_document_id.
+    CALL METHOD me->apply_operators
+      EXPORTING
+        im_commands             = <ls_attr>-commands
+        im_container            = im_container
+        im_as_table             = space
+        im_template_document_id = my_template_document_id
+        im_template_description = my_template_description
+        im_template_object      = my_templatE_object
+      IMPORTING
+        ex_result               = lr_reference.
+    CHECK lr_reference IS BOUND .
+    ASSIGN lr_reference->* TO <l_field> .
+    ls_attribute-value = <l_field> .
+    INSERT ls_attribute INTO TABLE ch_attributes .
+  ENDLOOP .
+  CHECK: NOT ch_attributes IS INITIAL,
+             im_generic_sp IS SUPPLIED,
+             im_generic_sp IS BOUND .
+
+  TRY .
+      lif_sp_document ?= im_generic_sp .
+      CALL METHOD lif_sp_document->open( for_update = if_srm=>true ).
+
+      CALL METHOD set_attributes_both
+        EXPORTING
+          im_generic_sp = im_generic_sp
+          im_properties = ch_attributes.
+    CATCH cx_srm INTO lx_srm .
+      RAISE EXCEPTION TYPE zcx_rm_documents
+        EXPORTING previous = lx_srm
+                  textid = zcx_rm_documents=>error_properties.
+  ENDTRY .
+ENDMETHOD.
+
+
+METHOD set_dynamic_data.
+
+ENDMETHOD.
+
+
+METHOD set_maint_attributes.
+  DATA: lt_prop_types     TYPE srmgs_property_type_tab,
+        ls_prop_types     LIKE LINE OF lt_prop_types,
+        lt_properties     TYPE srmgs_property_tab,
+        ls_maint_prop     LIKE LINE OF im_properties .
+
+  CALL METHOD im_srm_properties->get_property_types
+    IMPORTING
+      property_types = lt_prop_types.
+
+  LOOP AT lt_prop_types INTO ls_prop_types ."WHERE maintain EQ if_srm=>true.
+    LOOP AT im_properties INTO ls_maint_prop WHERE name EQ ls_prop_types-name .
+      APPEND ls_maint_prop TO lt_properties .
+    ENDLOOP .
+  ENDLOOP .
+
+  IF NOT  lt_properties IS INITIAL .
+    im_srm_properties->set_properties( lt_properties ) .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD SET_READONLY.
+* No és possible fer que el document es vegi només en mode visualització fent servir només
+* els mètodes DOI directament. Aquest codi està inspirat en el que fa la transacció SE61
+  CONSTANTS: c_oi_template   TYPE soi_string       VALUE 'SAPscriptWordTemplate',
+             c_bds_classname TYPE sbdst_classname  VALUE 'SAPSCRIPTWORDINTEGRATION',
+             c_bds_classtype TYPE sbdst_classtype  VALUE 'OT',
+             c_bds_objectkey TYPE sbdst_object_key VALUE 'WORDTEMPLATE'.
+  DATA:      lt_doc_uris     TYPE sbdst_uri,
+             ls_doc_uri      TYPE LINE OF sbdst_uri,
+             lo_wp           TYPE REF TO  i_oi_word_processor_document,
+             lif_error       TYPE REF TO i_oi_error .
+
+
+  CALL METHOD cl_bds_document_set=>get_with_url
+    EXPORTING
+      classname       = c_bds_classname
+      classtype       = c_bds_classtype
+      object_key      = c_bds_objectkey
+    CHANGING
+      uris            = lt_doc_uris
+    EXCEPTIONS
+      nothing_found   = 1
+      error_kpro      = 2
+      internal_error  = 3
+      parameter_error = 4
+      not_authorized  = 5
+      not_allowed     = 6
+      OTHERS          = 7.
+
+  CHECK sy-subrc EQ 0.
+  READ TABLE lt_doc_uris INTO ls_doc_uri INDEX 1.
+
+  CALL METHOD im_proxy->get_wordprocessor_interface
+    IMPORTING
+      wp_interface = lo_wp
+      error        = lif_error.
+*-- Per a Excels això no funciona. Ni ho intentem
+  CHECK lif_error->has_succeeded is not INITIAL .
+*  zrm_cl_documents=>raise_doi_error( lif_error ) .
+
+  CALL METHOD lo_wp->install_template
+    EXPORTING
+      template_name = c_oi_template
+      url           = ls_doc_uri-uri
+    IMPORTING
+      error         = lif_error.
+  zrm_cl_documents=>raise_doi_error( lif_error ) .
+
+  CALL METHOD lo_wp->set_template
+    EXPORTING
+      template_name = c_oi_template
+    IMPORTING
+      error         = lif_error.
+  zrm_cl_documents=>raise_doi_error( lif_error ) .
+
+  CALL METHOD im_proxy->execute_macro
+    EXPORTING
+      macro_string = 'ProtectDocument'
+    IMPORTING
+      error         = lif_error.
+  zrm_cl_documents=>raise_doi_error( lif_error ) .
+
+ENDMETHOD.
+ENDCLASS.

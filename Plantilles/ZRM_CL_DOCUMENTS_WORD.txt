@@ -1,0 +1,987 @@
+class ZRM_CL_DOCUMENTS_WORD definition
+  public
+  inheriting from ZRM_CL_DOCUMENTS
+  final
+  create public .
+
+*"* public components of class ZRM_CL_DOCUMENTS_WORD
+*"* do not include other source files here!!!
+public section.
+
+  constants CO_SET_BOLD_TEXT_INI type STRING value '{B}' ##NO_TEXT.
+  constants CO_SET_BOLD_TEXT_FIN type STRING value '{/B}' ##NO_TEXT.
+
+  class-methods EXECUTE_COMMAND_EXTERNAL
+    importing
+      !IV_SCRIPT type STRING
+      !IV_DOCCLASS type SDOK_CLASS
+      !IV_OBJECTID type SDOK_DOCID
+      !IV_AS_TABLE type XFELD
+      !IV_TEMPLATE_DOCUMENT_ID type STRING
+      !IV_TEMPLATE_DESCRIPTION type STRING
+      !IV_TEMPLATE_OBJECT type SDOKOBJECT
+      !IR_CONTAINER type ref to ZRM_CL_CONTAINER optional
+    exporting
+      !RO_RESULT type ref to DATA
+    raising
+      ZCX_RM_DOCUMENTS .
+  class-methods GET_CONTAINER_FROM_GUID
+    importing
+      !IV_DOCCLASS type SDOK_CLASS
+      !IV_OBJECTID type SDOK_DOCID
+    exporting
+      !ER_CONTAINER type ref to ZRM_CL_CONTAINER .
+
+  methods SET_DYNAMIC_DATA
+    redefinition .
+PROTECTED SECTION.
+
+  DATA my_form_interface TYPE REF TO i_oi_form .
+  DATA my_link_server TYPE REF TO i_oi_link_server .
+  DATA my_list_of_links TYPE ty_t_link .
+  DATA my_list_of_tables TYPE ty_t_table .
+  DATA my_table_collection TYPE REF TO i_oi_table_collection .
+  DATA my_wp_interface TYPE REF TO i_oi_word_processor_document .
+  CONSTANTS co_macro_get_link_header TYPE text40 VALUE 'Obtenir_Vincles_header' ##NO_TEXT.
+  CONSTANTS co_table_link_header TYPE text40 VALUE 'LINK_HEADER' ##NO_TEXT.
+  TYPES: BEGIN OF ty_s_exp_cont,
+           docclass      TYPE zrm_dt_exp_cont-docclass,
+           objectid      TYPE zrm_dt_exp_cont-objectid,
+           z_descrip_abr TYPE zrm_dt_exp_cont-z_descrip_abr,
+         END OF ty_s_exp_cont.
+  TYPES: ty_t_exp_cont TYPE STANDARD TABLE OF ty_s_exp_cont.
+  TYPES: BEGIN OF ty_s_crit_punt,
+           z_codi_crit_punt TYPE zrm_dm_crit_punt-z_codi_crit_punt,
+           z_descripcio     TYPE zrm_dm_crit_punt-z_descripcio,
+           z_punt_min       TYPE zrm_dm_crit_punt-z_punt_min,
+           z_punt_max       TYPE zrm_dm_crit_punt-z_punt_max,
+           z_crit_ve        TYPE zrm_dm_crit_punt-z_crit_ve,
+           z_crit_q2        TYPE zrm_dm_crit_punt-z_crit_q2,
+           z_crit_q3        TYPE zrm_dm_crit_punt-z_crit_q3,
+           z_crit_q4        TYPE zrm_dm_crit_punt-z_crit_q4,
+         END OF ty_s_crit_punt.
+  TYPES: ty_t_crit_punt TYPE STANDARD TABLE OF ty_s_crit_punt.
+  TYPES: BEGIN OF ty_s_punt_form,
+           docclass         TYPE zrm_dt_punt_form-docclass,
+           objectid         TYPE zrm_dt_punt_form-objectid,
+           z_mod_crit_punt  TYPE zrm_dt_punt_form-z_mod_crit_punt,
+           z_codi_crit_punt TYPE zrm_dt_punt_form-z_codi_crit_punt,
+           z_no_aplica      TYPE zrm_dt_punt_form-z_no_aplica,
+         END OF ty_s_punt_form.
+  TYPES: ty_t_punt_form TYPE STANDARD TABLE OF ty_s_punt_form.
+private section.
+*"* private components of class ZRM_CL_DOCUMENTS_WORD
+*"* do not include other source files here!!!
+
+  data GV_PLEC_PLANTILLA_DINAMICA type C .
+  data G_PLANTILLA_DINAMICA type C .
+  data GT_TABLES_OPT_C type TY_T_OPT_TABLE .
+  data GT_TABLES_OPT_F type TY_T_OPT_TABLE .
+
+  methods CHANGE_LIST_OF_TABLES
+    changing
+      !CT_TABLE_OFFICE type TY_T_TABLE_OFFICE optional .
+  methods GET_LINKED_DATA
+    importing
+      !IM_CONTAINER type ref to ZRM_CL_CONTAINER optional
+    exporting
+      !EX_LINK_LIST type TY_T_LINK
+      !EX_TABLE_LIST type TY_T_TABLE
+    raising
+      ZCX_RM_DOCUMENTS .
+  methods RESIZE_WORD_TABLE
+    importing
+      !IM_TABLE_CONTENTS type ANY TABLE
+      !IM_TABLE_INDEX type I
+    exporting
+      !EX_INFO_TABLE type SOI_COLS_TABLE
+    raising
+      ZCX_RM_DOCUMENTS .
+  methods SEND_WHOLE_TABLE
+    importing
+      !IM_CONTAINER type ref to ZRM_CL_CONTAINER
+      !IM_COMMANDS type TY_T_COMMAND
+      !IM_TABLE_INDEX type I
+    raising
+      ZCX_RM_DOCUMENTS .
+  methods MACRO_PLANT_DINAMICA
+    importing
+      !I_MACRO_FUNCTION type TEXT40
+      !I_PARAM type I optional
+    raising
+      ZCX_RM_DOCUMENTS .
+ENDCLASS.
+
+
+
+CLASS ZRM_CL_DOCUMENTS_WORD IMPLEMENTATION.
+
+
+  METHOD change_list_of_tables.
+    DATA: lt_tables  TYPE ty_t_table_office,
+          lt_cust_q3 TYPE STANDARD TABLE OF zrm_dt_custo_q3,
+          l_param_id TYPE tpara-paramid,
+          l_idquadre TYPE z_quadre3,
+          l_length   TYPE i,
+          wa_cust_q3 TYPE zrm_dt_custo_q3,
+          w_indx     TYPE indx.
+
+    DATA: wa_s_opt_table TYPE ty_s_opt_table.
+
+    FIELD-SYMBOLS: <ls_table_office> TYPE ty_s_table_office.
+
+    CLEAR: l_param_id,l_idquadre,gt_tables_opt_c[],gt_tables_opt_f[].
+*    CONCATENATE 'Z_QUADRE3-' sy-uname INTO l_param_id.
+*    GET PARAMETER ID l_param_id FIELD l_idquadre.
+*    SET PARAMETER ID l_param_id FIELD space.
+    SELECT SINGLE pgmid
+      FROM indx
+      INTO l_idquadre
+      WHERE srtfd = 'Z_QUADRE3'
+      AND usera = sy-uname.
+
+    SELECT *
+      FROM zrm_dt_custo_q3
+      INTO TABLE lt_cust_q3
+      WHERE idquadre  = l_idquadre.
+    CHECK sy-subrc = 0. "Si no està el quadre parametritzat sortim
+
+    lt_tables = ct_table_office.
+    CLEAR ct_table_office[].
+    LOOP AT lt_tables ASSIGNING <ls_table_office>.
+      CLEAR:l_length.
+      "La macro del Word torna també els caràcters finals 0x0D i 0x07 que després fan nosa perquè generen un retorn de línia que cal eliminar
+      l_length = strlen( <ls_table_office>-name ) .
+      IF l_length GT 2.
+        l_length = l_length - 2.
+      ENDIF .
+      <ls_table_office>-name = <ls_table_office>-name(l_length).
+    ENDLOOP.
+
+    "Es monta l'estructura de les variables informades a cadascuna de les posicions de la taula de la plantilla
+    LOOP AT lt_cust_q3 INTO wa_cust_q3.
+      LOOP AT lt_tables ASSIGNING <ls_table_office> WHERE name      = wa_cust_q3-idcol
+                                                      AND col_count = wa_cust_q3-numcol.
+        IF wa_cust_q3-idcol CS '[id'.
+          wa_s_opt_table-table_int  = <ls_table_office>-index.
+          wa_s_opt_table-table_name = <ls_table_office>-name.
+          APPEND wa_s_opt_table TO gt_tables_opt_f. "Taula amb els identificadors de les taules que cal optimitzar en funció de la finestra
+        ELSE.
+          wa_s_opt_table-table_int  = <ls_table_office>-index.
+          wa_s_opt_table-table_name = <ls_table_office>-name.
+          APPEND wa_s_opt_table TO gt_tables_opt_c."Taula amb els identificadors de les taules que cal optimitzar en funció del contingut
+        ENDIF.
+        READ TABLE lt_tables TRANSPORTING NO FIELDS WITH KEY col_count = <ls_table_office>-col_count + 1
+                                                             index     = <ls_table_office>-index.
+        "comprovem que la taula tingui més d'una entrada, sino es que es únicament capçalera
+        IF sy-subrc = 0.
+          "taula de NxN
+          CASE <ls_table_office>-row_count.
+            WHEN 1. "capçalera
+              "Entrada amb capçalera + posició
+*              APPEND <ls_table_office>-index TO gt_tables_opt_c."Taula amb els identificadors de les taules que cal optimitzar en funció del contingut
+              CONCATENATE '[' co_operator_return_literal '/' wa_cust_q3-nomcol ']' cl_abap_char_utilities=>cr_lf INTO <ls_table_office>-name.
+            WHEN 2. "posició
+              CONCATENATE wa_cust_q3-varcol cl_abap_char_utilities=>cr_lf INTO <ls_table_office>-name.
+          ENDCASE.
+        ELSE.
+          "taula d'1x1
+*          APPEND <ls_table_office>-index TO gt_tables_opt_f. "Taula amb els identificadors de les taules que cal optimitzar en funció de la finestra
+          IF wa_cust_q3-variant = abap_on AND wa_cust_q3-nomcol IS NOT INITIAL. "si és una variant mostrem el text identificatiu de variant
+            CONCATENATE wa_cust_q3-varcol '[' co_operator_return_literal '/' wa_cust_q3-nomcol ']' cl_abap_char_utilities=>cr_lf INTO <ls_table_office>-name.
+          ELSE.
+            CONCATENATE wa_cust_q3-varcol cl_abap_char_utilities=>cr_lf INTO <ls_table_office>-name.
+          ENDIF.
+        ENDIF.
+        APPEND <ls_table_office> TO ct_table_office.
+      ENDLOOP.
+    ENDLOOP.
+    "Ordenem la taula final per a que tingui la seqüència correlativa de cadascuna de les posicions
+    SORT ct_table_office BY index ASCENDING row_count ASCENDING col_count ASCENDING.
+    SORT gt_tables_opt_f ASCENDING.
+    DELETE ADJACENT DUPLICATES FROM gt_tables_opt_f.
+    SORT gt_tables_opt_c ASCENDING.
+    DELETE ADJACENT DUPLICATES FROM gt_tables_opt_c.
+
+  ENDMETHOD.
+
+
+  METHOD execute_command_external.
+    CONSTANTS: lc_desc_plant    TYPE zsap_dt_param_hc-field_info VALUE 'Descripció plantilla TAG '.
+
+    DATA: lr_util           TYPE REF TO zrm_cl_util,
+          lr_container      TYPE REF TO zrm_cl_container,
+          lr_expedient      TYPE REF TO zrm_cl_expedients,
+          lr_lif_record     TYPE REF TO cl_srm_sp_record,
+          lv_template_descr TYPE string,
+          lv_spsid          TYPE string,
+          lv_class          TYPE seoclsname.
+    TRY.
+        lr_container = ir_container.
+
+        IF lr_container IS INITIAL.
+          CALL METHOD zrm_cl_documents_word=>get_container_from_guid
+            EXPORTING
+              iv_docclass  = iv_docclass
+              iv_objectid  = iv_objectid
+            IMPORTING
+              er_container = lr_container.
+        ENDIF.
+
+        CHECK lr_container IS BOUND.
+
+        lv_template_descr = lc_desc_plant && iv_script.
+
+        CALL METHOD zrm_cl_documents=>execute_command
+          EXPORTING
+            im_script               = CONV #( iv_script )
+            im_container            = lr_container
+            im_as_table             = iv_as_table
+            im_template_document_id = iv_template_document_id
+            im_template_object      = iv_template_object
+            im_template_description = lv_template_descr
+          IMPORTING
+            re_result               = ro_result.
+
+      CATCH zcx_rm_documents INTO DATA(lrx_document).
+*            RAISE EXCEPTION TYPE zcx_rm_documents
+*              EXPORTING
+*                operand_name = l_operator_name
+*                operand      = l_operator
+*                textid       = zcx_rm_documents=>error_operand.
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD get_container_from_guid.
+    DATA: lr_util       TYPE REF TO zrm_cl_util,
+          lr_expedient  TYPE REF TO zrm_cl_expedients,
+          lr_lif_record TYPE REF TO cl_srm_sp_record,
+          lv_spsid      TYPE string,
+          lv_class      TYPE seoclsname.
+
+    CREATE OBJECT lr_util.
+    CONCATENATE iv_docclass  iv_objectid INTO DATA(lv_rec_id) RESPECTING BLANKS.
+    CALL METHOD lr_util->obtindre_atributs_exp
+      EXPORTING
+        im_record_docid = lv_rec_id
+      IMPORTING
+        ex_properties   = DATA(lt_props).
+
+    READ TABLE lt_props INTO DATA(ls_props) WITH KEY name = 'SRM_SPS_ID'.
+    CHECK sy-subrc = 0.
+    lv_spsid = ls_props-value.
+
+    SELECT SINGLE clsname FROM zrm_dm_sp_exp
+                          INTO lv_class
+                          WHERE srmspsid = lv_spsid.
+    CHECK sy-subrc EQ 0 .
+    CREATE OBJECT lr_expedient TYPE (lv_class).
+
+    CHECK lr_expedient IS BOUND .
+
+    lr_expedient->docclass = iv_docclass .
+    lr_expedient->objectid = iv_objectid .
+    CREATE OBJECT er_container
+      EXPORTING
+        im_expedient = lr_expedient
+        im_sps_id    = lv_spsid.
+
+  ENDMETHOD.
+
+
+METHOD get_linked_data.
+  DATA: lt_links_office  TYPE ty_t_link_office,
+        lt_links_header  TYPE ty_t_link_office, " INS 20150729 SPEC-35788
+        lt_tables_office TYPE ty_t_table_office,
+        lif_error        TYPE REF TO i_oi_error.
+*        lt_form_list_in   TYPE soi_form_list .
+
+  CALL METHOD my_table_collection->add_table
+    EXPORTING
+      table_name = co_table_link_list
+      table_type = my_table_collection->table_type_input
+    IMPORTING
+      error      = lif_error
+    CHANGING
+      data_table = lt_links_office.
+  me->raise_doi_error( lif_error ) .
+
+  CALL METHOD my_table_collection->add_table
+    EXPORTING
+      table_name = co_table_table_list
+      table_type = my_table_collection->table_type_input
+    IMPORTING
+      error      = lif_error
+    CHANGING
+      data_table = lt_tables_office.
+  me->raise_doi_error( lif_error ) .
+
+  CALL METHOD my_proxy->execute_macro
+    EXPORTING
+      macro_string = co_macro_get_link_list
+      no_flush     = ' '
+    IMPORTING
+      error        = lif_error.
+  me->raise_doi_error( lif_error ) .
+
+  CALL METHOD my_proxy->execute_macro
+    EXPORTING
+      macro_string = co_macro_get_table_list
+      no_flush     = ' '
+    IMPORTING
+      error        = lif_error.
+  me->raise_doi_error( lif_error ) .
+
+  CALL METHOD my_table_collection->get_table
+    EXPORTING
+      table_name = co_table_table_list
+    IMPORTING
+      error      = lif_error
+    CHANGING
+      data_table = lt_tables_office.
+  me->raise_doi_error( lif_error ) .
+
+  CALL METHOD my_table_collection->get_table
+    EXPORTING
+      table_name = co_table_link_list
+    IMPORTING
+      error      = lif_error
+    CHANGING
+      data_table = lt_links_office.
+  me->raise_doi_error( lif_error ) .
+
+***>> INI INS ETCMA 20150729 SPEC-35788
+*  CALL METHOD my_table_collection->add_table
+*    EXPORTING
+*      table_name = co_table_link_header
+*      table_type = my_table_collection->table_type_input
+*    IMPORTING
+*      error      = lif_error
+*    CHANGING
+*      data_table = lt_links_header.
+*  me->raise_doi_error( lif_error ) .
+*
+*  CALL METHOD my_proxy->execute_macro
+*    EXPORTING
+*      macro_string = co_macro_get_link_header
+*      no_flush     = ' '
+*    IMPORTING
+*      error        = lif_error.
+*  me->raise_doi_error( lif_error ) .
+*
+*  CALL METHOD my_table_collection->get_table
+*    EXPORTING
+*      table_name = co_table_link_header
+*    IMPORTING
+*      error      = lif_error
+*    CHANGING
+*      data_table = lt_links_header.
+*  me->raise_doi_error( lif_error ) .
+***<< FIN INS ETCMA 20150729 SPEC-35788
+
+  CALL METHOD me->parse_link_list
+    IMPORTING
+      ex_link_list = ex_link_list
+    CHANGING
+      im_link_list = lt_links_office.
+**>> INI MODIF ETODR 11.03.2016 SPEC-37208
+  IF g_plantilla_dinamica IS NOT INITIAL. "Si es una plantilla amb components dinàmics recuperem els seus valors de la taula de parametrització
+    change_list_of_tables( CHANGING  ct_table_office = lt_tables_office ).
+  ENDIF.
+**<< FI MODIF ETODR 11.03.2016 SPEC-37208
+  ">> PSPEC-1482, Inici Modificació - EVODR
+  IF gv_plec_plantilla_dinamica = abap_true.
+    zrm_cl_qdc_util=>change_tables_crit_plec( EXPORTING io_container    = im_container
+                                              CHANGING  ct_table_office = lt_tables_office
+                                                        ct_tables_opt_c = gt_tables_opt_c
+                                                        ct_tables_opt_f = gt_tables_opt_f ).
+  ENDIF.
+  "<< PSPEC-1482, Final Modificació - EVODR
+  CALL METHOD me->parse_table_list
+    EXPORTING
+      im_table_list = lt_tables_office
+    IMPORTING
+      ex_table_list = ex_table_list.
+
+ENDMETHOD.
+
+
+  METHOD macro_plant_dinamica.
+    DATA: lif_error TYPE REF TO i_oi_error.
+    IF i_param IS INITIAL.
+      CALL METHOD my_proxy->execute_macro
+        EXPORTING
+          macro_string = i_macro_function
+          no_flush     = ' '
+        IMPORTING
+          error        = lif_error.
+    ELSE.
+      CALL METHOD my_proxy->execute_macro
+        EXPORTING
+          macro_string = i_macro_function
+          no_flush     = ' '
+          param_count  = 1
+          param1       = i_param
+        IMPORTING
+          error        = lif_error.
+    ENDIF.
+    me->raise_doi_error( lif_error ).
+  ENDMETHOD.
+
+
+METHOD RESIZE_WORD_TABLE.
+  DATA: ls_ole_tables        TYPE ole2_object,
+        l_doc_handle         TYPE cntl_handle,
+        ls_ole_table         TYPE ole2_object,
+        ls_ole_columns       TYPE ole2_object,
+        ls_ole_first_column  TYPE ole2_object,
+        l_col_count          TYPE i,
+        lr_table_descr       TYPE REF TO cl_abap_tabledescr,
+        lr_strct_descr       TYPE REF TO cl_abap_structdescr,
+        l_components         TYPE i,
+        ls_info_table        TYPE LINE OF soi_cols_table,
+        lif_error            TYPE REF TO i_oi_error .
+
+  CALL METHOD my_proxy->get_document_handle
+    IMPORTING
+      error  = lif_error
+      handle = l_doc_handle.
+  me->raise_doi_error( lif_error ) .
+
+
+  lr_table_descr ?= cl_abap_tabledescr=>describe_by_data( im_table_contents ) .
+  lr_strct_descr ?= lr_table_descr->get_table_line_type( ) .
+  DESCRIBE TABLE lr_strct_descr->components LINES l_components .
+
+  GET PROPERTY OF l_doc_handle-obj 'Tables' = ls_ole_tables .
+  CALL METHOD OF ls_ole_tables 'Item' = ls_ole_table
+    EXPORTING
+    #1 = im_table_index.
+
+  GET PROPERTY OF ls_ole_table 'Columns' = ls_ole_columns .
+  CALL METHOD OF ls_ole_columns 'Item' = ls_ole_first_column
+    EXPORTING
+    #1 = 1.
+
+  GET PROPERTY OF ls_ole_columns 'Count'   = l_col_count .
+  CALL METHOD OF ls_ole_table 'AutoFitBehavior'
+    EXPORTING
+    #1 = 1. "wdAutoFitContent .
+
+  WHILE l_col_count LT l_components .
+    CALL METHOD OF ls_ole_columns 'Add'
+      EXPORTING
+      #1 = ls_ole_first_column .
+    ADD 1 TO l_col_count .
+  ENDWHILE .
+
+  REFRESH ex_info_table .
+  DO l_col_count TIMES .
+    ls_info_table-colindex = sy-index .
+    APPEND ls_info_table TO ex_info_table .
+  ENDDO .
+
+*  DATA lif_error TYPE REF TO i_oi_error .
+*  CALL METHOD im_wp_interface->insert_table
+*    EXPORTING
+*      data_table      = im_table_contents
+*      info_table      = lt_info_table
+*      lowerbound      = 0
+*      upperbound      = 0
+*      doctable_number = im_table_index
+*      clearoption     = 1
+*      startrow        = 1
+*      varsize         = 'X'
+*    IMPORTING
+*      error           = lif_error.
+*  zrm_cl_documents=>raise_doi_error( lif_error ) .
+ENDMETHOD.
+
+
+METHOD SEND_WHOLE_TABLE.
+  FIELD-SYMBOLS: <lt_data>     TYPE ANY TABLE,
+                 <lt_new_data> TYPE ANY TABLE .
+  DATA: lr_reference  TYPE REF TO data,
+        lr_new_data   TYPE REF TO data,
+        lt_info_table TYPE soi_cols_table,
+        lif_error     TYPE REF TO i_oi_Error.
+
+  CALL METHOD apply_operators
+    EXPORTING
+      im_container            = im_container
+      im_commands             = im_commands
+      im_as_table             = 'X'
+      im_template_document_id = my_template_document_id
+      im_template_description = my_template_description
+      im_template_object      = my_template_object
+    IMPORTING
+      ex_result               = lr_reference.
+
+  ASSIGN lr_reference->* TO <lt_data> .
+
+  CALL METHOD resize_word_table
+    EXPORTING
+      im_table_contents  = <lt_data>
+      im_table_index     = im_table_index
+    IMPORTING
+      ex_info_table      = lt_info_table.
+
+* No es poden enviar strings a taules...
+  lr_new_data = me->convert_strings_table( lr_reference ) .
+  ASSIGN lr_new_data->* TO <lt_new_data> .
+
+  CALL METHOD my_wp_interface->insert_table
+    EXPORTING
+      data_table      = <lt_new_data>
+      info_table      = lt_info_table
+      lowerbound      = 0
+      upperbound      = 0
+      doctable_number = im_table_index
+      clearoption     = 1
+      startrow        = 1
+      varsize         = 'X'
+    IMPORTING
+      error           = lif_error.
+  zrm_cl_documents=>raise_doi_error( lif_error ) .
+
+  FREE <lt_new_data> .
+
+ENDMETHOD.
+
+
+METHOD set_dynamic_data.
+  TYPES: BEGIN OF ty_s_line,
+* Al métode INSERT_TABLE no li podem passar STRINGS perquè dona un error de FLUSH.
+* Li passem un char llarg
+           line(6000) TYPE c,
+         END OF ty_s_line,
+         ty_t_line TYPE STANDARD TABLE OF ty_s_line.
+  DATA: lif_error        TYPE REF TO i_oi_error,
+        lr_reference     TYPE REF TO data,
+        l_partial_string TYPE string,
+        l_binary         TYPE xfeld,
+        lt_line          TYPE ty_t_line,
+        l_length         TYPE i,
+        l_handle         TYPE cntl_handle.
+**>> INI MODIF ETODR 11.03.2016 SPEC-37208
+  DATA: wa_tabl_opt TYPE ty_s_opt_table,
+        l_table     TYPE i.
+**<< FI MODIF ETODR 11.03.2016 SPEC-37208
+  FIELD-SYMBOLS: <ls_link>   TYPE ty_s_link,
+                 <ls_table>  TYPE ty_s_table,
+                 <ls_textid> TYPE ty_s_textid,
+                 <l_line>    TYPE ty_s_line,
+                 <l_field>   TYPE any,
+                 <l_comp>    TYPE any,
+                 <l_table>   TYPE STANDARD TABLE.
+  FIELD-SYMBOLS: <lt_tableadr>   TYPE STANDARD TABLE. ">> SPEC-88170, EVCHA
+  "INICI - SPEC-83935 - EVMRG
+  DATA : lv_lenght   TYPE i,
+         lv_lenght2  TYPE i,
+         lv_lenght3  TYPE i,
+         lv_valor    TYPE string,
+         lv_valor2   TYPE string,
+         lv_valor3   TYPE char200, "EVCHA SPEC-90238
+         lv_pos      TYPE i,
+         lv_enters   TYPE string,
+         lv_decimals TYPE string,
+         lv_pos_en   TYPE i.
+  FIELD-SYMBOLS:  <l_comp2>    TYPE any.
+
+  "FI - SPEC-83935 - EVMRG
+
+  check_before_start( im_container ) .
+
+  CALL METHOD get_doi_interfaces
+    IMPORTING
+      ex_form_interface   = my_form_interface
+      ex_link_server      = my_link_server
+      ex_table_collection = my_table_collection
+      ex_wp_interface     = my_wp_interface.
+  ">> PSPEC-1482, Inici Modificació - EVODR
+  TRY.
+      CLEAR: gv_plec_plantilla_dinamica.
+      macro_plant_dinamica( EXPORTING i_macro_function = co_macro_check_plecplant_din ).
+      gv_plec_plantilla_dinamica = abap_on.
+    CATCH zcx_rm_documents.
+      gv_plec_plantilla_dinamica = abap_off.
+  ENDTRY.
+  "<< PSPEC-1482, Final Modificació - EVODR
+**>> INI MODIF ETODR 11.03.2016 SPEC-37208
+  "Realitzem comprovació de plantilla dinàmica cridant a la macro
+  TRY.
+      CLEAR: g_plantilla_dinamica.
+      macro_plant_dinamica( EXPORTING i_macro_function = co_macro_check_plant_din ).
+      g_plantilla_dinamica = abap_on.
+    CATCH zcx_rm_documents.
+      g_plantilla_dinamica = abap_off.
+  ENDTRY.
+**<< FI MODIF ETODR 11.03.2016 SPEC-37208
+  CALL METHOD get_linked_data
+    EXPORTING
+      im_container  = im_container "PSPEC-1482
+    IMPORTING
+      ex_link_list  = my_list_of_links
+      ex_table_list = my_list_of_tables.
+
+
+  CALL METHOD my_control->get_control_handle
+    IMPORTING
+      error  = lif_error
+      handle = l_handle.
+  me->raise_doi_error( lif_error ) .
+  log_clear( ) .
+  LOOP AT my_list_of_tables ASSIGNING <ls_table> .
+    READ TABLE <ls_table>-t_textid INDEX 1 ASSIGNING <ls_textid> .
+    IF <ls_table>-send_whole IS NOT INITIAL .
+      CALL METHOD send_whole_table
+        EXPORTING
+          im_container   = im_container
+          im_commands    = <ls_textid>-commands
+          im_table_index = <ls_table>-index.
+      CONTINUE .
+    ENDIF .
+
+    REFRESH lt_line .
+
+    LOOP AT <ls_table>-t_textid ASSIGNING <ls_textid> .
+      CALL METHOD log_script
+        EXPORTING
+          im_where                = 'TAULA'
+          im_script               = <ls_textid>-full
+          im_template_document_id = my_template_document_id.
+
+      CALL METHOD apply_operators
+        EXPORTING
+          im_container            = im_container
+          im_commands             = <ls_textid>-commands
+          im_as_table             = 'X'
+          im_template_document_id = my_template_document_id
+          im_template_description = my_template_description
+          im_template_object      = my_template_object
+        IMPORTING
+          ex_result               = lr_reference.
+      CHECK lr_reference IS BOUND .
+      ASSIGN lr_reference->* TO <l_table> .
+
+**>> INI MODIF ETODR 11.03.2016 SPEC-37208 "Si la taula està buida eliminem de l'optimització
+      IF <l_table> IS INITIAL.
+        LOOP AT gt_tables_opt_c TRANSPORTING NO FIELDS WHERE table_int = <ls_table>-index.
+          DELETE gt_tables_opt_c.
+        ENDLOOP.
+        LOOP AT gt_tables_opt_f TRANSPORTING NO FIELDS WHERE table_int = <ls_table>-index.
+          DELETE gt_tables_opt_f.
+        ENDLOOP.
+      ENDIF.
+**<< FI MODIF ETODR 11.03.2016 SPEC-37208
+* Aquí estem suposant que si ens demanen més d'una data, per exemple,
+* "el nom complet de [ZRM_DT_OFERTES-PROVEIDOR] és [ZRM_DT_OFERTES-PROVEIDOR:RETORNA_DESCRIPCIO]"
+*... totes les taules implicades tindran el mateix número de files. Si no no funciona bé.
+      LOOP AT <l_table> ASSIGNING <l_field> .
+        READ TABLE lt_line ASSIGNING <l_line> INDEX sy-tabix .
+        IF sy-subrc NE 0.
+          APPEND INITIAL LINE TO lt_line .
+          READ TABLE lt_line ASSIGNING <l_line> INDEX sy-tabix .
+          <l_line>-line = <ls_table>-full .
+        ENDIF .
+* Estem a un sistema Unicode i hem d'anar amb molt de compte amb les conversions d'estructures
+* perquè <L_FIELD> és una estructura d'un únic camp
+        ASSIGN COMPONENT 1 OF STRUCTURE <l_field> TO <l_comp> .
+        MOVE <l_comp> TO l_partial_string .
+        REPLACE SECTION OFFSET <ls_textid>-offset
+                        LENGTH <ls_textid>-length
+                           OF <l_line>-line
+                         WITH l_partial_string
+                          IN CHARACTER MODE .
+      ENDLOOP .
+    ENDLOOP .
+    IF lt_line IS INITIAL .
+* DOI no admet taules buides... el mètode retorna un error.
+      APPEND INITIAL LINE TO lt_line .
+    ENDIF .
+
+    "INICI - SPEC-83935 - EVMRG
+
+    IF <ls_textid>-full = 'ZERM_QUADRE3_AB-COST_INT'.
+      LOOP AT  lt_line ASSIGNING FIELD-SYMBOL(<lv_line>).
+        CLEAR : lv_pos, lv_enters, lv_decimals, lv_pos_en.
+        REPLACE ALL OCCURRENCES OF '.' IN <lv_line> WITH ','.
+        SEARCH <lv_line> FOR ','.
+        lv_pos = sy-fdpos.
+        lv_enters = <lv_line>(lv_pos).
+        lv_decimals = <lv_line>+lv_pos.
+        lv_pos_en = strlen( lv_enters ).
+        lv_pos_en = lv_pos_en - 3.
+        WHILE lv_pos_en > 0.
+
+          CONCATENATE lv_enters(lv_pos_en) '.' lv_enters+lv_pos_en INTO lv_enters.
+          lv_pos_en = lv_pos_en - 3.
+        ENDWHILE.
+
+        CONCATENATE lv_enters lv_decimals INTO <lv_line>.
+
+* lv_pos = sy-postd.
+      ENDLOOP.
+    ENDIF.
+    "FI - SPEC-83935 - EVMRG
+
+    ASSIGN lt_line TO <l_table> .
+    CALL METHOD my_wp_interface->insert_table
+      EXPORTING
+        data_table      = <l_table>
+        info_table      = <ls_table>-info_table
+        lowerbound      = 0
+        upperbound      = 0
+        doctable_number = <ls_table>-index
+        clearoption     = 1
+        startrow        = <ls_table>-startrow
+        varsize         = 'X'
+      IMPORTING
+        error           = lif_error.
+    me->raise_doi_error( lif_error ) .
+
+*----
+*    CALL METHOD me->apply_operators
+*      EXPORTING
+*        im_container = im_container
+*        im_commands  = <ls_table>-commands
+*        im_as_table  = 'X'
+*      IMPORTING
+*        ex_result    = lr_reference.
+*
+*    CHECK lr_reference IS BOUND .
+*    ASSIGN lr_reference->* TO <l_table> .
+*
+*    IF <l_table> IS INITIAL .
+*      APPEND INITIAL LINE TO <l_table> .
+*    ENDIF .
+*    CALL METHOD my_wp_interface->insert_table
+*      EXPORTING
+*        data_table      = <l_table>
+*        info_table      = <ls_table>-info_table
+*        lowerbound      = 0
+*        upperbound      = 0
+*        doctable_number = <ls_table>-index
+*        clearoption     = 1
+*        startrow        = <ls_table>-startrow
+*        varsize         = 'X'
+*      IMPORTING
+*        error           = lif_error.
+*    me->raise_doi_error( lif_error ) .
+  ENDLOOP .
+
+  CALL METHOD my_link_server->start_link_server
+    IMPORTING
+      error = lif_error.
+  me->raise_doi_error( lif_error ) .
+
+  LOOP AT my_list_of_links ASSIGNING <ls_link> .
+    l_length = strlen( <ls_link>-full ) .
+    IF l_length GT 199 .
+      RAISE EXCEPTION TYPE zcx_rm_documents
+        EXPORTING
+          textid = zcx_rm_documents=>error_too_long
+          script = <ls_link>-full.
+    ENDIF .
+    CALL METHOD log_script
+      EXPORTING
+        im_where                = 'VINCLE'
+        im_script               = <ls_link>-full
+        im_template_document_id = my_template_document_id.
+    CALL METHOD me->apply_operators
+      EXPORTING
+        im_commands             = <ls_link>-commands
+        im_container            = im_container
+        im_as_table             = space
+        im_template_document_id = my_template_document_id
+        im_template_description = my_template_description
+        im_template_object      = my_template_object
+      IMPORTING
+        ex_result               = lr_reference
+        ex_binary               = l_binary.
+
+    CHECK lr_reference IS BOUND .
+    ASSIGN lr_reference->* TO <l_field> .
+
+    ">> SPEC-86648, Inici Modificació - EVODR
+
+*>> SPEC-88170, Inici Modificació - EVCHA
+    IF <l_field> IS ASSIGNED.
+      IF <ls_link>-full = 'Z_MAIL_ADJ'.
+*        LOOP AT <l_field>.
+        CLEAR lv_valor.
+        ASSIGN <l_field> TO <lt_tableadr> .
+        LOOP AT <lt_tableadr> ASSIGNING FIELD-SYMBOL(<ls_line>).
+          IF lv_valor IS INITIAL.
+            lv_valor = <ls_line>.
+          ELSE.
+            CONCATENATE lv_valor <ls_line> INTO lv_valor SEPARATED BY ';'.
+          ENDIF.
+        ENDLOOP.
+      ELSE.
+*>> SPEC-88170, Fi Modificació - EVCHA
+        lv_valor = <l_field>.
+      ENDIF.
+      CONDENSE lv_valor.
+      IF strlen( lv_valor ) > 0.
+        IF <ls_link>-full = 'TEXTID/L446_TEXT_LI' OR <ls_link>-full = 'TEXTID/L446_TEXT_LS'.
+          REPLACE ALL OCCURRENCES OF '.' IN <l_field> WITH ','.
+        ENDIF.
+
+        "<< SPEC-86648, Final Modificació - EVODR
+
+        "INICI - SPEC-83935 - EVMRG
+        ">> SPEC-86648, Inici Modificació - EVODR
+*        IF <ls_link>-full = 'TEXTID/L446_TEXT_LI' OR
+*           <ls_link>-full = 'TEXTID/L446_TEXT_LS'.
+*
+*          lv_valor = <l_field>.
+*
+*          CONDENSE lv_valor.
+*
+*          lv_lenght =  strlen( lv_valor ).
+*
+*          lv_lenght = lv_lenght - 3.
+*
+*          IF lv_valor+lv_lenght(1) = '.'.
+*
+*            lv_lenght2 = lv_lenght + 1.
+*
+*            CONCATENATE lv_valor(lv_lenght) ',' lv_valor+lv_lenght2 INTO <l_field>.
+*
+*          ENDIF.
+*
+*        ENDIF.
+        "<< SPEC-86648, Final Modificació - EVODR
+
+        IF <ls_link>-full = 'TEXTID/L446_TEXT_NOUS_PLECS_2N10'.
+          lv_valor3 = <l_field>.
+
+          lv_lenght =  strlen( lv_valor3 ).
+
+          lv_lenght = lv_lenght - 1.
+
+          WHILE lv_valor3+lv_lenght(1) <> '='.
+            lv_lenght = lv_lenght - 1.
+          ENDWHILE.
+
+          lv_valor = lv_valor3+lv_lenght.
+
+          CONDENSE lv_valor.
+          ">> SPEC-90238, Inici Modificació - EVCHA
+*          lv_lenght2 =  strlen( lv_valor ).
+*          lv_lenght2 = lv_lenght2 - 5.
+*          IF lv_valor+lv_lenght2(1) = '.'.
+*            lv_lenght3 = lv_lenght + 5.
+*            CONCATENATE lv_valor3(lv_lenght) ' ' lv_valor(lv_lenght2) ',' lv_valor3+lv_lenght3 INTO <l_field> RESPECTING BLANKS.
+*          ENDIF.
+          REPLACE '.' WITH ',' INTO lv_valor3+lv_lenght.
+          CONCATENATE lv_valor3(lv_lenght) lv_valor3+lv_lenght INTO <l_field> RESPECTING BLANKS.
+          "<< SPEC-90238, Final Modificació - EVCHA
+        ENDIF.
+
+        "FI - SPEC-83935 - EVMRG
+      ENDIF.
+    ENDIF.
+
+    CASE l_binary .
+      WHEN space .
+        ">> SPEC-88170, Inici Modificació - EVCHA
+        IF <ls_link>-full = 'Z_MAIL_ADJ'.
+          CALL METHOD OF l_handle-obj 'AddStringItem2' "= l_result "NO FLUSH
+            EXPORTING
+              #1 = <ls_link>-full
+              #2 = lv_valor.
+        ELSE.
+          "<< SPEC-88170, Final Modificació - EVCHA
+          CALL METHOD OF l_handle-obj 'AddStringItem2' "= l_result "NO FLUSH
+            EXPORTING
+              #1 = <ls_link>-full
+              #2 = <l_field>.
+        ENDIF.
+
+      WHEN 'X' .
+        DATA: l_item_name(300) .
+        l_item_name = <ls_link>-full .
+        CALL METHOD my_link_server->add_binary_item
+          EXPORTING
+*           DATA_SUBTYPE = ''
+*           DATA_TYPE = ''
+            item_name = l_item_name
+*           ITEM_TITLE   = ''
+*           NO_FLUSH  = ' '
+            table_url = <l_field>
+*           USER_INFO =
+          IMPORTING
+            error     = lif_error
+*           RETCODE   =
+          .
+        me->raise_doi_error( lif_error ) .
+    ENDCASE .
+  ENDLOOP .
+  IF sy-subrc EQ 0 .
+    CALL METHOD my_proxy->execute_macro
+      EXPORTING
+        macro_string = co_macro_update_links
+        no_flush     = ' '
+      IMPORTING
+        error        = lif_error.
+    me->raise_doi_error( lif_error ) .
+  ENDIF .
+
+  CALL METHOD my_link_server->stop_link_server
+    IMPORTING
+      error = lif_error.
+  me->raise_doi_error( lif_error ) .
+**>> INI MODIF ETODR 14.03.2016 SPEC-37208
+  ">> PSPEC-1482, Inici Modificació - EVODR
+  IF gv_plec_plantilla_dinamica = abap_on.
+    TRY.
+        macro_plant_dinamica( EXPORTING i_macro_function = co_macro_neteja_taules_buides ).
+        macro_plant_dinamica( EXPORTING i_macro_function = co_macro_delete_empty_cols ).
+        "Optimitza les taules i n'elimina les cel·les buides
+        LOOP AT gt_tables_opt_c INTO wa_tabl_opt.
+          macro_plant_dinamica( EXPORTING i_macro_function = co_macro_autofit_content
+                                          i_param          = wa_tabl_opt-table_int ).
+        ENDLOOP.
+        LOOP AT gt_tables_opt_f INTO wa_tabl_opt.
+          macro_plant_dinamica( EXPORTING i_macro_function = co_macro_autofit_window
+                                          i_param          = wa_tabl_opt-table_int ).
+        ENDLOOP.
+        macro_plant_dinamica( EXPORTING i_macro_function = co_macro_format_bold ).
+      CATCH zcx_rm_documents.
+    ENDTRY.
+  ENDIF.
+  "<< PSPEC-1482, Final Modificació - EVODR
+
+  IF g_plantilla_dinamica = abap_on.
+    TRY.
+        macro_plant_dinamica( EXPORTING i_macro_function = co_macro_delete_tables ).
+        "Optimitza les taules i n'elimina les cel·les buides
+        LOOP AT gt_tables_opt_c INTO wa_tabl_opt.
+          macro_plant_dinamica( EXPORTING i_macro_function = co_macro_autofit_content
+                                          i_param          = wa_tabl_opt-table_int ).
+        ENDLOOP.
+        LOOP AT gt_tables_opt_f INTO wa_tabl_opt.
+          macro_plant_dinamica( EXPORTING i_macro_function = co_macro_autofit_window
+                                          i_param          = wa_tabl_opt-table_int ).
+        ENDLOOP.
+      CATCH zcx_rm_documents.
+    ENDTRY.
+  ENDIF.
+**<< FI MODIF ETODR 14.03.2016 SPEC-37208
+**>> INI MODIF ETODR SPEC-43232
+  TRY.
+      macro_plant_dinamica( EXPORTING i_macro_function = 'replace_sigma' ).
+*** INI SPEC-56450
+      macro_plant_dinamica( EXPORTING i_macro_function = 'replace_dp' ).
+*** FIN SPEC-56450
+    CATCH zcx_rm_documents.
+  ENDTRY.
+**<< FI MODIF ETODR SPEC-43232
+  log_save(  ) .
+
+
+ENDMETHOD.
+ENDCLASS.

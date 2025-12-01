@@ -1,0 +1,2166 @@
+class ZRM_CL_EXPEDIENTS definition
+  public
+  abstract
+  create public .
+
+*"* public components of class ZRM_CL_EXPEDIENTS
+*"* do not include other source files here!!!
+public section.
+
+  interfaces ZIF_RM_EXPEDIENT .
+  interfaces ZIF_RM_EXPEDIENT_TECNIC .
+
+  types:
+    ty_t_tipus_exp TYPE TABLE OF z_tipus_exp .
+  types:
+    BEGIN OF TY_s_exp,
+           docclass  TYPE bapidclass,
+           objectid  TYPE bapiguid,
+           pspnr     TYPE prps-pspnr,
+           tipus_exp TYPE z_tipus_exp,
+           exp_id    TYPE srmpv_docid,
+        END OF TY_s_exp .
+  types:
+    ty_t_exp TYPE STANDARD TABLE OF TY_s_exp WITH NON-UNIQUE KEY docclass objectid .
+
+  data OBJECTID type BAPIGUID .
+  data DOCCLASS type BAPIDCLASS .
+  data CONTAINER type SWCONTTAB .
+  data NOU_EXP type ref to ZRM_CL_UTIL .
+
+  class-methods OBTENIR_EXPEDIENTS_PEP
+    importing
+      !IM_TIPUS_EXP type TY_T_TIPUS_EXP
+    changing
+      !EX_PEP_EXP type TY_T_EXP .
+  class-methods SET_PROPERTIES
+    importing
+      !IM_DOCUMENT type ref to IF_SRM_DOCUMENT
+      !IM_PROPERTIES type SRMGS_PROPERTY_TAB
+    raising
+      ZCX_RM_EXPEDIENT .
+  methods BORRA_EXPEDIENT
+    importing
+      !IM_DOCCLASS type BAPIDCLASS
+      !IM_OBJECTID type BAPIGUID
+    raising
+      ZCX_RM_EXPEDIENT .
+  methods CONSTRUCTOR .
+  methods CREAR
+    importing
+      !IM_RECORD_SP_ID type STRING optional
+      !IM_RECORD_ID type STRING
+      !IM_DESCRIPTION type STRING .
+  methods CREAR_INI .
+  methods CREAR_OPTIM
+    importing
+      !IM_RECORD_SP_ID type STRING optional
+      !IM_RECORD_ID type STRING
+      !IM_DESCRIPTION type STRING .
+  methods ESBORRAR .
+  methods MODIFICAR
+    importing
+      !IM_OBJECTID type BAPIGUID
+      !IM_DOCCLASS type BAPIDCLASS .
+  methods OBTENIR_DADES
+    exporting
+      !EX_CONTAINER type SWCONTTAB
+    raising
+      ZCX_RM_MESSAGE_EXCEPTION .
+  methods OBTENIR_DADES_PLANTILLA
+    importing
+      !IM_DOCCLASS type BAPIDCLASS optional
+      !IM_OBJECTID type BAPIGUID optional
+    exporting
+      !EX_FORM_DATA type SOI_FORM_LIST .
+  methods OBTENIR_DESCRIPCIO
+    importing
+      !IM_IDIOMA type SPRAS default SY-LANGU
+      !IM_NO_CRLF type SRMBOOLEAN default IF_SRM=>FALSE
+    exporting
+      !EX_STRING type STRING .
+  methods VISUALITZAR
+    importing
+      !IM_OBJECTID type BAPIGUID
+      !IM_DOCCLASS type BAPIDCLASS .
+  methods VISUALITZAR_EXPEDIENT
+    importing
+      !IM_DOCCLASS type BAPIDCLASS optional
+      !IM_OBJECTID type BAPIGUID optional .
+  methods OBTENIR_DESCRIPCIO_IMPULS
+    importing
+      !IM_IDIOMA type SPRAS default SY-LANGU
+      !IM_NO_CRLF type SRMBOOLEAN default IF_SRM=>FALSE
+    exporting
+      !EX_STRING type STRING .
+  methods OBTENIR_DESCRIPCIO_ABR
+    importing
+      !IM_IDIOMA type SPRAS default SY-LANGU
+      !IM_NO_CRLF type SRMBOOLEAN default IF_SRM=>FALSE
+    exporting
+      !EX_STRING type STRING .
+  methods IS_ENCARREC_OR_AG
+    importing
+      !IM_IDIOMA type SPRAS default SY-LANGU
+      !IM_NO_CRLF type SRMBOOLEAN default IF_SRM=>FALSE
+      value(IV_TIPUS) type CHAR3 optional
+    exporting
+      !EX_STRING type STRING .
+  methods FUNCIO_PRINCIPAL
+    importing
+      !IM_IDIOMA type SPRAS default SY-LANGU
+      !IM_NO_CRLF type SRMBOOLEAN default IF_SRM=>FALSE
+    exporting
+      !EX_STRING type STRING .
+  methods OBTENIR_DOCID_MODEL_PUB
+    returning
+      value(RE_DOCID_MODEL) type STRING .
+  methods OBTENIR_DESCRIPCIO_MODEL
+    importing
+      !I_CLASS type BAPIDCLASS
+      !I_GUID type BAPIGUID
+    returning
+      value(RE_NOM_MODEL) type STRING .
+  class-methods OBTENIR_DESTINATARIS_NOTIF_SUB
+    importing
+      !IV_EBELN type EBELN
+    exporting
+      !ET_DESTINATARIS type SOMLRECI1_T .
+  class-methods OBTENIR_DADES_EXP
+    importing
+      !IV_OBJECTID_DOC type BAPIGUID
+      !IV_CODI_EXP type Z_CODI_EXP
+    exporting
+      !EV_OBJECTID_EXP type BAPIGUID
+      !EV_DOCCLASS_EXP type BAPIDCLASS .
+  class-methods OBTENIR_CLASS_ID_EXP
+    importing
+      !IV_CODI_EXP type Z_CODI_EXP2
+    exporting
+      !EV_OBJECTID_EXP type BAPIGUID
+      !EV_DOCCLASS_EXP type BAPIDCLASS .
+  methods OBTENIR_TREBALLS
+    exporting
+      !ET_TREBALLS type ZRM_TT_PRPS .
+  methods OBTENIR_TIPUS_EXPEDIENT
+    returning
+      value(RV_TIPUS_EXPEDIENT) type CHAR25 .
+  methods OBTENIR_DADES_TRAMITACIO
+    exporting
+      !EV_TIPUS_CONT type Z_DESCRIPCIO
+      !EV_STIPUS_CONT type Z_DESCRIPCIO
+      !EV_PROC_ADJ type Z_DESCRIPCIO
+      !EV_TIPUS_TRAM type Z_DESCRIPCIO .
+PROTECTED SECTION.
+*"* protected components of class ZRM_CL_EXPEDIENTS
+*"* do not include other source files here!!!
+
+
+
+
+  DATA container_plantilla TYPE swconttab .
+  DATA nom_funcio TYPE rs38l_fnam .
+  DATA rms_id TYPE string .
+  DATA record_sp_id TYPE string .
+  DATA record TYPE REF TO cl_srm_sp_record .
+  INTERFACE if_srm LOAD .
+  DATA data_locked TYPE xfeld VALUE if_srm=>false.        "#EC NOTEXT .
+  DATA header_tabname TYPE tabname .
+  DATA header_data TYPE REF TO data .
+  DATA record_locked TYPE srmboolean VALUE if_srm=>false. "#EC NOTEXT .
+  DATA lock_object TYPE enqname .
+
+  METHODS obtenir_docid_model
+    RETURNING
+      value(re_docid_model) TYPE string .
+  METHODS crear_fals
+    IMPORTING
+      !im_record TYPE REF TO cl_srm_sp_record .
+  TYPE-POOLS soi .
+  METHODS extreure_dades_plantilla
+    RETURNING
+      value(ex_form_data_rm) TYPE soi_form_list .
+  METHODS connect_interface
+    RETURNING
+      value(re_interface) TYPE REF TO zif_rm_expedient .
+private section.
+*"* private components of class ZRM_CL_EXPEDIENTS
+*"* do not include other source files here!!!
+
+  constants PREFIX_MF type STRING value 'Z_RM_' ##NO_TEXT.
+  constants SUFIX_CRE type STRING value '_CRE' ##NO_TEXT.
+  constants SUFIX_MOD type STRING value '_MOD' ##NO_TEXT.
+  constants SUFIX_VIS type STRING value '_VIS' ##NO_TEXT.
+  constants NOM_CLASSE type SEOCLSNAME value 'ZRM_CL_EXPEDIENTS' ##NO_TEXT.
+
+  methods GET_CONTENT_CONNECTION_RECORD
+    importing
+      !IM_IDIOMA type SPRAS default SY-LANGU
+      !IM_NO_CRLF type SRMBOOLEAN default IF_SRM=>FALSE
+    exporting
+      !EX_STRING type STRING
+    raising
+      ZCX_RM_EXPEDIENT .
+ENDCLASS.
+
+
+
+CLASS ZRM_CL_EXPEDIENTS IMPLEMENTATION.
+
+
+METHOD borra_expedient.
+  me->zif_rm_expedient~delete_data( ) .
+  me->zif_rm_expedient~delete_record( ) .
+ENDMETHOD.
+
+
+METHOD connect_interface.
+  IF nou_exp IS BOUND .
+    me->record ?= nou_exp->myrecordapi .
+    me->record_locked =  me->record->if_srm_sp_record_expert~is_record_opened( ).
+  ENDIF .
+  re_interface ?= me .
+ENDMETHOD.
+
+
+METHOD constructor.
+  DATA: lv_class   TYPE string,
+        lr_descr   TYPE REF TO cl_abap_typedescr,
+        l_funcname TYPE rs38l-name .
+
+  lr_descr ?= cl_abap_typedescr=>describe_by_object_ref( me ).
+
+  CALL METHOD lr_descr->get_relative_name
+    RECEIVING
+      p_relative_name = lv_class.
+
+  SELECT SINGLE nom_funcio srmspsid tabname lock_object
+           FROM zrm_dm_sp_exp
+           INTO (nom_funcio, record_sp_id, header_tabname, lock_object)
+          WHERE clsname = lv_class.
+
+  IF lock_object IS NOT INITIAL .
+    CONCATENATE 'ENQUEUE_' lock_object INTO l_funcname .
+    CALL FUNCTION 'FUNCTION_EXISTS'
+      EXPORTING
+        funcname = l_funcname
+      EXCEPTIONS
+        OTHERS   = 1.
+    IF sy-subrc NE 0.
+      CLEAR l_funcname .
+    ENDIF.
+  ENDIF .
+ENDMETHOD.
+
+
+METHOD crear.
+  DATA: lv_model_docid TYPE string,
+        lr_descr       TYPE REF TO cl_abap_classdescr,
+        lv_class       TYPE string.
+
+  IF im_record_sp_id IS SUPPLIED AND
+     NOT im_record_sp_id IS INITIAL.
+    SELECT SINGLE rmsid FROM zrm_dm_sp_exp
+                        INTO rms_id
+                        WHERE srmspsid = im_record_sp_id.
+    MOVE im_record_sp_id TO record_sp_id.
+  ELSE.
+    lr_descr ?= cl_abap_typedescr=>describe_by_object_ref( me ).
+
+    CALL METHOD lr_descr->get_relative_name
+      RECEIVING
+        p_relative_name = lv_class.
+    SELECT SINGLE srmspsid
+                  rmsid FROM zrm_dm_sp_exp
+                        INTO (record_sp_id, rms_id)
+                        WHERE clsname = lv_class
+                          AND obsolet = space.
+  ENDIF.
+
+  CREATE OBJECT nou_exp.
+
+  lv_model_docid = me->obtenir_docid_model( ) .
+
+  CALL METHOD nou_exp->crear_expedient
+    EXPORTING
+      im_rms_id             = rms_id
+      im_model_docid        = lv_model_docid
+      im_record_sp_id       = record_sp_id
+      im_record_id          = im_record_id
+      im_record_description = im_description
+    IMPORTING
+      ex_objectid           = objectid
+      ex_docclass           = docclass.
+ENDMETHOD.
+
+
+METHOD crear_fals.
+*  DATA:  lif_document         TYPE REF TO if_srm_document,
+*         lif_property_whole   TYPE REF TO if_srm_gsp_properties,
+*         lt_property_whole    TYPE srmgs_property_tab,
+*         ls_property          LIKE LINE OF lt_property_whole,
+*         ls_doc_id            TYPE sdokobject .
+*
+*
+*  TRY .
+*      CALL METHOD im_record->if_srm_generic_sp~get_document
+*        IMPORTING
+*          document = lif_document.
+*      lif_property_whole   = lif_document->get_property_interface( ) .
+*
+*      CALL METHOD lif_property_whole->get_properties
+*        CHANGING
+*          properties = lt_property_whole.
+*
+*      CLEAR ls_property .
+*      READ TABLE lt_property_whole INTO ls_property
+*           WITH KEY name = if_srm_generic_sp=>prop_rms_id .
+*      me->rms_id = ls_property-value .
+*
+*      CLEAR ls_property .
+*      READ TABLE lt_property_whole INTO ls_property
+*           WITH KEY name = if_srm_generic_sp=>prop_sps_id .
+*      me->record_sp_id = ls_property-value .
+*
+*      ls_doc_id = im_record->if_srm_sp_record_expert~docid_get( ) .
+*      objectid = ls_doc_id-objid .
+*      docclass = ls_doc_id-class .
+*    CATCH cx_srm .
+*  ENDTRY .
+*
+*
+*  CREATE OBJECT nou_exp
+*    EXPORTING im_record = im_record  .
+*
+*  ls_doc_id = im_record->if_srm_sp_record_expert~docid_get( ) .
+*  objectid = ls_doc_id-objid .
+*  docclass = ls_doc_id-class .
+**  return .
+**  im_record->if_srm_sp_record~save( new_version = if_srm=>true ) .
+**  im_record->if_srm_sp_record~open( for_update = if_srm=>true ) .
+*  nou_exp->modificacions_inicials( me->record_sp_id  ) .
+
+ENDMETHOD.
+
+
+METHOD CREAR_INI.
+
+  CONSTANTS: co_metode TYPE seocpdname VALUE 'CREAR_INI'.
+
+  DATA: ref_excep TYPE REF TO cx_root,
+        text      TYPE string.
+
+  CONCATENATE prefix_mf nom_funcio sufix_cre INTO nom_funcio.
+
+  TRY.
+    CALL FUNCTION nom_funcio.
+
+    CATCH cx_sy_dyn_call_illegal_func
+          cx_sy_dyn_call_illegal_type
+          cx_sy_dyn_call_param_missing
+          cx_sy_dyn_call_param_not_found
+          INTO ref_excep.
+      text = ref_excep->get_text( ).
+
+      CALL METHOD zbc_cl_gestio_errors=>grabar_error
+        EXPORTING
+          im_clas_mf = nom_classe
+          im_metode  = co_metode
+          im_text    = text.
+  ENDTRY.
+ENDMETHOD.
+
+
+METHOD crear_optim.
+  DATA: lv_model_docid TYPE string,
+        lr_descr       TYPE REF TO cl_abap_classdescr,
+        lv_class       TYPE string.
+
+  IF im_record_sp_id IS SUPPLIED AND
+     NOT im_record_sp_id IS INITIAL.
+    SELECT SINGLE rmsid FROM zrm_dm_sp_exp
+                        INTO rms_id
+                        WHERE srmspsid = im_record_sp_id.
+    MOVE im_record_sp_id TO record_sp_id.
+  ELSE.
+    lr_descr ?= cl_abap_typedescr=>describe_by_object_ref( me ).
+
+    CALL METHOD lr_descr->get_relative_name
+      RECEIVING
+        p_relative_name = lv_class.
+    SELECT SINGLE srmspsid
+                  rmsid FROM zrm_dm_sp_exp
+                        INTO (record_sp_id, rms_id)
+                        WHERE clsname = lv_class
+                          AND obsolet = space.
+  ENDIF.
+
+  CREATE OBJECT nou_exp.
+
+  lv_model_docid = me->obtenir_docid_model( ) .
+
+  CALL METHOD nou_exp->crear_expedient_optim
+    EXPORTING
+      im_rms_id             = rms_id
+      im_model_docid        = lv_model_docid
+      im_record_sp_id       = record_sp_id
+      im_record_id          = im_record_id
+      im_record_description = im_description
+    IMPORTING
+      ex_objectid           = objectid
+      ex_docclass           = docclass.
+
+
+ENDMETHOD.
+
+
+METHOD esborrar.
+ENDMETHOD.
+
+
+METHOD extreure_dades_plantilla.
+  DATA: lv_docid     TYPE string,
+        lv_clau      TYPE srmpv_docid,
+        ls_dd03l     TYPE dd03l,
+        ls_container TYPE swcont,
+        ls_form_list LIKE LINE OF ex_form_data_rm,
+        lt_dd03l     LIKE TABLE OF ls_dd03l.
+
+  FIELD-SYMBOLS <fs> TYPE ANY.
+
+  BREAK-POINT.
+
+  IF nou_exp IS INITIAL.
+    CREATE OBJECT nou_exp.
+  ENDIF.
+  CONCATENATE docclass objectid INTO lv_docid RESPECTING BLANKS.
+  CALL METHOD nou_exp->obtindre_codi_univoc_exp
+    EXPORTING
+      im_docid     = lv_docid
+    IMPORTING
+      ex_clau_univ = lv_clau.
+
+  MOVE: 'CODI_EXPEDIENT' TO ls_form_list-name,
+        'C'              TO ls_form_list-type,
+        lv_clau          TO ls_form_list-value.
+  APPEND ls_form_list TO ex_form_data_rm.
+
+  LOOP AT container_plantilla INTO ls_container.
+    CLEAR ls_form_list.
+    IF ls_container-element <> ls_dd03l-tabname.
+      REFRESH lt_dd03l.
+      SELECT tabname
+             fieldname
+             position  FROM dd03l
+                       INTO CORRESPONDING FIELDS OF TABLE lt_dd03l
+                       WHERE tabname = ls_container-element.
+      IF sy-subrc = 0.
+        SORT lt_dd03l BY position.
+      ELSE.
+        MOVE: ls_container-type    TO ls_form_list-type,
+              ls_container-element TO ls_form_list-name,
+              ls_container-value   TO ls_form_list-value.
+        APPEND ls_form_list TO ex_form_data_rm.
+      ENDIF.
+    ENDIF.
+    CHECK NOT lt_dd03l IS INITIAL.
+
+    READ TABLE lt_dd03l INTO ls_dd03l
+                         WITH KEY position = ls_container-tab_index
+                         BINARY SEARCH.
+    CHECK sy-subrc = 0.
+    CONCATENATE ls_container-element
+                ls_dd03l-fieldname INTO ls_form_list-name
+                                   SEPARATED BY '-'.
+    MOVE: ls_container-type  TO ls_form_list-type,
+          ls_container-value TO ls_form_list-value.
+    APPEND ls_form_list TO ex_form_data_rm.
+  ENDLOOP.
+ENDMETHOD.
+
+
+  METHOD funcio_principal.
+
+    SELECT SINGLE z_descrip_abr, z_subtipus_cont
+     FROM zmm_dt_imp_cap
+       INTO @DATA(ls_data)
+          WHERE z_obj_impuls EQ @objectid
+            AND z_doc_impuls EQ @docclass.
+
+    IF ls_data-z_descrip_abr(3) = 'RSC'.
+      ex_string = 'SCOT'.
+    ELSE.
+      ex_string = ls_data-z_subtipus_cont.
+    ENDIF.
+  ENDMETHOD.
+
+
+METHOD get_content_connection_record.
+  DATA: lx_srm TYPE REF TO cx_srm .
+
+  TRY .
+      CALL METHOD zrm_cl_gmd=>get_content_connection_record
+        EXPORTING
+          im_objectid = me->objectid
+          im_docclass = me->docclass
+        IMPORTING
+          ex_record   = me->record.
+    CATCH cx_srm INTO lx_srm .
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING previous = lx_srm .
+  ENDTRY .
+ENDMETHOD.
+
+
+  METHOD is_encarrec_or_ag.
+
+    DATA: lv_pep TYPE string.
+
+    SELECT z_elem_imp
+     FROM zmm_dt_imp_po AS a
+       INNER JOIN zmm_dt_imp_cap AS b
+      ON a~z_codi_exp = b~z_codi_exp
+       INTO TABLE @DATA(lt_pep)
+          WHERE b~z_obj_impuls EQ @objectid
+            AND b~z_doc_impuls EQ @docclass.
+
+    LOOP AT lt_pep ASSIGNING FIELD-SYMBOL(<fs_pep>).
+      CALL FUNCTION 'CONVERSION_EXIT_ABPSP_OUTPUT'
+        EXPORTING
+          input  = <fs_pep>-z_elem_imp
+        IMPORTING
+          output = lv_pep.
+      CALL FUNCTION 'CONVERSION_EXIT_ABPSN_INPUT'
+        EXPORTING
+          input  = lv_pep
+        IMPORTING
+          output = <fs_pep>-z_elem_imp.
+    ENDLOOP.
+
+    DELETE lt_pep WHERE z_elem_imp IS INITIAL.
+    CHECK lt_pep IS NOT INITIAL.
+    IF iv_tipus EQ 'AG'.
+      SELECT COUNT(*)
+        FROM prps
+         FOR ALL ENTRIES IN lt_pep
+       WHERE posid EQ lt_pep-z_elem_imp AND
+             zcodi_ag NE space.
+
+      IF sy-subrc EQ 0.
+        ex_string = 'AG'.
+      ENDIF.
+    ELSEIF iv_tipus EQ 'ENC'.
+      SELECT COUNT(*)
+     FROM prps
+      FOR ALL ENTRIES IN lt_pep
+    WHERE posid EQ lt_pep-z_elem_imp AND
+          zcodi_encarrec NE space.
+
+      IF sy-subrc EQ 0.
+        ex_string = 'ENC'.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+
+METHOD MODIFICAR.
+  CONSTANTS: co_metode TYPE seocpdname VALUE 'MODIFICAR'.
+
+  DATA: ref_excep TYPE REF TO cx_root,
+        text      TYPE string.
+
+  MOVE: im_objectid TO objectid,
+        im_docclass TO docclass.
+
+  me->obtenir_dades( ).
+
+  CONCATENATE prefix_mf nom_funcio sufix_mod INTO nom_funcio.
+
+  TRY.
+      CALL FUNCTION nom_funcio
+        EXPORTING
+          container = container.
+
+    CATCH cx_sy_dyn_call_illegal_func
+          cx_sy_dyn_call_illegal_type
+          cx_sy_dyn_call_param_missing
+          cx_sy_dyn_call_param_not_found
+          INTO ref_excep.
+      text = ref_excep->get_text( ).
+
+      CALL METHOD zbc_cl_gestio_errors=>grabar_error
+        EXPORTING
+          im_clas_mf = nom_classe
+          im_metode  = co_metode
+          im_text    = text.
+  ENDTRY.
+ENDMETHOD.
+
+
+  METHOD obtenir_class_id_exp.
+    DATA: lt_sp_exp   TYPE TABLE OF zrm_dm_sp_exp,
+          ls_sp_exp   TYPE zrm_dm_sp_exp,
+          lt_props    TYPE TABLE OF bapipropqy,
+          ls_props    TYPE bapipropqy,
+          lt_prop_exp TYPE bapipropt,
+          ls_prop_exp LIKE LINE OF lt_prop_exp,
+          lt_result   TYPE TABLE OF bapidoctab,
+          ls_result   TYPE bapidoctab.
+
+* Busquem tot els tipus d'expedients
+    SELECT *
+      FROM zrm_dm_sp_exp
+      INTO TABLE lt_sp_exp
+     WHERE obsolet EQ abap_false.
+
+    REFRESH: lt_props, lt_prop_exp.
+    CLEAR ls_props.
+    ls_props-propname     = 'SRM_DOCUMENT_ID'.
+    ls_props-option       = 'CP'.
+    ls_props-sign         = 'I'.
+    ls_props-propval_lo  = iv_codi_exp.
+    APPEND ls_props TO lt_props.
+
+    LOOP AT lt_sp_exp INTO ls_sp_exp.
+      REFRESH lt_result.
+
+      CALL FUNCTION 'SRM_RECORD_GETLIST'
+        EXPORTING
+          rms_id             = ls_sp_exp-rmsid
+          sps_id             = ls_sp_exp-srmspsid
+        TABLES
+          property_selection = lt_props
+          resulting_list     = lt_result
+        EXCEPTIONS
+          not_authorized     = 1
+          internal_error     = 2
+          parameter_error    = 3
+          OTHERS             = 4.
+
+      IF lt_result IS NOT INITIAL.
+        READ TABLE lt_result INTO ls_result INDEX 1.
+        ev_docclass_exp = ls_result-docclass.
+        ev_objectid_exp = ls_result-objectid.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+
+
+  ENDMETHOD.
+
+
+METHOD OBTENIR_DADES.
+ENDMETHOD.
+
+
+  METHOD obtenir_dades_exp.
+
+    DATA: lv_poidid   TYPE srmpoidid,
+          lv_poidstr  TYPE srmpoidstr,
+          lv_poidid1  TYPE srmpoidid1,
+          lv_str1     TYPE string,
+          lv_str2     TYPE string,
+          lv_str3     TYPE string,
+          lv_str4     TYPE string,
+          lv_str5     TYPE string,
+          lv_str6     TYPE string,
+          lv_str7     TYPE string,
+          lv_str8     TYPE string,
+          lv_long     TYPE i,
+          lt_rel      TYPE TABLE OF srmrmsprel_clnt,
+          lt_dir      TYPE TABLE OF srmrmspdir_clnt,
+          ls_dir      TYPE srmrmspdir_clnt,
+          lt_props    TYPE TABLE OF bapiproptb,
+          ls_props    TYPE bapiproptb,
+          lv_codi_exp TYPE z_codi_exp.
+
+    "Si el document està vinculat a un expedient, s'accedirà a la taula
+    "SRMRMSPDIR_CLNT amb el camp POIDSTR = OBJECTID del document (entre ‘*’)
+    "i STATE = 'A'.
+    CONCATENATE '%' iv_objectid_doc '%' INTO lv_poidstr.
+    SELECT SINGLE poidid INTO lv_poidid FROM  srmrmspdir_clnt
+            WHERE state = 'A'
+              AND poidstr LIKE lv_poidstr.
+
+    IF sy-subrc = 0.
+
+      "Si existeix, agafar el camp POIDID i anar a la taula SRMRMSPREL_CLNT
+      "posant POIDID2 = POIDID; agafar el valor del camp POIDID1
+      REFRESH lt_rel.
+      SELECT * INTO TABLE lt_rel FROM  srmrmsprel_clnt
+              WHERE poidid2  = lv_poidid.
+
+      IF lt_rel[] IS NOT INITIAL.
+
+        "Si existeix, tornar a anar a la taula SRMRMSPDIR_CLNT.
+        "Aquí accedirem pel camp POIDID = POIDID1, per obtenir
+        "el camp POIDSTR on hi hauran el DOCCLASS i OBJECTID de l'expedient.
+        REFRESH lt_dir .
+        SELECT * INTO TABLE lt_dir FROM  srmrmspdir_clnt
+          FOR ALL ENTRIES IN lt_rel
+                 WHERE poidid  = lt_rel-poidid1.
+
+        IF lt_dir[] IS NOT INITIAL.
+          LOOP AT lt_dir INTO ls_dir.
+            "Tractament per aconseguir el docclass i el objectid de l'expedient
+*          lv_poidstr.
+            SPLIT ls_dir-poidstr AT '|' INTO  lv_str1 lv_str2 lv_str3 lv_str4
+                                          lv_str5 lv_str6 lv_str7 lv_str8.
+            IF lv_str7 IS NOT INITIAL.
+              lv_long = strlen( lv_str7 ).
+              CHECK lv_long GE 42.
+              ev_docclass_exp = lv_str7(10).
+              ev_objectid_exp = lv_str7+10(32).
+              " Propiedades del expediente
+              REFRESH lt_props.
+              CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+                EXPORTING
+                  objectid       = ev_objectid_exp
+                  documentclass  = ev_docclass_exp
+                  whole_document = 'X'
+                TABLES
+                  properties     = lt_props.
+
+              READ TABLE lt_props WITH KEY name = 'SRM_DOCUMENT_ID'
+                                  INTO ls_props.
+
+              IF sy-subrc = 0.
+                lv_codi_exp = ls_props-value.
+                IF lv_codi_exp = iv_codi_exp.
+                  EXIT.
+                ENDIF.
+              ENDIF.
+
+            ENDIF.
+
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+METHOD OBTENIR_DADES_PLANTILLA.
+  MOVE: im_docclass TO docclass,
+        im_objectid TO objectid.
+
+  me->obtenir_dades( ).
+
+  ex_form_data = me->extreure_dades_plantilla( ).
+ENDMETHOD.
+
+
+  METHOD obtenir_dades_tramitacio.
+    FIELD-SYMBOLS: <ls_data>               TYPE any,
+                   <fs_tipus_contracte>    TYPE any,
+                   <fs_subtipus_contracte> TYPE any,
+                   <fs_procediment_adj>    TYPE any,
+                   <fs_tipus_tramitacio>   TYPE any.
+**********************************************************************
+
+    me->zif_rm_expedient~get_header_data( im_reread = if_srm=>true ) .
+
+
+
+    "Busquem sempre l'expedient d'impuls, menys si ja sóc jo mateix
+    IF me->docclass <> 'ZCMEXP02'.
+      CALL METHOD zrms_cl_utilitats=>get_ct_from_expedient
+        EXPORTING
+          iv_docclass = me->docclass
+          iv_objectid = me->objectid
+        IMPORTING
+          es_impuls   = DATA(ls_impuls).
+
+      "Si no trobem impuls, sortim
+      CHECK ls_impuls IS NOT INITIAL.
+
+      ASSIGN ls_impuls TO <ls_data>.
+      CHECK sy-subrc = 0.
+    ELSE.
+      ASSIGN me->header_data->* TO <ls_data> .
+      CHECK sy-subrc = 0.
+    ENDIF.
+
+    ASSIGN COMPONENT 'Z_TIPUS_CONT' OF STRUCTURE <ls_data> TO <fs_tipus_contracte> .
+    IF sy-subrc = 0.
+      SELECT SINGLE z_descripcio
+        FROM zrm_dm_cont
+        INTO ev_tipus_cont
+        WHERE z_tipus_cont = <fs_tipus_contracte>.
+    ENDIF.
+
+    ASSIGN COMPONENT 'Z_SUBTIPUS_CONT' OF STRUCTURE <ls_data> TO <fs_subtipus_contracte> .
+    IF sy-subrc = 0.
+      SELECT SINGLE z_descripcio
+        FROM zrm_dm_subtip
+        INTO ev_stipus_cont
+        WHERE z_subtipus_cont = <fs_subtipus_contracte>.
+    ENDIF.
+
+    ASSIGN COMPONENT 'Z_PROC_ADJ' OF STRUCTURE <ls_data> TO <fs_procediment_adj> .
+    IF sy-subrc = 0.
+      SELECT SINGLE z_descripcio
+        FROM zrm_dm_proc_adj
+        INTO ev_proc_adj
+        WHERE z_proc_adj = <fs_procediment_adj>.
+    ENDIF.
+
+
+    ASSIGN COMPONENT 'Z_TIPUS_TRAM' OF STRUCTURE <ls_data> TO <fs_tipus_tramitacio> .
+    IF sy-subrc = 0.
+      SELECT SINGLE z_descripcio
+        FROM zrm_dm_tip_tram
+        INTO ev_tipus_tram
+        WHERE z_tipus_tram = <fs_tipus_tramitacio>.
+    ENDIF.
+  ENDMETHOD.
+
+
+METHOD obtenir_descripcio.
+  DATA: lr_sapscript TYPE REF TO zrm_cl_sapscript_texts .
+
+  CREATE OBJECT lr_sapscript
+    EXPORTING
+      i_docclass   = docclass
+      i_objectid   = objectid
+      i_tdid       = zrm_cl_sapscript_texts=>co_id_descripcio
+      i_tdspras    = im_idioma
+    EXCEPTIONS
+      OTHERS       = 2      .
+
+  CALL METHOD lr_sapscript->get_text_as_string
+    IMPORTING
+      ex_string = ex_string.
+
+  IF im_no_crlf EQ if_srm=>true .
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf
+                            IN ex_string
+                          WITH ` ` .
+    CONDENSE ex_string .
+  ENDIF .
+
+ENDMETHOD.
+
+
+  METHOD OBTENIR_DESCRIPCIO_ABR.
+
+    SELECT SINGLE z_descrip_abr
+     FROM zmm_dt_imp_cap
+       INTO @data(lv_descrip)
+          WHERE z_obj_impuls EQ @objectid
+            AND z_doc_impuls EQ @docclass.
+
+   EX_STRING = lv_descrip.
+  ENDMETHOD.
+
+
+  METHOD obtenir_descripcio_impuls.
+***>>> INICI  Insert SPEC-43734 ETXGL
+    DATA: lv_lines    TYPE TABLE OF tline,
+          lv_line     LIKE LINE OF lv_lines,
+          lv_id       TYPE thead-tdid,
+          lv_tdname   TYPE tdobname,
+          lv_object   TYPE thead-tdobject,
+          lv_line_aux TYPE tline-tdline.
+
+    DATA: gs_zmm_dt_imp_cap TYPE zmm_dt_imp_cap.
+
+    CLEAR   gs_zmm_dt_imp_cap.
+
+    SELECT SINGLE *
+     FROM zmm_dt_imp_cap
+       INTO CORRESPONDING FIELDS OF gs_zmm_dt_imp_cap
+          WHERE z_obj_impuls EQ objectid
+            AND z_doc_impuls EQ docclass.
+
+    CLEAR: ex_string,
+           lv_tdname,
+           lv_id,
+           lv_object,
+           lv_lines,
+           lv_line,
+           lv_line_aux.
+
+    CONCATENATE gs_zmm_dt_imp_cap-z_tipus_imp gs_zmm_dt_imp_cap-z_codi_exp INTO lv_tdname.
+
+    lv_id = 'ZIMP'.
+    lv_object = 'ZEBANH'.
+
+    CALL FUNCTION 'READ_TEXT'
+      EXPORTING
+*       client                  = sy-mandt
+        id                      = lv_id
+        language                = sy-langu
+        name                    = lv_tdname
+        object                  = lv_object
+*       archive_handle          = 0
+*       local_cat               = ' '
+*      IMPORTING
+*       header                  =
+      TABLES
+        lines                   = lv_lines
+      EXCEPTIONS
+        id                      = 1
+        language                = 2
+        name                    = 3
+        not_found               = 4
+        object                  = 5
+        reference_check         = 6
+        wrong_access_to_archive = 7
+        OTHERS                  = 8.
+
+    IF sy-subrc = 0.
+      LOOP AT lv_lines INTO lv_line.
+        lv_line_aux = lv_line-tdline.
+        CONDENSE lv_line_aux.
+        CONCATENATE ex_string lv_line_aux INTO ex_string.
+        CONDENSE ex_string.
+        CLEAR  lv_line.
+        CLEAR  lv_line_aux.
+      ENDLOOP.
+    ENDIF.
+***<<< FI  Insert SPEC-43734 ETXGL
+
+  ENDMETHOD.
+
+
+  METHOD obtenir_descripcio_model.
+    DATA      ch_attribute_tab TYPE bapipropt.
+    CLEAR: ch_attribute_tab[].
+    CALL FUNCTION 'BAPI_RECORD_GETPROPERTIES'
+      EXPORTING
+        objectid      = i_guid
+        documentclass = i_class
+      TABLES
+        properties    = ch_attribute_tab.
+
+    IF sy-subrc EQ 0.
+      READ TABLE ch_attribute_tab ASSIGNING FIELD-SYMBOL(<fs_value>) WITH KEY name = 'DESCRIPTION'.
+      IF sy-subrc = 0.
+        re_nom_model = <fs_value>-value.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD obtenir_destinataris_notif_sub.
+
+    DATA: ir_contracte        TYPE RANGE OF ebeln,
+          lv_posid            TYPE  ps_posid,
+          lv_posid_4          TYPE  ps_posid,
+          lv_vernr(8)         TYPE n,
+          lv_resp_exp(8)      TYPE n,
+          lv_tecnic_seguim(8) TYPE n,
+          lv_user_id          TYPE usr02-bname.
+
+    TYPES: BEGIN OF lty_aux,
+             z_codi_exp TYPE ebeln,
+             pspnr      TYPE ps_psp_pnr,
+             nplnr      TYPE nplnr,
+           END OF lty_aux.
+    DATA lt_aux1 TYPE TABLE OF lty_aux.
+
+    TYPES: BEGIN OF lty_dest,
+             dest(8) TYPE n,
+           END OF lty_dest.
+    DATA lt_dest TYPE TABLE OF lty_dest.
+    DATA ls_dest TYPE lty_dest.
+
+    DATA  es_destinataris      TYPE somlreci1.
+
+    DATA: lt_error_table TYPE TABLE OF rpbenerr.
+    DATA: ls_address TYPE bapiaddr3,
+          lt_return  TYPE TABLE OF  bapiret2.
+
+    FIELD-SYMBOLS <fs_treball> TYPE lty_aux.
+
+* Reuperar dades del contracte, Pep i Grafo
+    SELECT ekkn~ebeln      AS z_codi_exp
+           ekkn~ps_psp_pnr AS pspnr
+           ekkn~nplnr  " GRAFO
+      INTO CORRESPONDING FIELDS OF TABLE lt_aux1
+      FROM ekkn JOIN ekpo
+        ON ekkn~ebelp  =  ekpo~ebelp
+       AND ekkn~ebeln  =  ekpo~ebeln
+     WHERE ekkn~ebeln  = iv_ebeln
+       AND ekpo~loekz  <> 'L'
+       AND ekkn~loekz  <> 'L' .
+
+
+    SORT lt_aux1 BY z_codi_exp  pspnr.
+    DELETE ADJACENT DUPLICATES FROM lt_aux1 .
+
+    " Si es tracta d'un graf, hem de cercar el treball
+    " CAUFV: Vista de capçaleres d'ordre PCP/CC
+    LOOP AT lt_aux1 ASSIGNING <fs_treball>.
+      IF <fs_treball>-pspnr IS INITIAL AND  <fs_treball>-nplnr IS NOT INITIAL.
+        SELECT SINGLE pspel
+          INTO <fs_treball>-pspnr
+          FROM caufv
+         WHERE aufnr EQ <fs_treball>-nplnr .
+        IF sy-subrc = 0.
+          MODIFY lt_aux1 FROM <fs_treball>.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+
+    REFRESH lt_dest.
+    LOOP AT lt_aux1 ASSIGNING <fs_treball>.
+      CLEAR: lv_posid, lv_resp_exp, lv_tecnic_seguim, lv_posid_4, lv_vernr.
+
+      IF <fs_treball>-pspnr IS NOT INITIAL.
+
+        "Recuperar Número del responsable (cap de projecte)
+        "i el Tècnic de seguiment
+        SELECT SINGLE z_resp_exp z_tecnic_seguim
+          INTO ( lv_resp_exp, lv_tecnic_seguim )
+          FROM  zvrm_dt_obres_n4
+          WHERE  clau_pep  = <fs_treball>-pspnr.
+
+        "Guardar les dades a la TI lt_dest
+        IF sy-subrc = 0.
+          IF lv_resp_exp IS NOT INITIAL.
+            APPEND lv_resp_exp TO lt_dest.
+          ENDIF.
+          IF lv_tecnic_seguim IS NOT INITIAL.
+            APPEND lv_tecnic_seguim TO lt_dest.
+          ENDIF.
+        ELSE.
+* Si no hi ha reultats a la ZVRM_DT_OBRES_N4:
+* executar la FM Z_PS_GET_X_LEVEL passant al paràmetres:
+*   I_PSPNR
+*   I_STUFE
+          CALL FUNCTION 'Z_PS_GET_X_LEVEL'
+            EXPORTING
+              i_pspnr     = lv_posid
+              i_stufe     = 4
+            IMPORTING
+              pspnr       = lv_posid_4
+            EXCEPTIONS
+              pepmenstufe = 1
+              errorpep    = 2
+              OTHERS      = 3.
+*
+*   Anem a la taula PRPS amb el camp PSPNR i DELS REGISTRES obtinguts,
+*   ens quedem amb els camp VERNR que es la persona responsable
+          SELECT SINGLE vernr INTO lv_vernr FROM  prps
+                 WHERE  pspnr  = lv_posid_4.
+          IF lv_vernr IS NOT INITIAL.
+            APPEND lv_vernr TO lt_dest.
+          ENDIF.
+
+        ENDIF.
+      ENDIF.
+
+    ENDLOOP.
+    SORT lt_dest.
+    DELETE ADJACENT DUPLICATES FROM lt_dest.
+
+*Ara buscarem els seus correus electrònics:
+*
+* Amb el número de persona (per exemple el 19),
+*	executem la funció HR_FBN_CONVERT_PERNR_TO_USERID
+*	passant al paràmetre d'entrada PERSONNEL_NUMBER  = 19
+*                     VALIDITY_DATE   = sy-datum
+*
+*	Ens retorna al paràmetre de sortida USER_ID = 'AGV'
+
+    REFRESH lt_error_table.
+    CLEAR lv_user_id.
+    LOOP AT lt_dest INTO ls_dest.
+      CALL FUNCTION 'HR_FBN_CONVERT_PERNR_TO_USERID'
+        EXPORTING
+          personnel_number = ls_dest-dest
+          validity_date    = sy-datum
+          reaction         = 'I'
+        IMPORTING
+          user_id          = lv_user_id
+*         SUBRC            =
+        TABLES
+          error_table      = lt_error_table.
+
+*
+*	Amb aquest usuari anem a la funció:
+*
+*   BAPI_USER_GET_DETAIL passant als paràmetre USERNAME = 'AGV'.
+*   Ens retorna a l'estructura ADDRESS i busqiuem el camp ADDRESS-E_MAIL.
+*   En aquest cas ens ha retornat ADDRESS-E_MAIL = 'agili@gisa.cat'.
+*
+      CHECK lv_user_id IS NOT INITIAL.
+      CLEAR ls_address.
+      REFRESH lt_return.
+      CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+        EXPORTING
+          username = lv_user_id
+        IMPORTING
+          address  = ls_address
+        TABLES
+          return   = lt_return.
+
+*
+* Guardar els mails dels destinataris en la taula et_destinataris
+      IF ls_address-e_mail IS NOT INITIAL.
+        es_destinataris-receiver = ls_address-e_mail.
+        es_destinataris-rec_type = 'C'.
+        es_destinataris-express  = 'X'.
+        APPEND es_destinataris TO et_destinataris.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+METHOD obtenir_docid_model.
+  SELECT SINGLE spspv FROM srmspspv1
+                      INTO re_docid_model
+                      WHERE spsid = record_sp_id
+                        AND spid  = 'SRM_SP_RECORD'
+                        AND sppaid = 'MODEL_ID'.
+ENDMETHOD.
+
+
+METHOD OBTENIR_DOCID_MODEL_PUB.
+
+  re_docid_model = record_sp_id.
+
+ENDMETHOD.
+
+
+METHOD obtenir_expedients_pep.
+
+  DATA: lt_peps    TYPE ty_t_exp,
+        lv_tipus   TYPE z_tipus_exp,
+        lv_con     TYPE c,
+        lv_contr   TYPE c,
+        lv_imp     TYPE c,
+        lv_enc     TYPE c,
+        lv_rec     TYPE c,
+        lv_seg     TYPE c,
+        lv_pro     TYPE c,
+        lv_pre     TYPE c,
+        ls_pep_exp LIKE LINE OF ex_pep_exp,
+        lt_pos     TYPE TABLE OF zmm_dt_imp_po,
+        ls_pos     LIKE LINE OF lt_pos,
+        lt_imp     TYPE TABLE OF zmm_dt_imp_cap,
+        ls_imp     LIKE LINE OF lt_imp,
+        lt_enc     TYPE TABLE OF zrm_dt_treb_enc,
+        ls_enc     LIKE LINE OF lt_enc,
+        lt_cont    TYPE TABLE OF zrm_dt_exp_cont,
+        ls_cont    LIKE LINE OF lt_cont,
+        lt_contr   TYPE TABLE OF zrm_dt_contr,
+        ls_contr   LIKE LINE OF lt_contr,
+        lt_rec     TYPE TABLE OF zrm_dt_recep_obr,
+        ls_rec     LIKE LINE OF lt_rec,
+        lt_seg     TYPE TABLE OF zrm_dt_obres,
+        ls_seg     LIKE LINE OF lt_seg,
+        lt_pro     TYPE TABLE OF zrm_dt_proj_oc,
+        ls_pro     LIKE LINE OF lt_pro,
+        lt_pre     TYPE TABLE OF zrm_dt_proj_edif,
+        ls_pre     LIKE LINE OF lt_pre,
+***>>> INICI SPEC-57326 ECJGG
+        lv_are     TYPE c,
+        lt_are     TYPE TABLE OF zrm_dt_alt_recep,
+        ls_are     LIKE LINE OF lt_are.
+***<<< FI SPEC-57326 ECJGG
+
+  DATA: r_peps TYPE RANGE OF z_ps_posid,
+        l_peps LIKE LINE OF r_peps.
+
+  CHECK ex_pep_exp[] IS NOT INITIAL.
+
+  lt_peps[] = ex_pep_exp[].
+
+  LOOP AT im_tipus_exp INTO lv_tipus.
+    CASE lv_tipus.
+      WHEN 'ENC'. " Encàrrecs
+        lv_enc = 'X'.
+      WHEN 'REC'. " Recepció d'obra
+        lv_rec = 'X'.
+      WHEN 'IMP'. " Impuls
+        lv_imp = 'X'.
+      WHEN 'CON'. " Contractació
+        lv_con = 'X'.
+      WHEN 'COD' OR 'COE'. " Contracte
+        lv_contr = 'X'.
+      WHEN 'OBR'. " Seguiment d'obres
+        lv_seg = 'X'.
+      WHEN 'PRO'. " Projecte obra civil
+        lv_pro = 'X'.
+      WHEN 'PRE'. " Projecte edificació
+        lv_pre = 'X'.
+***>>> INICI SPEC-57326 ECJGG
+      WHEN 'ARE'. " Altres Recepcions
+        lv_are = 'X'.
+***<<< FI SPEC-57326 ECJGG
+
+    ENDCASE.
+  ENDLOOP.
+
+  IF lv_enc = 'X'. " Encàrrec
+
+    SELECT * FROM zrm_dt_treb_enc
+      INTO TABLE lt_enc
+      FOR ALL ENTRIES IN lt_peps
+      WHERE pspnr = lt_peps-pspnr.
+
+    LOOP AT lt_enc INTO ls_enc.
+      READ TABLE lt_peps WITH KEY pspnr = ls_enc-pspnr INTO ls_pep_exp.
+      CHECK sy-subrc = 0.
+      ls_pep_exp-docclass = ls_enc-docclass.
+      ls_pep_exp-objectid = ls_enc-objectid.
+      ls_pep_exp-tipus_exp = 'ENC'.
+      SELECT SINGLE z_codi_exp FROM zrm_dt_encarrec INTO ls_pep_exp-exp_id
+        WHERE docclass = ls_enc-docclass AND
+              objectid = ls_enc-objectid.
+
+      DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                              docclass = '' AND
+                              objectid = ''.
+      APPEND ls_pep_exp TO lt_peps.
+    ENDLOOP.
+
+  ENDIF.
+
+  IF lv_rec = 'X'. " Recepció d'obres
+
+    SELECT * FROM zrm_dt_recep_obr
+      INTO TABLE lt_rec
+      FOR ALL ENTRIES IN lt_peps
+      WHERE clau_pep = lt_peps-pspnr .
+
+    LOOP AT lt_rec INTO ls_rec.
+      READ TABLE lt_peps WITH KEY pspnr = ls_rec-clau_pep INTO ls_pep_exp.
+      CHECK sy-subrc = 0.
+      ls_pep_exp-docclass = ls_rec-docclass.
+      ls_pep_exp-objectid = ls_rec-objectid.
+      ls_pep_exp-tipus_exp = ls_rec-z_tipus_exp.
+      ls_pep_exp-exp_id = ls_rec-clau_pep.
+      DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                              docclass = '' AND
+                              objectid = ''.
+      APPEND ls_pep_exp TO lt_peps.
+    ENDLOOP.
+
+  ENDIF.
+
+  IF lv_seg = 'X'.
+
+    SELECT * FROM zrm_dt_obres
+      INTO TABLE lt_seg
+      FOR ALL ENTRIES IN lt_peps
+      WHERE clau_pep = lt_peps-pspnr .
+
+    LOOP AT lt_seg INTO ls_seg.
+      READ TABLE lt_peps WITH KEY pspnr = ls_seg-clau_pep INTO ls_pep_exp.
+      CHECK sy-subrc = 0.
+      ls_pep_exp-docclass = ls_seg-docclass.
+      ls_pep_exp-objectid = ls_seg-objectid.
+      ls_pep_exp-tipus_exp = ls_seg-z_tipus_exp.
+      ls_pep_exp-exp_id = ls_seg-clau_pep.
+      DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                              docclass = '' AND
+                              objectid = ''.
+      APPEND ls_pep_exp TO lt_peps.
+    ENDLOOP.
+
+  ENDIF.
+
+  IF lv_pro = 'X'.
+
+    SELECT * FROM zrm_dt_proj_oc
+      INTO TABLE lt_pro
+      FOR ALL ENTRIES IN lt_peps
+      WHERE clau_pep = lt_peps-pspnr .
+
+    LOOP AT lt_pro INTO ls_pro.
+      READ TABLE lt_peps WITH KEY pspnr = ls_pro-clau_pep INTO ls_pep_exp.
+      CHECK sy-subrc = 0.
+      ls_pep_exp-docclass = ls_pro-docclass.
+      ls_pep_exp-objectid = ls_pro-objectid.
+      ls_pep_exp-tipus_exp = ls_pro-z_tipus_exp.
+      ls_pep_exp-exp_id = ls_pro-clau_pep.
+      DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                              docclass = '' AND
+                              objectid = ''.
+      APPEND ls_pep_exp TO lt_peps.
+    ENDLOOP.
+
+  ENDIF.
+
+  IF lv_pre = 'X'.
+
+    SELECT * FROM zrm_dt_proj_edif
+      INTO TABLE lt_pre
+      FOR ALL ENTRIES IN lt_peps
+      WHERE clau_pep = lt_peps-pspnr .
+
+    LOOP AT lt_pre INTO ls_pre.
+      READ TABLE lt_peps WITH KEY pspnr = ls_pre-clau_pep INTO ls_pep_exp TRANSPORTING pspnr.
+      CHECK sy-subrc = 0.
+      ls_pep_exp-docclass = ls_pre-docclass.
+      ls_pep_exp-objectid = ls_pre-objectid.
+      ls_pep_exp-tipus_exp = ls_pre-z_tipus_exp.
+      ls_pep_exp-exp_id = ls_pre-clau_pep.
+      DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                              docclass = '' AND
+                              objectid = ''.
+      APPEND ls_pep_exp TO lt_peps.
+    ENDLOOP.
+
+  ENDIF.
+
+***>>> INICI SPEC-57326 ECJGG
+  IF lv_are = 'X'. " Altres Recepcions
+
+    SELECT * FROM zrm_dt_alt_recep
+      INTO TABLE lt_are
+      FOR ALL ENTRIES IN lt_peps
+      WHERE clau_pep = lt_peps-pspnr .
+
+    LOOP AT lt_are INTO ls_are.
+      READ TABLE lt_peps WITH KEY pspnr = ls_are-clau_pep INTO ls_pep_exp.
+      CHECK sy-subrc = 0.
+      ls_pep_exp-docclass  = ls_are-docclass.
+      ls_pep_exp-objectid  = ls_are-objectid.
+      ls_pep_exp-tipus_exp = ls_are-z_tipus_exp.
+      ls_pep_exp-exp_id    = ls_are-clau_pep.
+      DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                           docclass = ''            AND
+                           objectid = ''.
+      APPEND ls_pep_exp TO lt_peps.
+    ENDLOOP.
+  ENDIF.
+***<<< FI SPEC-57326 ECJGG
+
+* Impuls
+* Parche per solucionar l'error de tipus de codi pep a Qual/Prod
+  LOOP AT lt_peps INTO ls_pep_exp.
+    l_peps-sign   = 'I'.
+    l_peps-option = 'EQ'.
+    l_peps-low    = ls_pep_exp-pspnr.
+    APPEND l_peps TO r_peps.
+  ENDLOOP.
+
+  SELECT * FROM zmm_dt_imp_po
+    INTO TABLE lt_pos
+    WHERE z_elem_imp IN r_peps.
+
+  IF sy-subrc = 0.
+
+    SELECT * FROM zmm_dt_imp_cap
+      INTO TABLE lt_imp
+      FOR ALL ENTRIES IN lt_pos
+      WHERE z_codi_exp = lt_pos-z_codi_exp.
+
+    IF sy-subrc = 0.
+
+      LOOP AT lt_pos INTO ls_pos.
+
+        READ TABLE lt_imp WITH KEY z_codi_exp = ls_pos-z_codi_exp INTO ls_imp.
+        CHECK sy-subrc = 0.
+
+        CLEAR ls_pep_exp.
+        ls_pep_exp-docclass = ls_imp-z_doc_impuls.
+        ls_pep_exp-objectid = ls_imp-z_obj_impuls.
+        ls_pep_exp-tipus_exp = ls_imp-z_tipus_exp.
+        ls_pep_exp-exp_id = ls_imp-z_codi_exp.
+        ls_pep_exp-pspnr = ls_pos-z_elem_imp.
+        DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                                docclass = '' AND
+                                objectid = ''.
+        APPEND ls_pep_exp TO lt_peps.
+      ENDLOOP.
+
+      SORT lt_imp BY z_codi_exp ASCENDING.
+      DELETE ADJACENT DUPLICATES FROM lt_imp COMPARING z_codi_exp.
+    ENDIF.
+  ENDIF.
+
+  IF lt_imp[] IS INITIAL.
+    ex_pep_exp[] = lt_peps[].
+    EXIT.
+  ENDIF.
+
+
+  "Licitació
+  SELECT * FROM zrm_dt_exp_cont
+    INTO TABLE lt_cont
+    FOR ALL ENTRIES IN lt_imp
+*<< MGA del 29.03.2010
+*    WHERE z_doc_impuls = lt_imp-z_doc_impuls AND
+*          z_obj_impuls = lt_imp-z_obj_impuls.
+*>> MGA del 29.03.2010
+*<< MGA ins 29.03.2010
+   WHERE sol_ped = lt_imp-sol_ped
+     AND sol_ped NE ''.
+
+
+*>> MGA ins 29.03.2010
+  IF sy-subrc = 0.
+    IF lv_con = 'X'.
+
+      LOOP AT lt_cont INTO ls_cont.
+
+        READ TABLE lt_imp WITH KEY " z_doc_impuls = ls_cont-z_doc_impuls
+*                                    z_obj_impuls = ls_cont-z_obj_impuls
+*<< MGA ins 29.03.2010
+                                     sol_ped = ls_cont-sol_ped
+*>> MGA ins 29.03.2010
+                               INTO ls_imp.
+        CHECK sy-subrc = 0.
+
+        LOOP AT lt_pos INTO ls_pos WHERE z_codi_exp = ls_imp-z_codi_exp.
+          CLEAR ls_pep_exp.
+          ls_pep_exp-docclass = ls_cont-docclass.
+          ls_pep_exp-objectid = ls_cont-objectid.
+          ls_pep_exp-tipus_exp = ls_cont-z_tipus_exp.
+          ls_pep_exp-exp_id = ls_cont-z_codi_exp.
+          ls_pep_exp-pspnr = ls_pos-z_elem_imp.
+          DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                                  docclass = '' AND
+                                  objectid = ''.
+          APPEND ls_pep_exp TO lt_peps.
+        ENDLOOP.
+
+      ENDLOOP.
+
+    ENDIF.
+
+  ENDIF.
+
+* Contracte
+  LOOP AT ex_pep_exp INTO ls_pep_exp.
+
+    SELECT SINGLE zrm_dt_contr~docclass
+                  zrm_dt_contr~objectid
+                  zrm_dt_contr~z_tipus_exp
+                  zrm_dt_contr~z_codi_exp
+        INTO (ls_pep_exp-docclass,
+              ls_pep_exp-objectid,
+              ls_pep_exp-tipus_exp,
+              ls_pep_exp-exp_id)
+        FROM zrm_dt_contr
+        INNER JOIN ekpo
+         ON ekpo~ebeln = zrm_dt_contr~ebeln
+        INNER JOIN ekkn
+         ON ekkn~ebeln = zrm_dt_contr~ebeln
+        WHERE ekpo~loekz <> 'L' AND
+              ekkn~ps_psp_pnr = ls_pep_exp-pspnr.
+
+    IF sy-subrc = 0 .
+      DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                                 docclass = '' AND
+                                 objectid = ''.
+      APPEND ls_pep_exp TO lt_peps.
+    ELSE.
+      SELECT SINGLE zrm_dt_contr~docclass
+                    zrm_dt_contr~objectid
+                    zrm_dt_contr~z_tipus_exp
+                    zrm_dt_contr~z_codi_exp
+        INTO (ls_pep_exp-docclass,
+              ls_pep_exp-objectid,
+              ls_pep_exp-tipus_exp,
+              ls_pep_exp-exp_id)
+        FROM zrm_dt_contr
+        INNER JOIN ekpo
+         ON ekpo~ebeln = zrm_dt_contr~ebeln
+        INNER JOIN ekkn
+         ON ekkn~ebeln = zrm_dt_contr~ebeln
+        INNER JOIN aufk ON
+             aufk~aufnr = ekkn~nplnr
+        WHERE ekpo~loekz <> 'L' AND
+              aufk~pspel = ls_pep_exp-pspnr.
+      IF sy-subrc = 0 .
+        DELETE lt_peps WHERE pspnr = ls_pep_exp-pspnr AND
+                                   docclass = '' AND
+                                   objectid = ''.
+        APPEND ls_pep_exp TO lt_peps.
+      ENDIF.
+
+    ENDIF.
+  ENDLOOP.
+
+  ex_pep_exp[] = lt_peps[].
+
+ENDMETHOD.
+
+
+  METHOD obtenir_tipus_expedient.
+    DATA: lt_values_tab TYPE TABLE OF dd07v.
+
+    FIELD-SYMBOLS: <ls_data>      TYPE any,
+                   <fs_tipus_exp> TYPE any.
+**********************************************************************
+
+    me->zif_rm_expedient~get_header_data( im_reread = if_srm=>true ) .
+
+    ASSIGN me->header_data->* TO <ls_data> .
+    CHECK sy-subrc = 0.
+
+    ASSIGN COMPONENT 'Z_TIPUS_EXP' OF STRUCTURE <ls_data> TO <fs_tipus_exp> .
+    CHECK sy-subrc = 0.
+
+    CALL FUNCTION 'GET_DOMAIN_VALUES'
+      EXPORTING
+        domname         = 'Z_TIPUS_EXP'
+      TABLES
+        values_tab      = lt_values_tab
+*       VALUES_DD07L    =
+      EXCEPTIONS
+        no_values_found = 1
+        OTHERS          = 2.
+    CHECK sy-subrc = 0.
+
+    READ TABLE lt_values_tab ASSIGNING FIELD-SYMBOL(<fs_dom_val>) WITH KEY domvalue_l = <fs_tipus_exp>.
+    CHECK sy-subrc = 0.
+    rv_tipus_expedient = <fs_dom_val>-ddtext.
+  ENDMETHOD.
+
+
+  METHOD obtenir_treballs.
+
+  ENDMETHOD.
+
+
+METHOD SET_PROPERTIES.
+* IMPORTANT: Es presuposa que el document ja està bloquejat. Aquest codi, en algun moment,
+* s'haurà de moure a la classe pare. De moment no es fa per tal de evitar que es recompili tot RMS
+  DATA: lif_prop          TYPE REF TO if_srm_gsp_properties,
+        lif_variant       TYPE REF TO if_srm_variant,
+        lt_prop           TYPE srmgs_property_tab,
+        lt_prop_type      TYPE srmgs_property_type_tab,
+        ls_prop           TYPE LINE OF srmgs_property_tab,
+        lx_srm            TYPE REF TO cx_srm .
+
+  TRY .
+*-- Atributs lògics --------------------------------------------------------------
+      REFRESH lt_prop .
+      lif_prop  = im_document->get_property_interface( ) .
+      lif_prop->get_property_types( IMPORTING property_types = lt_prop_type ) .
+      LOOP AT im_properties INTO ls_prop .
+        READ TABLE lt_prop_type TRANSPORTING NO FIELDS WITH KEY name = ls_prop-name .
+        CHECK sy-subrc EQ 0 .
+        APPEND ls_prop TO lt_prop .
+      ENDLOOP .
+
+      IF lt_prop[] IS NOT INITIAL .
+        lif_prop->set_properties( lt_prop ) .
+      ENDIF .
+
+*-- Atributs físics --------------------------------------------------------------
+      REFRESH: lt_prop,
+               lt_prop_type .
+      lif_variant = im_document->get_variant( ) .
+      lif_prop = lif_variant->get_property_interface( ) .
+      lif_prop->get_property_types( IMPORTING property_types = lt_prop_type ) .
+      LOOP AT im_properties INTO ls_prop .
+        READ TABLE lt_prop_type TRANSPORTING NO FIELDS WITH KEY name = ls_prop-name .
+        CHECK sy-subrc EQ 0 .
+        APPEND ls_prop TO lt_prop .
+      ENDLOOP .
+
+      IF lt_prop[] IS NOT INITIAL .
+        lif_prop->set_properties( lt_prop ) .
+      ENDIF .
+    CATCH cx_srm INTO lx_srm .
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING previous = lx_srm .
+  ENDTRY .
+ENDMETHOD.
+
+
+METHOD VISUALITZAR.
+  CONSTANTS: co_metode TYPE seocpdname VALUE 'VISUALITZAR'.
+
+  DATA: ref_excep TYPE REF TO cx_root,
+        text      TYPE string.
+
+  MOVE: im_objectid TO objectid,
+        im_docclass TO docclass.
+
+  me->obtenir_dades( ).
+
+  CONCATENATE prefix_mf nom_funcio sufix_vis INTO nom_funcio.
+
+  TRY.
+      CALL FUNCTION nom_funcio
+        EXPORTING
+          container = container.
+
+    CATCH cx_sy_dyn_call_illegal_func
+          cx_sy_dyn_call_illegal_type
+          cx_sy_dyn_call_param_missing
+          cx_sy_dyn_call_param_not_found
+          INTO ref_excep.
+      text = ref_excep->get_text( ).
+
+      CALL METHOD zbc_cl_gestio_errors=>grabar_error
+        EXPORTING
+          im_clas_mf = nom_classe
+          im_metode  = co_metode
+          im_text    = text.
+  ENDTRY.
+ENDMETHOD.
+
+
+METHOD visualitzar_expedient.
+  CONSTANTS:
+    co_srmgs_poid_doc_id_name(9)  TYPE c VALUE 'DOC_ID',
+    co_srmgs_poid_version_name(9) TYPE c VALUE 'VERSION',
+    co_srmgs_poid_variant_name(9) TYPE c VALUE 'VARIANT'.
+
+  DATA: lv_actvty   TYPE srmactid,
+        lv_sps_id   TYPE srmspsid,
+        lv_rec_id   TYPE string,
+        ls_rec_id   TYPE sdokobject,
+        lt_mysppoid TYPE srm_list_poid,
+        ls_mysppoid TYPE LINE OF srm_list_poid,
+        lt_props    TYPE bapipropt,
+        lr_util     TYPE REF TO zrm_cl_util.
+
+  FIELD-SYMBOLS <fs_prop> TYPE LINE OF bapipropt.
+
+  IF docclass IS INITIAL.
+    MOVE: im_docclass TO docclass,
+          im_objectid TO objectid.
+    CREATE OBJECT lr_util.
+    CONCATENATE docclass
+                objectid INTO lv_rec_id
+                         RESPECTING BLANKS.
+    CALL METHOD lr_util->obtindre_atributs_exp
+      EXPORTING
+        im_record_docid = lv_rec_id
+      IMPORTING
+        ex_properties   = lt_props.
+
+    READ TABLE lt_props ASSIGNING <fs_prop>
+                        WITH KEY name = 'SRM_RMS_ID'.
+    MOVE <fs_prop>-value TO rms_id.
+    READ TABLE lt_props ASSIGNING <fs_prop>
+                        WITH KEY name = 'SRM_SPS_ID'.
+    MOVE <fs_prop>-value TO record_sp_id.
+  ENDIF.
+
+**********************************************************************
+
+  ls_rec_id-class = docclass.
+  ls_rec_id-objid = objectid.
+  ls_mysppoid-id = co_srmgs_poid_doc_id_name.
+  ls_mysppoid-value = ls_rec_id.
+  INSERT ls_mysppoid INTO TABLE lt_mysppoid.
+  ls_mysppoid-id = co_srmgs_poid_version_name.
+  ls_mysppoid-value = '0'.
+  CONDENSE ls_mysppoid-value.
+  INSERT ls_mysppoid INTO TABLE lt_mysppoid.
+  ls_mysppoid-id = co_srmgs_poid_variant_name.
+  ls_mysppoid-value = '0'.
+  CONDENSE ls_mysppoid-value.
+  INSERT ls_mysppoid INTO TABLE lt_mysppoid.
+
+  lv_sps_id = record_sp_id.
+
+  CALL FUNCTION 'SRM_START_FRAMEWORK_RFC'
+    EXPORTING
+      im_rms_id             = rms_id
+      im_sps_id             = lv_sps_id
+      im_sp_poid            = lt_mysppoid
+      im_activity           = lv_actvty
+***> AC Begin 26/02/2007
+*      im_option_organizer   = if_srm=>false
+      im_option_organizer   = if_srm=>true
+***> AC End
+    EXCEPTIONS
+      srm_failure           = 1
+      authorization_failure = 2
+      OTHERS                = 3.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDMETHOD.
+
+
+method ZIF_RM_EXPEDIENT_TECNIC~APPLY_PS_CHANGES.
+  RAISE EXCEPTION TYPE zcx_rm_expedient
+    EXPORTING
+      textid = zcx_rm_expedient=>not_implemented.
+endmethod.
+
+
+method ZIF_RM_EXPEDIENT_TECNIC~ASSIGN_NEW_WBS_ELEM.
+  RAISE EXCEPTION TYPE zcx_rm_expedient
+    EXPORTING
+      textid = zcx_rm_expedient=>not_implemented.
+endmethod.
+
+
+method ZIF_RM_EXPEDIENT_TECNIC~NEEDS_SYNCHRONIZATION_FROM_PS.
+  RAISE EXCEPTION TYPE zcx_rm_expedient
+    EXPORTING
+      textid = zcx_rm_expedient=>not_implemented.
+endmethod.
+
+
+method ZIF_RM_EXPEDIENT_TECNIC~SYNCHRONIZE_FROM_IMP.
+  RAISE EXCEPTION TYPE zcx_rm_expedient
+    EXPORTING
+      textid = zcx_rm_expedient=>not_implemented.
+endmethod.
+
+
+method ZIF_RM_EXPEDIENT_TECNIC~SYNCRONIZE_FROM_PS.
+  RAISE EXCEPTION TYPE zcx_rm_expedient
+    EXPORTING
+      textid = zcx_rm_expedient=>not_implemented.
+endmethod.
+
+
+METHOD zif_rm_expedient~change_attributes.
+  DATA: lx_srm         TYPE REF TO cx_srm,
+        lif_document   TYPE REF TO if_srm_document,
+        lif_variant    TYPE REF TO if_srm_variant,
+        lif_properties TYPE REF TO if_srm_gsp_properties.
+
+  CHECK    im_document EQ if_srm=>true
+        OR im_variant  EQ if_srm=>true .
+  CHECK NOT im_property_tab IS INITIAL .
+
+  IF    record_locked NE if_srm=>true .
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>not_opened_for_update .
+  ENDIF .
+
+  TRY .
+      CALL METHOD me->record->if_srm_generic_sp~get_document
+        IMPORTING
+          document = lif_document.
+
+      IF im_document EQ if_srm=>true .
+        lif_properties = lif_document->get_property_interface( ) .
+        lif_properties->set_properties( properties = im_property_tab ) .
+      ENDIF .
+
+      IF im_variant EQ if_srm=>true .
+        lif_variant    = lif_document->get_variant( ) .
+        lif_properties = lif_variant->get_property_interface( ) .
+        lif_properties->set_properties( properties = im_property_tab ) .
+      ENDIF .
+
+    CATCH cx_srm INTO lx_srm .
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING previous = lx_srm .
+  ENDTRY .
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~change_state.
+  DATA: lx_srm         TYPE REF TO cx_srm,
+        lt_property    TYPE srmgs_property_tab,
+        ls_property    TYPE LINE OF srmgs_property_tab.
+
+  FIELD-SYMBOLS: <ls_data>     TYPE ANY,
+                 <l_state>     TYPE ANY .
+
+  IF    data_locked   NE if_srm=>true
+     OR record_locked NE if_srm=>true .
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>not_opened_for_update .
+  ENDIF .
+
+*-- Dades de capçalera -------------------------------------------------------
+  ASSIGN me->header_data->* TO <ls_data> .
+  ASSIGN COMPONENT 'Z_ESTAT' OF STRUCTURE <ls_data> TO <l_state> .
+  IF sy-subrc EQ 0 .
+    <l_state> = im_state .
+  ENDIF .
+
+*-- Atributs de l'expedient -------------------------------------------------
+  ls_property-name  = if_srm_document=>prop_state.
+  ls_property-value = im_state .
+  APPEND ls_property TO lt_property .
+
+  CALL METHOD zif_rm_expedient~change_attributes
+    EXPORTING
+      im_property_tab = lt_property
+      im_document     = if_srm=>false
+      im_variant      = if_srm=>true.
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~change_unique_id.
+  DATA: lx_srm         TYPE REF TO cx_srm,
+        lt_property    TYPE srmgs_property_tab,
+        ls_property    TYPE LINE OF srmgs_property_tab.
+
+  FIELD-SYMBOLS: <ls_data>     TYPE ANY,
+                 <l_unique_id> TYPE ANY .
+
+  IF    data_locked   NE if_srm=>true
+     OR record_locked NE if_srm=>true .
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>not_opened_for_update .
+  ENDIF .
+
+*-- Dades de capçalera -------------------------------------------------------
+  ASSIGN me->header_data->* TO <ls_data> .
+  ASSIGN COMPONENT 'Z_CODI_EXP' OF STRUCTURE <ls_data> TO <l_unique_id> .
+  IF sy-subrc EQ 0 .
+    <l_unique_id> = im_unique_id .
+  ENDIF .
+
+*-- Atributs de l'expedient -------------------------------------------------
+  ls_property-name  = if_srm_document=>prop_document_id .
+  ls_property-value = im_unique_id .
+  APPEND ls_property TO lt_property .
+
+  CALL METHOD zif_rm_expedient~change_attributes
+    EXPORTING
+      im_property_tab = lt_property
+      im_document     = if_srm=>true
+      im_variant      = if_srm=>true.
+
+
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~close.
+  zif_rm_expedient~unlock_header_data( ) .
+  IF record IS BOUND .
+    record->if_srm_sp_record~close( ) .
+    record_locked = if_srm=>false .
+  ENDIF .
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~delete_data.
+  CHECK NOT header_tabname IS INITIAL .
+
+  TRY .
+      DELETE FROM (header_tabname)
+              WHERE     docclass EQ me->docclass
+                    AND objectid EQ me->objectid .
+    CATCH cx_root .
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>no_header_data .
+  ENDTRY .
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~delete_record.
+  DATA: lx_srm TYPE REF TO cx_srm .
+  IF NOT me->record IS BOUND .
+    get_content_connection_record( ) .
+  ENDIF .
+
+* Per a esborrar l'expedient no cal que estigui obert
+  TRY .
+      me->record->if_srm_sp_record~delete( ).
+      DELETE FROM zrm_dt_xml_data
+              WHERE     docclass EQ me->docclass
+                    AND objectid EQ me->objectid .
+      COMMIT WORK.
+    CATCH cx_srm INTO lx_srm .
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING previous = lx_srm .
+  ENDTRY .
+  CLEAR me->record .
+
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~get_header_data.
+  FIELD-SYMBOLS: <ls_data> TYPE ANY .
+
+  IF header_data IS NOT BOUND .
+    IF header_tabname IS INITIAL .
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>no_header_data .
+    ENDIF .
+
+    TRY .
+        CREATE DATA header_data TYPE (header_tabname) .
+      CATCH cx_root .
+        RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>no_header_data .
+    ENDTRY .
+  ENDIF .
+
+  IF    im_reread  NE if_srm=>true .
+    IF ex_data IS REQUESTED .
+      ASSIGN header_data->* TO <ls_data> .
+      ex_data = <ls_data> .
+    ENDIF .
+    RETURN .
+  ENDIF .
+
+  ASSIGN header_data->* TO <ls_data> .
+
+  TRY .
+      SELECT SINGLE * INTO <ls_data> FROM (header_tabname)
+              WHERE     docclass EQ me->docclass
+                    AND objectid EQ me->objectid .
+    CATCH cx_root .
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>no_header_data .
+  ENDTRY .
+
+  IF sy-subrc NE 0 .
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>no_header_data .
+  ENDIF .
+
+  IF ex_data IS REQUESTED .
+    ex_data = <ls_data> .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~get_header_tabname.
+  re_tabname = me->header_tabname .
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~get_instance_by_key.
+  DATA: l_docid       TYPE string,
+        lx_srm        TYPE REF TO cx_srm,
+        lob_document2 TYPE REF TO cl_srm_document2,
+        l_tabname     TYPE tabname,
+        l_classname   TYPE zrm_dm_sp_exp-clsname,
+        lob_expedient TYPE REF TO zrm_cl_expedients,
+        l_kpro_doc_id TYPE srmgs_doc_id,
+        l_sps_id      TYPE string .
+
+  l_kpro_doc_id-class = im_docclass.
+  l_kpro_doc_id-objid = im_objectid.
+  l_docid             = l_kpro_doc_id.
+  TRY .
+      CREATE OBJECT lob_document2
+           EXPORTING
+             doc_id = l_docid.
+
+* A partir del tipus d'expedient trobem el nom de la subclasse corresponent
+      l_sps_id = lob_document2->if_srm_gsp_properties~get_property( 'SRM_SPS_ID' ).
+    CATCH cx_srm INTO lx_srm.
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING previous = lx_srm .
+  ENDTRY .
+  SELECT SINGLE clsname tabname INTO (l_classname, l_tabname)
+           FROM zrm_dm_sp_exp WHERE srmspsid EQ l_sps_id .
+  IF sy-subrc EQ 0 .
+    TRY .
+        CREATE OBJECT lob_expedient TYPE (l_classname) .
+      CATCH cx_root .
+        RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>create .
+    ENDTRY .
+  ELSE .
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>create .
+  ENDIF .
+
+  lob_expedient->docclass       = im_docclass .
+  lob_expedient->objectid       = im_objectid .
+  lob_expedient->record_sp_id   = l_sps_id .
+  lob_expedient->header_tabname = l_tabname .
+
+  re_expedient = lob_expedient .
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~get_instance_by_record.
+  DATA: l_classname   TYPE zrm_dm_sp_exp-clsname,
+        l_sps_id      TYPE string,
+        l_tabname     TYPE tabname,
+        lob_expedient TYPE REF TO zrm_cl_expedients,
+        lx_srm        TYPE REF TO cx_srm,
+        ls_object     TYPE sdokobject.
+*        lif_header    TYPE REF TO if_srm_sp_record_header .
+
+  TRY .
+*      lif_header = im_record->if_srm_sp_record~get_record_header( ) .
+*      ls_object  = lif_header->get_doc_id( ) .
+      ls_object = im_record->if_srm_sp_record_expert~docid_get( ) .
+      l_sps_id = im_record->if_srm_poid~get_sps_id(  ).
+    CATCH cx_srm INTO lx_srm.
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING previous = lx_srm .
+  ENDTRY .
+
+* A partir del tipus d'expedient trobem el nom de la subclasse corresponent
+  SELECT SINGLE clsname tabname INTO (l_classname, l_tabname)
+           FROM zrm_dm_sp_exp WHERE srmspsid EQ l_sps_id .
+  IF sy-subrc EQ 0 .
+    TRY .
+        CREATE OBJECT lob_expedient TYPE (l_classname) .
+      CATCH cx_root .
+        RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>create .
+    ENDTRY .
+  ELSE .
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>create .
+  ENDIF .
+
+  lob_expedient->docclass       = ls_object-class .
+  lob_expedient->objectid       = ls_object-objid .
+  lob_expedient->record_sp_id   = l_sps_id .
+  lob_expedient->header_tabname = l_tabname .
+  lob_expedient->record         = im_record .
+  re_expedient = lob_expedient .
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~lock_header_data.
+  DATA: ls_object  TYPE sdokobject,
+        l_key      TYPE rstable-varkey,
+        l_funcname TYPE rs38l-name.
+  DATA l_bloqued TYPE syst_subrc. "SPEC-48348
+
+* Implementació per defecte: bloquejem només les dades de la taula de capçalera
+  CHECK data_locked NE if_srm=>true .
+
+  IF header_tabname IS INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>unlockable .
+  ENDIF .
+  DO 3 TIMES.
+    IF lock_object IS NOT INITIAL .
+      CONCATENATE 'ENQUEUE_' lock_object INTO l_funcname .
+      CALL FUNCTION l_funcname
+        EXPORTING
+          mandr          = sy-mandt
+          docclass       = me->docclass
+          objectid       = me->objectid
+        EXCEPTIONS
+          foreign_lock   = 1
+          system_failure = 2
+          OTHERS         = 3.
+      l_bloqued = sy-subrc. "SPEC-48348
+    ELSE .
+* ATENCIÓ: això hauria d'utilitzar un bloqueig específic per al tipus d'expedient
+* ... potser afegint un nou camp a la ZRM_DM_SP_EXP indicant el nom de l'objecte de bloqueig
+* Suposició: totes les taules de capçalera tenen MANDT, DOCCLASS, OBJECTID
+      ls_object-class = me->docclass .
+      ls_object-objid = me->objectid .
+      l_key+00(3) = sy-mandt .
+      l_key+03(*) = ls_object .
+
+      CALL FUNCTION 'ENQUEUE_E_TABLE'
+        EXPORTING
+          mode_rstable   = 'E'
+          tabname        = header_tabname
+          varkey         = l_key
+        EXCEPTIONS
+          foreign_lock   = 1
+          system_failure = 2
+          OTHERS         = 3.
+      l_bloqued = sy-subrc. "SPEC-48348
+    ENDIF .
+    IF l_bloqued = 0."Está bloqueado
+      EXIT.
+    ELSE.
+      WAIT UP TO 2 SECONDS.
+    ENDIF.
+  ENDDO.
+
+  CASE l_bloqued .
+    WHEN 0 .
+      data_locked = if_srm=>true .
+
+    WHEN OTHERS  .
+      zcx_rm_expedient=>raise_from_message( ) .
+  ENDCASE .
+
+ENDMETHOD.
+
+
+  METHOD zif_rm_expedient~obtenir_descripcio_abr.
+
+    FIELD-SYMBOLS: <ls_data>        TYPE any,
+                   <fs_descrip_abr> TYPE any.
+**********************************************************************
+
+    me->zif_rm_expedient~get_header_data( im_reread = if_srm=>true ) .
+
+    ASSIGN me->header_data->* TO <ls_data> .
+    ASSIGN COMPONENT 'Z_DESCRIP_ABR' OF STRUCTURE <ls_data> TO <fs_descrip_abr> .
+
+    e_descrip_abr = <fs_descrip_abr>.
+
+  ENDMETHOD.
+
+
+METHOD zif_rm_expedient~open_for_update.
+  DATA: lx_srm TYPE REF TO cx_srm .
+
+  me->zif_rm_expedient~lock_header_data( ) .
+  me->zif_rm_expedient~get_header_data( im_reread = if_srm=>true ) .
+
+  IF NOT me->record IS BOUND .
+    me->get_content_connection_record( ) .
+  ENDIF .
+
+  TRY .
+      record->if_srm_sp_record~open( for_update = if_srm=>true
+                                     do_not_parse = im_do_not_parse ) .
+      record_locked = 'X' .
+    CATCH cx_srm INTO lx_srm .
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING previous = lx_srm .
+  ENDTRY .
+
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~save_header_data.
+  FIELD-SYMBOLS: <ls_data> TYPE ANY .
+
+  IF    data_locked   NE if_srm=>true.
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>not_opened_for_update .
+  ENDIF .
+
+*-- Dades de capçalera -------------------------------------------------------
+  TRY .
+      ASSIGN me->header_data->* TO <ls_data> .
+      UPDATE (header_tabname) FROM <ls_data> .
+*                   WHERE     docclass EQ me->docclass
+*                         AND objectid EQ me->objectid .
+    CATCH  cx_root .
+      RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>field_update .
+  ENDTRY .
+
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~set_header_data.
+  FIELD-SYMBOLS: <ls_data> TYPE ANY .
+  IF    data_locked   NE if_srm=>true .
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>not_opened_for_update .
+  ENDIF .
+
+  ASSIGN header_data->* TO <ls_data> .
+  <ls_data> = im_data .
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~unlock_header_data.
+  DATA: ls_object  TYPE sdokobject,
+        l_funcname TYPE  rs38l-name,
+        l_key      TYPE rstable-varkey .
+
+  CHECK data_locked EQ if_srm=>true .
+
+  IF header_tabname IS INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING textid = zcx_rm_expedient=>unlockable .
+  ENDIF .
+
+* Suposició: totes les taules de capçalera tenen MANDT, DOCCLASS, OBJECTID
+  IF NOT lock_object IS INITIAL .
+    CONCATENATE 'DEQUEUE_' lock_object INTO l_funcname .
+    CALL FUNCTION l_funcname
+      EXPORTING
+        mandt    = sy-mandt
+        docclass = me->docclass
+        objectid = me->objectid.
+  ELSE .
+    ls_object-class = me->docclass .
+    ls_object-objid = me->objectid .
+    l_key+00(3) = sy-mandt .
+    l_key+03(*) = ls_object .
+
+    CALL FUNCTION 'DEQUEUE_E_TABLE'
+      EXPORTING
+        mode_rstable = 'E'
+        tabname      = header_tabname
+        varkey       = l_key.
+  ENDIF .
+  data_locked = if_srm=>false .
+
+ENDMETHOD.
+ENDCLASS.

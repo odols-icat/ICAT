@@ -1,0 +1,169 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESI01 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  pai_0100  INPUT
+*&---------------------------------------------------------------------*
+MODULE pai_0100 INPUT.
+  PERFORM pai_0100 .
+ENDMODULE.                 " pai_0100  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0200  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0200 INPUT.
+  DATA: l_ucomm TYPE syst_ucomm.
+  l_ucomm = sy-ucomm.
+  CLEAR: sy-ucomm.
+***INI MOD ETJHG - SPEC-46407
+  CLEAR: gv_ucomm.
+***FIN MOD ETJHG - SPEC-46407
+  PERFORM user_command_0200 USING l_ucomm.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0300  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0300 INPUT.
+  PERFORM user_command_0300.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  PAI_0400  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE pai_0400 INPUT.
+
+  DATA: l_okcode    TYPE sy-ucomm,
+        lob_cdoc    TYPE REF TO zrm_cl_change_documents,
+        lv_valor    TYPE z_barem_punt_tec,
+        ls_crit     TYPE zrm_cl_valoracio_ofertes=>ty_s_crit_punt,
+        ls_ofertes  TYPE zrm_dt_ofertes,
+        ls_num_ofer TYPE z_num_ofer,
+        lv_ult_ofer TYPE boolean,
+        lv_subline  TYPE text50,
+        lv_subline2 TYPE text50,
+        lv_error    TYPE boolean.
+
+  FIELD-SYMBOLS: <fs_codi_crit_punt>,
+                 <fs_oferta>,
+                 <fs_value>,
+                 <ls_grid_value>.
+
+
+* Refrescar la taula de dades amb nmous valors de pantalla
+  CALL METHOD gr_alv->check_changed_data.
+
+  l_okcode = g_okcode .
+  CLEAR g_okcode .
+
+  CHECK l_okcode EQ 'ACCEPTAR' OR l_okcode EQ 'CANCEL'.
+
+
+  IF l_okcode EQ 'ACCEPTAR'.
+
+*    per a cada linia de la taula de dades <lt_dyntable>
+
+    LOOP AT <lt_dyntable> ASSIGNING <ls_dyntable2>.
+
+* Rutina calcula_valor per aplicar la formula o no
+
+* LS_CRIT (REGISTRE DE LA TAULA it_crit_punt enviada a la funcio
+* is_zrm_dt_exp_cont registre enviat a la funcio
+* ls_ofertes registre d'ofertes de la taula d'ofertes (dependra de la oferta)
+      ASSIGN COMPONENT 'Z_CODI_CRIT_PUNT' OF STRUCTURE <ls_dyntable2>
+      TO <fs_codi_crit_punt>.
+
+      READ TABLE gt_crit INTO ls_crit
+      WITH KEY z_codi_crit_punt = <fs_codi_crit_punt>.
+
+      PERFORM calcula_valors USING ls_crit gs_zrm_dt_exp_cont ls_ofertes
+                            CHANGING lv_valor
+                                     lv_error.
+
+*  modificar valors ULL el DT posa modificar valors taules DDC
+* S'han de modificar els valors de la taula mostrada a la SCREEN anterior
+* la taula de dades de la ALV de la SCREEN anterior la passo a la funcio
+* com parametre CHANGING IT_DAT
+* Modificar els valors de la dynpro anterior no és senzill ja que s'hauria de
+* fer la lògica de recàlcul dels sumatoris i tocar taules internes
+* Per això se sortirà del programa i l'usuari haurà de tornar a entrar perquè
+* vegi els valors modificats
+
+    ENDLOOP.
+    LEAVE PROGRAM.
+
+  ELSE.
+    SET SCREEN 0.
+  ENDIF.
+*    IF <ls_dyntable2> IS ASSIGNED.
+*      CLEAR <ls_dyntable2>.
+*    ENDIF.
+*<gt_grid>
+  "Modificar les dades del ALV del que veníem.
+*   LOOP AT <fs_crit_punt>-sum_info ASSIGNING FIELD-SYMBOL(<fs_sum_info>).
+***      >> INI MODIF ETODR SPEC-49075
+*        READ TABLE im_crit_punt TRANSPORTING NO FIELDS WITH KEY z_codi_crit_punt = <fs_sum_info>-z_codi_crit_punt.
+*        IF sy-subrc <> 0. CONTINUE. ENDIF
+
+
+*    LOOP AT <gt_grid> ASSIGNING FIELD-SYMBOL(<ls_grid>).
+*
+*      ASSIGN COMPONENT 'Z_CODI_CRIT_PUNT' OF STRUCTURE <ls_grid> TO <fs_value>.
+*      READ TABLE <lt_dyntable> ASSIGNING <ls_dyntable2>
+*       WITH KEY ('Z_CODI_CRIT_PUNT')   = <fs_value>.
+*      CLEAR lv_ult_ofer.
+*      IF <fs_value> IS NOT INITIAL AND sy-subrc = 0.
+*        ls_num_ofer = 1.
+*        WHILE lv_ult_ofer = ''.
+*
+*          CONCATENATE 'O' ls_num_ofer INTO lv_subline.
+*          CONDENSE lv_subline NO-GAPS.
+*
+*          CONCATENATE 'OFERTA' ls_num_ofer INTO lv_subline2
+*          SEPARATED BY '_'.
+*          CONDENSE lv_subline2 NO-GAPS.
+*
+*          ASSIGN COMPONENT lv_subline2 OF STRUCTURE <ls_dyntable2>
+*          TO <fs_oferta>.
+*
+*          ASSIGN COMPONENT lv_subline OF STRUCTURE <ls_grid>
+*          TO <ls_grid_value>.
+*
+*          IF sy-subrc = 0.
+**      ASSIGN COMPONENT lv_subline OF STRUCTURE <ls_dyntable> TO <fs1>.
+**      <fs1> = ls_pofertes-z_barem_punt_tec .
+*            <ls_grid_value> = <fs_oferta>.
+*            REPLACE ALL OCCURRENCES OF '.' IN <ls_grid_value> WITH ','.
+*
+*            ls_num_ofer =  ls_num_ofer + 1.
+*          ELSE.
+*            lv_ult_ofer = 'X'.
+*          ENDIF.
+*        ENDWHILE.
+*      ENDIF.
+*    ENDLOOP.
+*    go_alv1->refresh_table_display(  ).
+
+
+
+* retorna a pantalla anterior
+*  SET SCREEN 0.
+*  LEAVE TO SCREEN 0.
+
+
+*  "cridar a la dynpro 0100 una altra vegada
+  "aixo no funciona
+*  DATA: aplic    TYPE zrm_aplicacio.
+*  aplic = 'P'.
+*  GET PARAMETER ID: 'APLICACIO' FIELD aplic.
+
+*  CALL FUNCTION 'ZRM_VALORACIO_OFERTES'
+*    EXPORTING
+*      im_docclass  = g_docclass
+*      im_objectid  = g_objectid
+*      im_aplicacio = aplic.
+
+ENDMODULE.

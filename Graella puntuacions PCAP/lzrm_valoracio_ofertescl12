@@ -1,0 +1,569 @@
+**----------------------------------------------------------------------*
+****INCLUDE LZRM_VALORACIO_OFERTESCL10.
+**----------------------------------------------------------------------*
+CLASS lcl_alv_1006_util DEFINITION FINAL.
+  PUBLIC SECTION.
+    CONSTANTS: gc_cell_style TYPE string  VALUE 'STYLE',
+               gc_ton        TYPE string  VALUE 'Z_TONELADA',
+               gc_dis        TYPE string  VALUE 'Z_DISTANCIA',
+               gc_znlot      TYPE string  VALUE 'ZNLOT',
+               gc_docclass   TYPE string  VALUE 'DOCCLASS',
+               gc_objectid   TYPE string  VALUE 'OBJECTID',
+               gc_mandt      TYPE string  VALUE 'MANDT'.
+    DATA: gr_alv_mat_co2  TYPE REF TO cl_gui_alv_grid,
+          gr_cont_mat_co2 TYPE REF TO cl_gui_custom_container.
+
+    METHODS constructor
+      IMPORTING iv_docclass      TYPE bapidclass
+                iv_objectid      TYPE bapiguid
+                iv_mod_crit_punt TYPE zrm_dm_crit_punt-z_mod_crit_punt
+                iv_znlot         TYPE zrm_dt_exp_cont-z_exp_lot_num.
+
+    METHODS create_alv.
+
+    METHODS show_alv.
+
+    METHODS user_command IMPORTING iv_ucomm TYPE syst_ucomm.
+
+    METHODS free_variables.
+
+    METHODS get_dades EXPORTING et_mat_co2 TYPE zrm_tt_mat_co2.
+
+    METHODS get_flag_changes RETURNING VALUE(rv_changes) TYPE xfeld.
+
+    METHODS set_flag_changes IMPORTING iv_changes TYPE xfeld.
+
+    METHODS set_toolbar    FOR EVENT toolbar OF cl_gui_alv_grid IMPORTING e_object  e_interactive.
+
+    METHODS handle_user_command_alv  FOR EVENT user_command   OF cl_gui_alv_grid IMPORTING e_ucomm.
+
+    METHODS handle_alv_changed FOR EVENT data_changed   OF cl_gui_alv_grid IMPORTING er_data_changed.
+
+  PRIVATE SECTION.
+
+*    TYPES:
+*      BEGIN OF ty_s_alv_dm_mat.
+*        INCLUDE TYPE zrm_dm_mat_co2.
+*        TYPES: style TYPE lvc_t_styl.
+*    TYPES END OF ty_s_alv_dm_mat.
+    TYPES: BEGIN OF ty_s_alv_dm_mat,
+             z_descripcio TYPE zrm_dm_mat_co2-z_descripcio,
+             z_tonelada   TYPE zrm_dm_mat_co2-z_tonelada,
+             z_distancia  TYPE zrm_dm_mat_co2-z_distancia,
+           END OF ty_s_alv_dm_mat.
+    TYPES: ty_t_alv_dm_mat TYPE STANDARD TABLE OF ty_s_alv_dm_mat.
+
+    TYPES: BEGIN OF ty_s_err_message,
+             icon(4)    TYPE c,
+             descr(110) TYPE c,
+           END OF ty_s_err_message.
+    TYPES: ty_t_err_messages TYPE STANDARD TABLE OF ty_s_err_message.
+
+
+    DATA: gt_alv_mat_co2     TYPE ty_t_alv_dm_mat,
+          gv_changes_done    TYPE xfeld VALUE abap_off,
+          gt_missatges_error TYPE  ty_t_err_messages.
+    DATA: gv_docclass      TYPE bapidclass,
+          gv_objectid      TYPE bapiguid,
+          gv_mod_crit_punt TYPE zrm_dm_crit_punt-z_mod_crit_punt,
+          gv_nlot          TYPE zrm_dt_exp_cont-z_exp_lot_num.
+
+
+    METHODS verifica_dades EXPORTING et_missatges_error TYPE ty_t_err_messages
+                           RETURNING VALUE(rv_dades_ok) TYPE abap_bool.
+
+    METHODS save_matco2.
+
+
+    METHODS set_layout
+      EXPORTING es_layout TYPE lvc_s_layo.
+
+    METHODS fill_catalog
+      EXPORTING et_fieldcat TYPE lvc_t_fcat.
+
+    METHODS set_description IMPORTING iv_tag      TYPE lvc_fname
+                                      ir_type     TYPE REF TO cl_abap_datadescr
+                            CHANGING  ct_fieldcat TYPE lvc_t_fcat.
+
+    METHODS get_ddic_text
+      IMPORTING iv_field     TYPE string
+      EXPORTING ev_scrtext_l TYPE string.
+
+    METHODS add_new_line CHANGING ct_alv TYPE ty_t_alv_dm_mat.
+
+    METHODS check_del_line CHANGING ct_alv TYPE ty_t_alv_dm_mat.
+
+ENDCLASS.
+*
+*
+CLASS lcl_alv_1006_util IMPLEMENTATION.
+*******************************************************************************
+** Constructor. Recuperem el títol de la finestra, inicialitzem les taules
+** de paràmetres i les taules de les ALV i el càlcul de la fòrmula
+*******************************************************************************
+  METHOD constructor.
+    gv_docclass       = iv_docclass.
+    gv_objectid       = iv_objectid.
+    gv_mod_crit_punt  = iv_mod_crit_punt.
+    gv_nlot           = iv_znlot.
+  ENDMETHOD.
+
+*******************************************************************************
+**  Es recupera el text de l'element de dades de diccionari, per mostrar a la ALV
+*******************************************************************************
+  METHOD get_ddic_text.
+    DATA: lr_element TYPE REF TO cl_abap_elemdescr,
+          ls_field   TYPE dfies.
+
+    lr_element ?= cl_abap_typedescr=>describe_by_name( iv_field ).
+    CHECK lr_element IS BOUND.
+
+    lr_element->get_ddic_field( RECEIVING   p_flddescr   = ls_field
+                                EXCEPTIONS  OTHERS       = 0  ).
+    ev_scrtext_l = ls_field-reptext.
+
+  ENDMETHOD.
+*******************************************************************************
+**  Manegador de l'esdeveniment de canvis en la ALV de distància
+*******************************************************************************
+  METHOD handle_alv_changed.
+
+
+  ENDMETHOD.
+*******************************************************************************
+**  Determina si les puntuacions introduïdes són correctes per procedir amb el
+**  desar, o bé si hi ha errors que cal corregir
+*******************************************************************************
+  METHOD verifica_dades.
+    DATA: ls_message  TYPE ty_s_err_message,
+          lv_text_alv TYPE string,
+          lv_ko       TYPE abap_bool.
+
+    CLEAR: gt_missatges_error.
+
+    rv_dades_ok = abap_off.
+
+    DESCRIBE TABLE gt_alv_mat_co2 LINES DATA(lv_lines).
+    IF lv_lines IS INITIAL.
+      ls_message-icon  = icon_led_red.
+      ls_message-descr = text-e06.
+      APPEND ls_message TO et_missatges_error.
+    ENDIF.
+
+    LOOP AT gt_alv_mat_co2 ASSIGNING FIELD-SYMBOL(<fs_alv_line>).
+      IF <fs_alv_line>-z_descripcio IS INITIAL.
+        ls_message-icon  = icon_led_red.
+        ls_message-descr = text-e04.
+        APPEND ls_message TO et_missatges_error.
+        EXIT.
+      ENDIF.
+      IF <fs_alv_line>-z_tonelada IS INITIAL.
+        ls_message-icon = icon_led_red.
+        ls_message-descr = text-e04.
+        APPEND ls_message TO et_missatges_error.
+        EXIT.
+      ENDIF.
+      IF <fs_alv_line>-z_distancia IS INITIAL.
+        ls_message-icon = icon_led_red.
+        ls_message-descr = text-e05.
+        APPEND ls_message TO et_missatges_error.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+    IF et_missatges_error IS INITIAL.
+      rv_dades_ok = abap_on.
+    ENDIF.
+
+    gt_missatges_error = et_missatges_error.
+  ENDMETHOD.
+*******************************************************************************
+** Traslladem les puntuacions en format taula bbdd per a que es pugui fer el guardat
+*******************************************************************************
+  METHOD save_matco2.
+    DATA: ls_mat_co2    TYPE zrm_dm_mat_co2,
+          lt_mat_co2    TYPE zrm_tt_mat_co2,
+          lv_compta_mat TYPE zrm_dm_mat_co2-z_codi_mat.
+    CLEAR: lv_compta_mat.
+    LOOP AT gt_alv_mat_co2 ASSIGNING FIELD-SYMBOL(<fs_alv>).
+      CLEAR: ls_mat_co2.
+      ADD 1 TO lv_compta_mat.
+      MOVE-CORRESPONDING <fs_alv> TO ls_mat_co2.
+      ls_mat_co2-docclass         = gv_docclass.
+      ls_mat_co2-objectid         = gv_objectid.
+      ls_mat_co2-z_mod_crit_punt  = gv_mod_crit_punt.
+      ls_mat_co2-znlot            = gv_nlot.
+      ls_mat_co2-z_codi_mat       = lv_compta_mat.
+      APPEND ls_mat_co2 TO lt_mat_co2.
+    ENDLOOP.
+
+    MODIFY zrm_dm_mat_co2 FROM TABLE lt_mat_co2.
+    set_flag_changes( abap_off ).
+  ENDMETHOD.
+
+  METHOD get_dades.
+    IF gv_nlot IS INITIAL.
+      SELECT *
+        FROM zrm_dm_mat_co2
+        INTO TABLE et_mat_co2
+        WHERE docclass        = gv_docclass
+          AND objectid        = gv_objectid
+          AND z_mod_crit_punt = gv_mod_crit_punt.
+    ELSE.
+      SELECT *
+        FROM zrm_dm_mat_co2
+        INTO TABLE et_mat_co2
+        WHERE docclass        = gv_docclass
+          AND objectid        = gv_objectid
+          AND z_mod_crit_punt = gv_mod_crit_punt
+          AND znlot           = gv_nlot.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD free_variables.
+    TRY.
+        IF gr_cont_mat_co2  IS BOUND.
+          gr_cont_mat_co2->free( ).
+        ENDIF.
+        CLEAR: gr_cont_mat_co2, gr_alv_mat_co2.
+      CATCH cx_root.
+        EXIT.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD set_flag_changes.
+    gv_changes_done = iv_changes.
+  ENDMETHOD.
+
+  METHOD get_flag_changes.
+    rv_changes = gv_changes_done.
+  ENDMETHOD.
+
+  METHOD create_alv.
+    CALL SCREEN '1006'.
+  ENDMETHOD.
+
+  METHOD show_alv.
+
+    DATA: lt_exclude TYPE ui_functions,
+          wa_exclude TYPE ui_func.
+    DATA: is_estable TYPE lvc_s_stbl.
+
+    ">> PSPEC-1482, Inici Modificació - EVCHA
+    DATA: ls_alv_qdc_mat_aux TYPE zrm_dt_qdc_mat,
+          ls_line            LIKE LINE OF gt_alv_mat_co2,
+          lt_alv_qdc_mat_aux TYPE TABLE OF zrm_dt_qdc_mat.
+    ">> PSPEC-1482, Fi Modificació - EVCHA
+
+    IF gr_cont_mat_co2 IS INITIAL.
+      CREATE OBJECT gr_cont_mat_co2
+        EXPORTING
+          container_name = 'CC_ALV_ZRM_DM_MAT_CO2'.
+
+      CHECK gr_cont_mat_co2 IS BOUND.
+
+      CREATE OBJECT gr_alv_mat_co2
+        EXPORTING
+          i_parent = gr_cont_mat_co2
+        EXCEPTIONS
+          OTHERS   = 0.
+      CHECK gr_alv_mat_co2 IS BOUND.
+
+* --------------------------------------------------------------------*
+** Aplicar el manegador del hotspot.
+      SET HANDLER handle_alv_changed FOR gr_alv_mat_co2.
+      SET HANDLER set_toolbar FOR gr_alv_mat_co2.
+      SET HANDLER handle_user_command_alv  FOR gr_alv_mat_co2.
+      gr_alv_mat_co2->register_edit_event(
+             EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+* --------------------------------------------------------------------*
+
+      set_layout( IMPORTING es_layout     = DATA(ls_layout) ).
+      fill_catalog( IMPORTING et_fieldcat = DATA(lt_fcat) ).
+
+      CLEAR: lt_exclude[].
+      wa_exclude = cl_gui_alv_grid=>mc_fc_excl_all.
+      APPEND wa_exclude TO lt_exclude.
+      ">> PSPEC-1482, Inici Modificació - EVCHA
+      IF g_docclass	= 'ZQDC'.
+
+        IMPORT gt_alv_qdc_mat_aux = lt_alv_qdc_mat_aux FROM MEMORY ID 'MAT_AUX'.
+        FREE MEMORY ID 'MAT_AUX'.
+
+        LOOP AT lt_alv_qdc_mat_aux INTO DATA(ls_data).
+
+          MOVE-CORRESPONDING ls_data TO ls_line.
+          APPEND ls_line TO gt_alv_mat_co2.
+        ENDLOOP.
+      ENDIF.
+      ">> PSPEC-1482, Fi Modificació - EVCHA
+      gr_alv_mat_co2->set_table_for_first_display(
+      EXPORTING
+        is_layout                     = ls_layout
+        it_toolbar_excluding          = lt_exclude
+      CHANGING
+        it_outtab                     = gt_alv_mat_co2
+        it_fieldcatalog               = lt_fcat
+      EXCEPTIONS
+        invalid_parameter_combination = 1
+        program_error                 = 2
+        too_many_lines                = 3
+        OTHERS                        = 4 ).
+
+      CHECK sy-subrc = 0.
+
+      gr_alv_mat_co2->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+    ELSE.
+      is_estable = 'XX'.
+      gr_alv_mat_co2->refresh_table_display( EXPORTING is_stable = is_estable ).
+    ENDIF.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD SET_TOOLBAR
+*---------------------------------------------------------------------*
+* Mètode que afegeix botons a la barra d'eines
+*---------------------------------------------------------------------*
+  METHOD set_toolbar.
+    DATA : mt_toolbar TYPE stb_button.
+    CLEAR mt_toolbar.
+    mt_toolbar-butn_type = '3'.   "separador
+    APPEND mt_toolbar TO e_object->mt_toolbar.
+
+    CLEAR mt_toolbar.
+    mt_toolbar-butn_type  = '0'.       "Button
+    mt_toolbar-function   = 'ADD'. "fcode
+    mt_toolbar-icon       = icon_insert_row.
+    mt_toolbar-quickinfo  = 'Nova entrada'.
+    mt_toolbar-disabled = abap_off.
+    APPEND mt_toolbar TO e_object->mt_toolbar.
+
+    CLEAR mt_toolbar.
+    mt_toolbar-butn_type  = '0'.       "Button
+    mt_toolbar-function   = 'DEL'. "fcode
+    mt_toolbar-icon       = icon_delete_row.
+    mt_toolbar-quickinfo  = 'Eliminar entrada'.
+    mt_toolbar-disabled = abap_off.
+    APPEND mt_toolbar TO e_object->mt_toolbar.
+  ENDMETHOD.
+
+  METHOD handle_user_command_alv.
+    CASE e_ucomm.
+      WHEN 'ADD'.
+        add_new_line( CHANGING ct_alv = gt_alv_mat_co2 ).
+      WHEN 'DEL'.
+        check_del_line( CHANGING ct_alv = gt_alv_mat_co2 ).
+      WHEN OTHERS.
+    ENDCASE.
+    gr_alv_mat_co2->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                  es_col_id = DATA(ls_col_id)
+                                                  es_row_no = DATA(ls_row_no) ).
+    gr_alv_mat_co2->refresh_table_display( ).
+    gr_alv_mat_co2->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                         is_row_no    = ls_row_no ).
+  ENDMETHOD.
+
+  METHOD check_del_line.
+    set_flag_changes( abap_on ).
+    gr_alv_mat_co2->get_selected_rows( IMPORTING et_index_rows = DATA(lt_rows) ).
+    SORT lt_rows BY index DESCENDING.
+    LOOP AT lt_rows ASSIGNING FIELD-SYMBOL(<fs_row>).
+      DELETE ct_alv INDEX <fs_row>-index.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD add_new_line.
+    DATA: ls_new_line_alv TYPE ty_s_alv_dm_mat,
+          ls_style        TYPE lvc_s_styl.
+
+    set_flag_changes( abap_on ).
+    APPEND ls_new_line_alv TO ct_alv.
+
+  ENDMETHOD.
+  METHOD user_command.
+    DATA: lv_answer TYPE c.
+
+    ">> PSPEC-1482, Inici Modificació - EVCHA
+    DATA: lt_alv_qdc_mat TYPE TABLE OF zrm_dt_qdc_mat,
+          ls_alv_qdc_mat LIKE LINE OF lt_alv_qdc_mat.
+    ">> PSPEC-1482, Fi Modificació - EVCHA
+
+    CASE iv_ucomm.
+      WHEN 'BUT_OK_MATCO2'.
+        IF verifica_dades( ) = abap_on.
+*
+          ">> PSPEC-1482, Inici Modificació - EVCHA
+          IF g_docclass	= 'ZQDC'.
+            LOOP AT gt_alv_mat_co2 INTO DATA(ls_alv_mat_co2).
+              MOVE-CORRESPONDING ls_alv_mat_co2 TO ls_alv_qdc_mat.
+              APPEND ls_alv_qdc_mat TO lt_alv_qdc_mat.
+            ENDLOOP.
+
+            EXPORT gt_alv_qdc_mat = lt_alv_qdc_mat TO MEMORY ID 'MAT'.
+            LEAVE PROGRAM.
+          ELSE.
+            ">> PSPEC-1482, Fi Modificació - EVCHA
+            save_matco2( ).
+            CALL METHOD cl_gui_cfw=>flush.
+            LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+          ENDIF.
+        ELSE.
+          CALL FUNCTION 'ZPOPUP_WITH_TABLE'
+            EXPORTING
+              endpos_col   = 130
+              endpos_row   = 20
+              startpos_col = 20
+              startpos_row = 10
+              titletext    = text-e01
+            TABLES
+              valuetab     = gt_missatges_error
+            EXCEPTIONS
+              OTHERS       = 0.
+          EXIT.
+        ENDIF.
+      WHEN 'BUT_CANC_MATCO2'.
+
+        IF verifica_dades( ) = abap_off.
+
+          SELECT * FROM zrm_dm_crit_punt INTO TABLE @DATA(lt_crit_punt)
+            WHERE z_mod_crit_punt = @gr_util_dm_mat_co2->gv_mod_crit_punt.
+          IF sy-subrc = 0.
+
+            READ TABLE lt_crit_punt ASSIGNING FIELD-SYMBOL(<fs_crit_punt>) WITH KEY z_co2 = abap_true.
+            IF sy-subrc = 0.
+              CALL FUNCTION 'ZPOPUP_WITH_TABLE'
+                EXPORTING
+                  endpos_col   = 130
+                  endpos_row   = 20
+                  startpos_col = 20
+                  startpos_row = 10
+                  titletext    = text-e01
+                TABLES
+                  valuetab     = gt_missatges_error
+                EXCEPTIONS
+                  OTHERS       = 0.
+
+              EXIT.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+
+        IF get_flag_changes( ) = abap_on.
+          CLEAR:lv_answer.
+
+          CALL FUNCTION 'POPUP_TO_CONFIRM'
+            EXPORTING
+              titlebar              = text-i01
+              text_question         = text-i00
+              display_cancel_button = abap_off
+            IMPORTING
+              answer                = lv_answer.
+          IF lv_answer = '1'. "Desar
+            IF verifica_dades( ) = abap_true.
+              ">> PSPEC-1482, Inici Modificació - EVCHA
+              IF g_docclass	= 'ZQDC'. "sy-tcode = 'ZRM_QDC'.
+
+              ELSE.
+                ">> PSPEC-1482, Fi Modificació - EVCHA
+                save_matco2( ).
+              ENDIF.
+            ELSE.
+              CALL FUNCTION 'ZPOPUP_WITH_TABLE'
+                EXPORTING
+                  endpos_col   = 130
+                  endpos_row   = 20
+                  startpos_col = 20
+                  startpos_row = 10
+                  titletext    = text-e01
+                TABLES
+                  valuetab     = gt_missatges_error
+                EXCEPTIONS
+                  OTHERS       = 0.
+              EXIT.
+            ENDIF.
+          ELSE.
+            "Si es cancel·len els canvis s'ha de forçar que no actualitzi els valors
+            set_flag_changes( abap_off ).
+          ENDIF.
+        ENDIF.
+        ">> PSPEC-1482, Inici Modificació - EVCHA
+        IF g_docclass	= 'ZQDC'. "sy-tcode = 'ZRM_QDC'.
+          LEAVE PROGRAM.
+        ELSE.
+          ">> PSPEC-1482, Fi Modificació - EVCHA
+          CALL METHOD cl_gui_cfw=>flush.
+          LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+        ENDIF.
+      WHEN OTHERS.
+        EXIT.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD set_layout.
+
+    es_layout-smalltitle = abap_on.
+*    es_layout-grid_title = iv_title.
+    es_layout-no_totline = abap_off.
+    es_layout-no_toolbar = abap_off.
+    es_layout-no_rowins  = abap_on.
+    es_layout-no_rowmove = abap_on.
+    es_layout-zebra      = abap_on.
+    es_layout-numc_total = abap_off.
+    es_layout-col_opt    = abap_on.
+    es_layout-sel_mode   = 'A'.
+
+  ENDMETHOD.
+
+  METHOD fill_catalog.
+    DATA: lr_desc TYPE REF TO cl_abap_structdescr,
+          ls_fcat TYPE lvc_s_fcat,
+          ls_alv  TYPE ty_s_alv_dm_mat,
+          lv_tag  TYPE lvc_fname.
+
+    lr_desc ?= cl_abap_typedescr=>describe_by_data( ls_alv ).
+    DATA(lt_components) = lr_desc->get_components( ).
+    LOOP AT lt_components ASSIGNING FIELD-SYMBOL(<fs_component>).
+      lv_tag = <fs_component>-name.
+      IF lv_tag <> gc_cell_style.
+        set_description( EXPORTING iv_tag         = lv_tag
+                                   ir_type        = <fs_component>-type
+                         CHANGING  ct_fieldcat    = et_fieldcat ).
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD set_description.
+    DATA: lr_element TYPE REF TO cl_abap_elemdescr,
+          ls_field   TYPE dfies,
+          ls_fcat    TYPE lvc_s_fcat.
+
+    lr_element ?= ir_type.
+    CHECK lr_element IS BOUND.
+    lr_element->get_ddic_field(   RECEIVING   p_flddescr   = ls_field
+                                  EXCEPTIONS  OTHERS       = 0  ).
+    IF ls_field IS INITIAL.
+      ls_fcat-reptext     = iv_tag.
+      ls_fcat-scrtext_l   = iv_tag.
+      ls_fcat-scrtext_m   = iv_tag.
+      ls_fcat-scrtext_s   = iv_tag.
+      ls_fcat-fieldname   = iv_tag.
+    ELSE.
+      ls_fcat-reptext     = ls_field-scrtext_l.
+      ls_fcat-scrtext_l   = ls_field-scrtext_l.
+      ls_fcat-scrtext_m   = ls_field-scrtext_m.
+      ls_fcat-scrtext_s   = ls_field-scrtext_s.
+      ls_fcat-fieldname   = iv_tag.
+    ENDIF.
+    IF iv_tag = gc_ton OR iv_tag = gc_dis.
+      ls_fcat-decimals      = 2.
+    ELSE.
+      ls_fcat-lowercase = abap_on.
+*      ls_fcat-outputlen = 50.
+    ENDIF.
+    ls_fcat-tabname   = 'GT_ALV_MAT_CO2'.
+    ls_fcat-ref_table = 'ZRM_DM_MAT_CO2'.
+
+    ls_fcat-edit    = abap_on.
+    ls_fcat-col_opt = abap_on.
+    APPEND ls_fcat TO ct_fieldcat.
+  ENDMETHOD.
+ENDCLASS.

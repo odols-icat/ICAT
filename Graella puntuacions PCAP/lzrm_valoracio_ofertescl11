@@ -1,0 +1,1804 @@
+**----------------------------------------------------------------------*
+****INCLUDE LZRM_VALORACIO_OFERTESCL10.
+**----------------------------------------------------------------------*
+CLASS lcl_alv_1005_util DEFINITION FINAL.
+  PUBLIC SECTION.
+    CONSTANTS: gc_cell_style TYPE string  VALUE 'STYLE'.
+
+    TYPES: BEGIN OF ty_s_alv_principal,
+             z_tipus_distancia TYPE z_tipus_distancia,
+             z_km              TYPE z_km_co2,
+             z_d1              TYPE xfeld,
+             z_d2              TYPE xfeld,
+             z_d3              TYPE xfeld,
+             z_d4              TYPE xfeld,
+             z_d5              TYPE xfeld,
+             omplert           TYPE xfeld,
+             z_codi_mat        TYPE z_codi_mat,
+             alv               TYPE REF TO cl_gui_alv_grid,
+           END OF ty_s_alv_principal.
+    TYPES: ty_t_alv_principal TYPE STANDARD TABLE OF ty_s_alv_principal.
+
+    TYPES: BEGIN OF ty_s_alv_combustible,
+             z_tipus_combustible TYPE z_tipus_combustible,
+             seleccio            TYPE xfeld,
+             z_c1                TYPE xfeld,
+             z_c2                TYPE xfeld,
+             z_c3                TYPE xfeld,
+             z_c4                TYPE xfeld,
+             z_codi_mat          TYPE z_codi_mat,
+             style               TYPE lvc_t_styl,
+             alv                 TYPE REF TO cl_gui_alv_grid,
+           END OF ty_s_alv_combustible.
+    TYPES: ty_t_alv_combustible TYPE STANDARD TABLE OF ty_s_alv_combustible.
+
+    TYPES: BEGIN OF ty_s_alv_massa,
+             z_tipus_massa TYPE z_tipus_massa,
+             seleccio      TYPE xfeld,
+             z_mma1        TYPE xfeld,
+             z_mma2        TYPE xfeld,
+             z_mma3        TYPE xfeld,
+             z_mma4        TYPE xfeld,
+             z_codi_mat    TYPE z_codi_mat,
+             style         TYPE lvc_t_styl,
+             alv           TYPE REF TO cl_gui_alv_grid,
+           END OF ty_s_alv_massa.
+    TYPES: ty_t_alv_massa TYPE STANDARD TABLE OF ty_s_alv_massa.
+
+    DATA: gt_alv_principal   TYPE ty_t_alv_principal,
+          gt_alv_combustible TYPE ty_t_alv_combustible,
+          gt_alv_massa       TYPE ty_t_alv_massa.
+
+    DATA: gt_alv_dist_mat_1 TYPE ty_t_alv_principal,
+          gt_alv_comb_mat_1 TYPE ty_t_alv_combustible,
+          gt_alv_mas_mat_1  TYPE ty_t_alv_massa,
+          gt_alv_dist_mat_2 TYPE ty_t_alv_principal,
+          gt_alv_comb_mat_2 TYPE ty_t_alv_combustible,
+          gt_alv_mas_mat_2  TYPE ty_t_alv_massa,
+          gt_alv_dist_mat_3 TYPE ty_t_alv_principal,
+          gt_alv_comb_mat_3 TYPE ty_t_alv_combustible,
+          gt_alv_mas_mat_3  TYPE ty_t_alv_massa,
+          gt_alv_dist_mat_4 TYPE ty_t_alv_principal,
+          gt_alv_comb_mat_4 TYPE ty_t_alv_combustible,
+          gt_alv_mas_mat_4  TYPE ty_t_alv_massa,
+          gt_alv_dist_mat_5 TYPE ty_t_alv_principal,
+          gt_alv_comb_mat_5 TYPE ty_t_alv_combustible,
+          gt_alv_mas_mat_5  TYPE ty_t_alv_massa,
+          "INI SPEC-87757
+          gt_alv_dist_mat_6 TYPE ty_t_alv_principal,
+          gt_alv_comb_mat_6 TYPE ty_t_alv_combustible,
+          gt_alv_mas_mat_6  TYPE ty_t_alv_massa,
+          gt_alv_dist_mat_7 TYPE ty_t_alv_principal,
+          gt_alv_comb_mat_7 TYPE ty_t_alv_combustible,
+          gt_alv_mas_mat_7  TYPE ty_t_alv_massa,
+          gt_alv_dist_mat_8 TYPE ty_t_alv_principal,
+          gt_alv_comb_mat_8 TYPE ty_t_alv_combustible,
+          gt_alv_mas_mat_8  TYPE ty_t_alv_massa,
+          gt_alv_dist_mat_9 TYPE ty_t_alv_principal,
+          gt_alv_comb_mat_9 TYPE ty_t_alv_combustible,
+          gt_alv_mas_mat_9  TYPE ty_t_alv_massa.
+    "FI SPEC-87757
+
+    DATA: go_backend              TYPE REF TO zrm_cl_valoracio_ofertes,
+          gv_readonly             TYPE xfeld,
+          gt_graella_puntuacio    TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen,
+          gt_punt_co2             TYPE zrm_tt_punt_co2,
+          gt_punt_co2_bd          TYPE zrm_tt_punt_co2,
+          gt_param_co2            TYPE zrm_tt_param_co2,
+          gt_puntuacions_inicials TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen,
+          gt_dm_mat_co2           TYPE zrm_tt_mat_co2,
+          gt_dm_for_co2           TYPE TABLE OF zrm_dm_for_co2,
+          gv_num_materials        TYPE i,
+          gv_docclass             TYPE bapidclass,
+          gv_objectid             TYPE bapiguid,
+          gv_nlot                 TYPE zrms_de_numlot, "ETODR SPEC-72720
+          gv_codi_crit_punt       TYPE zrm_dm_crit_punt-z_codi_crit_punt,
+          gv_max_punt_criteri     TYPE zrm_dm_crit_punt-z_punt_max,
+          gv_min_punt_criteri     TYPE zrm_dm_crit_punt-z_punt_min,
+          gv_zpunts               TYPE z_punts,
+          gv_mod_crit_punt        TYPE zrm_dm_crit_punt-z_mod_crit_punt,
+          gv_num_ofer             TYPE z_num_ofer,
+          gv_company_name         TYPE string.
+
+    METHODS constructor
+      IMPORTING it_co2       TYPE zrm_tt_punt_co2
+                it_puntuacio TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                iv_readonly  TYPE xfeld
+                iv_docclass  TYPE bapidclass
+                iv_objectid  TYPE bapiguid
+                io_backend   TYPE REF TO  zrm_cl_valoracio_ofertes
+                iv_column    TYPE any
+                is_grid      TYPE any
+                iv_num_ofer  TYPE z_num_ofer.
+
+    METHODS create_alv.
+
+    METHODS show_alv.
+
+    METHODS user_command IMPORTING iv_ucomm TYPE syst_ucomm.
+
+    METHODS free_variables.
+
+    METHODS get_puntuacions EXPORTING et_punts_offer TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                                      et_punt_co2    TYPE zrm_tt_punt_co2.
+
+    METHODS get_flag_changes RETURNING VALUE(rv_changes) TYPE xfeld.
+
+    METHODS set_flag_changes IMPORTING iv_changes TYPE xfeld.
+
+    METHODS handle_alv_pri_changed FOR EVENT data_changed   OF cl_gui_alv_grid IMPORTING er_data_changed.
+    METHODS handle_alv_comb_changed FOR EVENT data_changed   OF cl_gui_alv_grid IMPORTING er_data_changed.
+    METHODS handle_alv_massa_changed FOR EVENT data_changed   OF cl_gui_alv_grid IMPORTING er_data_changed.
+
+  PRIVATE SECTION.
+
+
+    TYPES: BEGIN OF ty_s_err_message,
+             icon(4)    TYPE c,
+             descr(110) TYPE c,
+           END OF ty_s_err_message.
+    TYPES: ty_t_err_messages TYPE STANDARD TABLE OF ty_s_err_message.
+
+    CONSTANTS: gc_distancia     TYPE string VALUE 'Z_D',
+               gc_valor_ei_d    TYPE string VALUE 'LV_VALOR_EI_D',
+               gc_tag_omplert   TYPE string VALUE 'OMPLERT',
+               gc_km            TYPE string VALUE 'Z_KM',
+               gc_material      TYPE string VALUE 'Z_CODI_MAT',
+               gc_seleccio      TYPE string VALUE 'SELECCIO',
+               gc_tag_alv       TYPE string VALUE 'ALV',
+               gc_text_seleccio TYPE string VALUE 'Selecció',
+               gc_combustible   TYPE string VALUE 'Z_C',
+               gc_massa         TYPE string VALUE 'Z_MMA'.
+
+    CONSTANTS: gc_text_alv_dist TYPE string VALUE 'gt_alv_dist_mat_',
+               gc_text_alv_comb TYPE string VALUE 'gt_alv_comb_mat_',
+               gc_text_alv_mas  TYPE string VALUE 'gt_alv_mas_mat_'.
+
+    CONSTANTS: gc_text_gralv       TYPE string VALUE 'gr_alv_',
+               gc_text_grcontainer TYPE string VALUE 'gr_container_'.
+
+
+    DATA: gv_changes_done    TYPE xfeld VALUE abap_off,
+          gt_missatges_error TYPE  ty_t_err_messages.
+
+    DATA: gr_docking  TYPE REF TO cl_gui_docking_container,
+          gr_splitter TYPE REF TO cl_gui_splitter_container.
+
+    DATA: gr_container_1_1 TYPE REF TO cl_gui_container,
+          gr_container_1_2 TYPE REF TO cl_gui_container,
+          gr_container_1_3 TYPE REF TO cl_gui_container,
+          gr_container_2_1 TYPE REF TO cl_gui_container,
+          gr_container_2_2 TYPE REF TO cl_gui_container,
+          gr_container_2_3 TYPE REF TO cl_gui_container,
+          gr_container_3_1 TYPE REF TO cl_gui_container,
+          gr_container_3_2 TYPE REF TO cl_gui_container,
+          gr_container_3_3 TYPE REF TO cl_gui_container,
+          gr_container_4_1 TYPE REF TO cl_gui_container,
+          gr_container_4_2 TYPE REF TO cl_gui_container,
+          gr_container_4_3 TYPE REF TO cl_gui_container,
+          gr_container_5_1 TYPE REF TO cl_gui_container,
+          gr_container_5_2 TYPE REF TO cl_gui_container,
+          gr_container_5_3 TYPE REF TO cl_gui_container,
+          "INI SPEC-87757
+          gr_container_6_1 TYPE REF TO cl_gui_container,
+          gr_container_6_2 TYPE REF TO cl_gui_container,
+          gr_container_6_3 TYPE REF TO cl_gui_container,
+          gr_container_7_1 TYPE REF TO cl_gui_container,
+          gr_container_7_2 TYPE REF TO cl_gui_container,
+          gr_container_7_3 TYPE REF TO cl_gui_container,
+          gr_container_8_1 TYPE REF TO cl_gui_container,
+          gr_container_8_2 TYPE REF TO cl_gui_container,
+          gr_container_8_3 TYPE REF TO cl_gui_container,
+          gr_container_9_1 TYPE REF TO cl_gui_container,
+          gr_container_9_2 TYPE REF TO cl_gui_container,
+          gr_container_9_3 TYPE REF TO cl_gui_container.
+    "FI SPEC-87757.
+
+    DATA: gr_alv_1_1 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_1_2 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_1_3 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_2_1 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_2_2 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_2_3 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_3_1 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_3_2 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_3_3 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_4_1 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_4_2 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_4_3 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_5_1 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_5_2 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_5_3 TYPE REF TO cl_gui_alv_grid,
+          "INI SPEC-87757
+          gr_alv_6_1 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_6_2 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_6_3 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_7_1 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_7_2 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_7_3 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_8_1 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_8_2 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_8_3 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_9_1 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_9_2 TYPE REF TO cl_gui_alv_grid,
+          gr_alv_9_3 TYPE REF TO cl_gui_alv_grid.
+    "FI SPEC-87757
+
+    METHODS get_materials_param.
+
+    METHODS get_materials_formula.
+
+    METHODS crea_split_container.
+
+*    METHODS crea_split_container_old.
+
+    METHODS inicialitza_taula_co2.
+
+    METHODS get_style_for_zd1 IMPORTING iv_codi_mat    TYPE string
+                              EXPORTING et_style       TYPE lvc_t_styl
+                                        ev_d1_informat TYPE abap_bool.
+
+    METHODS set_taules_puntuar.
+
+    METHODS set_formula_punts.
+
+    METHODS change_style_alv IMPORTING iv_codi_mat TYPE string.
+
+    METHODS verifica_puntuacions RETURNING VALUE(rv_dades_ok) TYPE abap_bool.
+
+    METHODS save_puntuacions.
+
+
+    METHODS set_layout
+      IMPORTING iv_title  TYPE lvc_title
+      EXPORTING es_layout TYPE lvc_s_layo.
+
+    METHODS fill_catalog
+      IMPORTING is_alv         TYPE any
+                iv_d1_informat TYPE abap_bool OPTIONAL
+      EXPORTING et_fieldcat    TYPE lvc_t_fcat.
+
+    METHODS set_description IMPORTING iv_tag         TYPE lvc_fname
+                                      ir_type        TYPE REF TO cl_abap_datadescr
+                                      iv_d1_informat TYPE abap_bool OPTIONAL
+                            CHANGING  ct_fieldcat    TYPE lvc_t_fcat.
+
+    METHODS get_ddic_text
+      IMPORTING iv_field     TYPE string
+      EXPORTING ev_scrtext_l TYPE string.
+
+
+ENDCLASS.
+*
+*
+CLASS lcl_alv_1005_util IMPLEMENTATION.
+*******************************************************************************
+** Constructor. Recuperem el títol de la finestra, inicialitzem les taules
+** de paràmetres i les taules de les ALV i el càlcul de la fòrmula
+*******************************************************************************
+  METHOD constructor.
+    DATA: ls_graella_puntuacio TYPE zrm_cl_valoracio_ofertes=>ty_s_punt_gen.
+    go_backend              = io_backend.
+    gv_docclass             = iv_docclass.
+    gv_objectid             = iv_objectid.
+    gt_punt_co2             = it_co2.
+    gt_punt_co2_bd          = it_co2.
+    gt_puntuacions_inicials = it_puntuacio.
+    gt_graella_puntuacio    = it_puntuacio.
+    gv_readonly             = iv_readonly.
+    gv_num_ofer             = iv_num_ofer.
+    IF io_backend IS BOUND.
+      DATA(ls_plec)    = io_backend->get_plec( ).
+      gv_mod_crit_punt =  ls_plec-z_mod_crit_punt.
+      IF gv_mod_crit_punt IS NOT INITIAL.
+        SELECT SINGLE z_codi_crit_punt, z_punt_max, z_punt_min
+          FROM zrm_dm_crit_punt
+          INTO (@gv_codi_crit_punt, @gv_max_punt_criteri, @gv_min_punt_criteri)
+          WHERE z_mod_crit_punt = @gv_mod_crit_punt
+            AND z_co2           = @abap_on.
+      ENDIF.
+    ENDIF.
+    ">> SPEC-72720, Inici Modificació - ETODR
+    SELECT SINGLE z_exp_lot_num
+      FROM zrm_dt_exp_cont
+      INTO gv_nlot
+      WHERE docclass = gv_docclass
+        AND objectid = gv_objectid.
+    IF gt_graella_puntuacio IS INITIAL.
+      CLEAR: ls_graella_puntuacio.
+
+      ls_graella_puntuacio-z_mod_crit_punt  = gv_mod_crit_punt.
+      ls_graella_puntuacio-z_codi_crit_punt = gv_codi_crit_punt.
+      ls_graella_puntuacio-z_num_gen        = iv_num_ofer.
+      APPEND ls_graella_puntuacio TO gt_graella_puntuacio.
+
+      gt_puntuacions_inicials = gt_graella_puntuacio.
+    ENDIF.
+    "<< SPEC-72720, Final Modificació - ETODR
+    ASSIGN is_grid    TO <gs_grid>.
+    ASSIGN iv_column  TO <gs_column>.
+
+*-- nom sencer del proveidor ------------------------------------
+    SELECT SINGLE proveidor
+    FROM zrm_dt_ofertes
+    INTO @DATA(lv_lifnr)
+          WHERE objectid  = @iv_objectid
+          AND docclass    = @iv_docclass
+          AND z_num_ofer  = @iv_num_ofer.
+    IF sy-subrc = 0 AND lv_lifnr IS NOT INITIAL.
+      SELECT SINGLE name1,name2,name3,name4
+      FROM lfa1
+      INTO (@DATA(l_name1),@DATA(l_name2),@DATA(l_name3),@DATA(l_name4))
+            WHERE lifnr EQ @lv_lifnr.
+
+      CONCATENATE l_name1 l_name2 l_name3 l_name4 INTO gv_company_name  SEPARATED BY space.
+      CONDENSE gv_company_name.
+    ENDIF.
+
+    "Recuperem taula de custo de les emssions, per fer els càlculs de les puntuacions
+    SELECT *
+      FROM zrm_param_co2
+      INTO TABLE gt_param_co2.
+
+    "Recuperem el nombre de materials parametritzats per mostrar les ALV corresponents
+    get_materials_param( ).
+
+    "Recuperem dades de la custo de les formules...
+    get_materials_formula( ).
+
+    "Si és el primer cop, no tindrem dades a la taula de bbdd, les inicialtizem amb els camps clau
+    IF gt_punt_co2_bd IS INITIAL.
+      inicialitza_taula_co2( ).
+    ENDIF.
+
+    set_taules_puntuar( )."Omplim les taules de la ALV per mostrar les puntuacions
+    set_formula_punts( ). "A partir de les dades de la BBDD, calculem el valor de Z_PUNTS inicial
+
+  ENDMETHOD.
+******************************************************************************
+** El primer cop que s'accedeix a la puntuació, la taula de bbdd de CO2 està
+** buida, la generem. Tantes entrades com N materials hi hagi
+*******************************************************************************
+  METHOD inicialitza_taula_co2.
+    DATA: ls_punt_co2_init  TYPE zrm_dt_punt_co2.
+
+    ls_punt_co2_init-docclass         = gv_docclass.
+    ls_punt_co2_init-objectid         = gv_objectid.
+    ls_punt_co2_init-z_mod_crit_punt  = gv_mod_crit_punt.
+    ls_punt_co2_init-z_num_ofer       = gv_num_ofer.
+    ls_punt_co2_init-z_codi_crit_punt = gv_codi_crit_punt.
+    ls_punt_co2_init-z_codi_crit_punt = gv_codi_crit_punt.
+
+    DO gv_num_materials TIMES.
+      READ TABLE gt_dm_mat_co2 ASSIGNING FIELD-SYMBOL(<fs_mat_co2>) INDEX sy-index.
+      IF sy-subrc = 0.
+        ls_punt_co2_init-z_codi_mat = <fs_mat_co2>-z_codi_mat.
+        APPEND ls_punt_co2_init TO gt_punt_co2_bd.
+      ENDIF.
+    ENDDO.
+
+    gt_punt_co2 = gt_punt_co2_bd.
+  ENDMETHOD.
+*******************************************************************************
+** Omple les taules que serviran per puntuar. Hi pot haver N taules * 3:
+** N = número de materials existents parametritzats
+** 3 = ALV distància, ALV combustible i ALV massa màxima autoritzada
+*******************************************************************************
+  METHOD set_taules_puntuar.
+
+    DATA: lt_style               TYPE lvc_t_styl,
+          ls_alv_principal       TYPE ty_s_alv_principal,
+          ls_alv_combustible     TYPE ty_s_alv_combustible,
+          ls_alv_massa           TYPE ty_s_alv_massa,
+          lv_text_ddtext         TYPE string,
+          lv_alv_distancia_mat   TYPE string,
+          lv_alv_combustible_mat TYPE string,
+          lv_alv_massa_mat       TYPE string,
+          lv_comptador_dist      TYPE string,
+          lv_comptador_comb      TYPE string,
+          lv_comptador_mass      TYPE string,
+          lv_index               TYPE string.
+
+    FIELD-SYMBOLS: <fs_distancia>     TYPE z_km_co2,
+                   <fs_flag_dist_alv> TYPE xfeld,
+                   <fs_flag_comb_alv> TYPE xfeld,
+                   <fs_flag_mass_alv> TYPE xfeld,
+                   <fs_combustible>   TYPE xfeld,
+                   <fs_massa>         TYPE xfeld.
+
+    FIELD-SYMBOLS: <fs_lt_alv_dist> TYPE ty_t_alv_principal,
+                   <fs_lt_alv_comb> TYPE ty_t_alv_combustible,
+                   <fs_lt_alv_mass> TYPE ty_t_alv_massa.
+
+    DO gv_num_materials TIMES. "Omplim la taula de Distància tants cops com materials hi ha
+      DATA(lv_material_dist) = CONV char1( sy-index ).
+
+      LOOP AT gt_punt_co2_bd ASSIGNING FIELD-SYMBOL(<fs_punt_co2>) WHERE z_codi_mat = lv_material_dist
+                                                                     AND z_num_ofer = gv_num_ofer.
+
+        READ TABLE gt_dm_mat_co2 ASSIGNING FIELD-SYMBOL(<fs_material>) INDEX lv_material_dist.
+        CHECK sy-subrc = 0.
+
+        CONCATENATE gc_text_alv_dist lv_material_dist INTO lv_alv_distancia_mat.
+        ASSIGN (lv_alv_distancia_mat) TO <fs_lt_alv_dist>.
+        CHECK sy-subrc = 0.
+
+        CONCATENATE gc_text_alv_comb lv_material_dist INTO lv_alv_combustible_mat.
+        ASSIGN (lv_alv_combustible_mat) TO <fs_lt_alv_comb>.
+        CHECK sy-subrc = 0.
+
+        CONCATENATE gc_text_alv_mas lv_material_dist INTO lv_alv_massa_mat.
+        ASSIGN (lv_alv_massa_mat) TO <fs_lt_alv_mass>.
+        CHECK sy-subrc = 0.
+
+        DO 5 TIMES. "Tenim 5 distàncies / combustible / massa
+          lv_index = sy-index.
+          CONDENSE lv_index.
+          CLEAR: lv_comptador_dist, lv_text_ddtext.
+          CONCATENATE gc_distancia lv_index INTO lv_comptador_dist.
+          "Recuperem el valor referent a Z_D* per tal d'omplir la ALV dinàmicament
+          ASSIGN COMPONENT lv_comptador_dist OF STRUCTURE <fs_punt_co2> TO <fs_distancia>.
+          IF sy-subrc = 0.
+            ls_alv_principal-z_km = <fs_distancia>.
+            "Busquem el valor de l'element de dades per omplir el text de tipus de distància
+            get_ddic_text( EXPORTING iv_field     = lv_comptador_dist
+                           IMPORTING ev_scrtext_l = lv_text_ddtext ).
+            ls_alv_principal-z_tipus_distancia = lv_text_ddtext.
+            ls_alv_principal-z_codi_mat        = <fs_material>-z_codi_mat.
+            "Omplim el falg per saber quin Z_D* és i tenir-lo controlat després quan omplin els KM
+            ASSIGN COMPONENT lv_comptador_dist OF STRUCTURE ls_alv_principal TO <fs_flag_dist_alv>.
+            IF sy-subrc = 0.
+              <fs_flag_dist_alv> = abap_on.
+            ENDIF.
+            "Si els KM estan plens, és que han omplert aquella fila, ho controlem
+            IF ls_alv_principal-z_km IS NOT INITIAL.
+              ls_alv_principal-omplert = abap_on.
+            ENDIF.
+            APPEND ls_alv_principal TO <fs_lt_alv_dist>.
+            APPEND ls_alv_principal TO gt_alv_principal.
+            CLEAR: ls_alv_principal.
+
+            get_style_for_zd1(  EXPORTING iv_codi_mat = CONV string( <fs_material>-z_codi_mat )
+                                IMPORTING et_style    = lt_style ).
+
+            "Muntem les dades de la ALV del combustible
+            CLEAR: lv_comptador_comb, lv_text_ddtext.
+            CONCATENATE gc_combustible lv_index INTO lv_comptador_comb.
+            "Recuperem el valor referent a Z_C* per tal d'omplir la ALV dinàmicament
+            ASSIGN COMPONENT lv_comptador_comb OF STRUCTURE <fs_punt_co2> TO <fs_combustible>.
+            IF sy-subrc = 0.
+              ls_alv_combustible-seleccio = <fs_combustible>.
+              "Busquem el valor de l'element de dades per omplir el text de tipus de combustible
+              get_ddic_text( EXPORTING iv_field     = lv_comptador_comb
+                             IMPORTING ev_scrtext_l =  lv_text_ddtext ).
+              ls_alv_combustible-z_tipus_combustible = lv_text_ddtext.
+              ls_alv_combustible-style               = lt_style.
+              ls_alv_combustible-z_codi_mat          = <fs_material>-z_codi_mat.
+
+              "Omplim el falg per saber quin Z_C* és i tenir-lo controlat després quan marquin el flag de seleccio
+              ASSIGN COMPONENT lv_comptador_comb OF STRUCTURE ls_alv_combustible TO <fs_flag_comb_alv>.
+              IF sy-subrc = 0.
+                <fs_flag_comb_alv> = abap_on.
+              ENDIF.
+
+              APPEND ls_alv_combustible TO <fs_lt_alv_comb>.
+              APPEND ls_alv_combustible TO gt_alv_combustible.
+              CLEAR: ls_alv_combustible.
+            ENDIF.
+
+            "Muntem les dades de la ALV de la massa
+            CLEAR: lv_comptador_mass, lv_text_ddtext.
+            CONCATENATE gc_massa lv_index INTO lv_comptador_mass.
+            "Recuperem el valor referent a Z_MMA* per tal d'omplir la ALV dinàmicament
+            ASSIGN COMPONENT lv_comptador_mass OF STRUCTURE <fs_punt_co2> TO <fs_massa>.
+            IF sy-subrc = 0.
+              ls_alv_massa-seleccio = <fs_massa>.
+              "Busquem el valor de l'element de dades per omplir el text de tipus de la massa màxima autoritzada
+              get_ddic_text( EXPORTING iv_field     = lv_comptador_mass
+                             IMPORTING ev_scrtext_l = lv_text_ddtext ).
+              ls_alv_massa-z_tipus_massa = lv_text_ddtext.
+              ls_alv_massa-style         = lt_style.
+              ls_alv_massa-z_codi_mat    = <fs_material>-z_codi_mat.
+
+              "Omplim el falg per saber quin Z_MMA* és i tenir-lo controlat després quan marquin el flag de seleccio
+              ASSIGN COMPONENT lv_comptador_mass OF STRUCTURE ls_alv_massa TO <fs_flag_mass_alv>.
+              IF sy-subrc = 0.
+                <fs_flag_mass_alv> = abap_on.
+              ENDIF.
+
+              APPEND ls_alv_massa TO <fs_lt_alv_mass>.
+              APPEND ls_alv_massa TO gt_alv_massa.
+              CLEAR: ls_alv_massa.
+            ENDIF.
+
+          ENDIF.
+        ENDDO.
+      ENDLOOP.
+    ENDDO.
+  ENDMETHOD.
+*******************************************************************************
+** Verifiquem si per aquell Material, han introduït els KM de la Z_D1,
+*  en fúnció d'això activem o no les ALV inferiors d'aquell material
+*******************************************************************************
+  METHOD get_style_for_zd1.
+    DATA: ls_style    TYPE lvc_s_styl,
+          lv_material TYPE string,
+          lv_alv_dist TYPE string.
+
+    FIELD-SYMBOLS: <fs_lt_alv_principal> TYPE ty_t_alv_principal.
+
+    CLEAR: ls_style.
+    ls_style-fieldname = gc_seleccio.
+
+    lv_material = iv_codi_mat.
+    SHIFT lv_material LEFT DELETING LEADING '0'.
+
+    CONCATENATE gc_text_alv_dist lv_material INTO lv_alv_dist.
+    ASSIGN (lv_alv_dist) TO <fs_lt_alv_principal>.
+    CHECK sy-subrc = 0.
+
+    READ TABLE <fs_lt_alv_principal> TRANSPORTING NO FIELDS WITH KEY omplert = abap_on
+                                                                     z_d1    = abap_on.
+    IF sy-subrc <> 0.
+      ev_d1_informat = abap_false.
+      ls_style-style  = cl_gui_alv_grid=>mc_style_disabled.
+      ls_style-style2 = cl_gui_alv_grid=>mc_style_hotspot_no.
+      INSERT ls_style INTO TABLE et_style.
+    ELSE.
+      ev_d1_informat = abap_true.
+      ls_style-style  = cl_gui_alv_grid=>mc_style_hotspot.
+      ls_style-style2 = cl_gui_alv_grid=>mc_style_enabled.
+      INSERT ls_style INTO TABLE et_style.
+    ENDIF.
+  ENDMETHOD.
+*******************************************************************************
+** Fem el càlcul de la fòrmula per obtenir el Z_PUNTS de cada material
+*******************************************************************************
+  METHOD set_formula_punts.
+    DATA: ls_component         TYPE abap_compdescr,
+          lv_valor_ei_d1       TYPE zrm_dt_punt_co2-z_form_ei,
+          lv_valor_ei_d2       TYPE zrm_dt_punt_co2-z_form_ei,
+          lv_valor_ei_d3       TYPE zrm_dt_punt_co2-z_form_ei,
+          lv_valor_ei_d4       TYPE zrm_dt_punt_co2-z_form_ei,
+          lv_valor_ei_d5       TYPE zrm_dt_punt_co2-z_form_ei,
+          lv_suma_punts_tmi_pi TYPE decfloat34,
+          lv_suma_tmi          TYPE zrm_dm_mat_co2-z_tonelada,
+          lv_punts_final       TYPE zrm_dt_punt_co2-z_punts,
+          lv_tmi               TYPE decfloat34,
+          lv_erefi             TYPE decfloat34.
+
+    DATA: lv_comptador_dist TYPE string,
+          lv_comptador_comb TYPE string,
+          lv_comptador_mass TYPE string,
+          lv_comptador_ei_d TYPE string,
+          lv_index_comb     TYPE char1,
+          lv_index_massa    TYPE char1,
+          lv_index          TYPE string,
+          lr_element        TYPE REF TO cl_abap_elemdescr,
+          ls_field          TYPE dfies.
+
+    FIELD-SYMBOLS: <fs_param_co2> TYPE zrm_param_co2.
+
+*El procés de càlcul serà el següent:
+*    1. Calcular Ei en base a la fórmula: Ei = D1*Ec + D2*0,0387 + D3*0,0348 + D4*0,0111 + D5*0,0058.
+*        Si el camp D1 de la taula "Tipus distància" està informat,
+*            agafarem el seu valor i el multiplicarem ,pel resultat de buscar a la taula ZRM_PARAM_CO2 segons trobem marcat el tipus de combustible
+*            (C1, C2, C3 o C4) i agafarem el valor del camp mma1 o mma2 o mm3 o mm4, segons trobem marcat en la massa màxima autoritzada.
+*        Si el camp D2 de la taula "Tipus distància" està informat, agafarem el seu valor i el multiplicarem, pel resultat de buscar a la taula ZRM_PARAM_CO2-Z_EMISSIONS = 'D2', el valor del camp Z_DIST.
+*        Si el camp D3 de la taula "Tipus distància" està informat, agafarem el seu valor i el multiplicarem, pel resultat de buscar a la taula ZRM_PARAM_CO2-Z_EMISSIONS = 'D3', el valor del camp Z_DIST.
+*        Si el camp D4 de la taula "Tipus distància" està informat, agafarem el seu valor i el multiplicarem, pel resultat de buscar a la taula ZRM_PARAM_CO2-Z_EMISSIONS = 'D4', el valor del camp Z_DIST.
+*        Finalment sumarem tots els valors D1 + D2 +D3 + D4 = Ei.
+
+*    2. Calcular Pi = 5,5 + 0,15625 * (Erefi – Ei) [fòrmula taula ZRM_DM_FOR_CO2]
+*      El valor del camp Ei, ja el tenim del càlcul anterior (pas 1).
+*      El valor del camp Erefi = 0,16 * tDi [Valor introduït en la creació del plec a la taula ZRM_DM_MAT_CO2)].
+
+*      Nota: Pi minim 0 maxim 8.
+*    3. Puntuació final, P = (tMi* Pi + ....+ tMn*Pn) / (tMi +....+ tMn). Puntuació final, Un cop fets els passos 1 i 2 (anterioment) per a tots els materials. tMi serà les tonelades d'aquell material a la taula ZRM_DM_MAT_CO2
+*      Nota: Pi minim 0 maxim 8.
+    READ TABLE gt_dm_for_co2 INTO DATA(ls_formula_co2) INDEX 1..
+
+    DO gv_num_materials TIMES.
+      READ TABLE gt_dm_mat_co2 ASSIGNING FIELD-SYMBOL(<fs_material>) INDEX sy-index.
+      CHECK sy-subrc = 0.
+      LOOP AT gt_punt_co2 ASSIGNING FIELD-SYMBOL(<fs_punt_co2>) WHERE z_codi_mat = <fs_material>-z_codi_mat.
+        CLEAR: lv_valor_ei_d1, lv_valor_ei_d2, lv_valor_ei_d3, lv_valor_ei_d4,
+               lv_valor_ei_d5.
+        "1. Calcular E1, E2, E3, E4 i E5
+        DO 5 TIMES.
+          lv_index = sy-index.
+          CONDENSE lv_index.
+
+          CLEAR: lv_comptador_dist, lv_comptador_ei_d.
+
+          CONCATENATE gc_distancia lv_index INTO lv_comptador_dist.
+          ASSIGN COMPONENT lv_comptador_dist OF STRUCTURE <fs_punt_co2> TO FIELD-SYMBOL(<fs_distancia>).
+          CHECK sy-subrc = 0.
+
+          IF lv_index = 1. "Pel Z_D1 es fa un tractament especial
+            lv_index_comb  = 1.
+            lv_index_massa = 1.
+            LOOP AT gt_alv_combustible ASSIGNING FIELD-SYMBOL(<fs_alv_combustible>) WHERE seleccio   = abap_on
+                                                                                      AND z_codi_mat = <fs_material>-z_codi_mat.
+
+              DO 5 TIMES.
+                "Mirem quins combustibles ha marcat
+                CONCATENATE gc_combustible lv_index_comb INTO lv_comptador_comb.
+                ASSIGN COMPONENT lv_comptador_comb OF STRUCTURE <fs_alv_combustible> TO FIELD-SYMBOL(<fs_value_comb>).
+                IF sy-subrc = 0.
+                  IF <fs_value_comb> = abap_on."Si aquest combustible està marcat, accedim a la taula de custo
+                    READ TABLE gt_param_co2 ASSIGNING <fs_param_co2> WITH KEY z_emissions = lv_comptador_comb.
+                    IF sy-subrc = 0.
+                      "Per aquell combustible hem de saber quina MMA aplica
+                      DO 5 TIMES.
+                        LOOP AT gt_alv_massa ASSIGNING FIELD-SYMBOL(<fs_alv_massa>) WHERE seleccio   = abap_on
+                                                                                      AND z_codi_mat = <fs_material>-z_codi_mat.
+                          CONCATENATE gc_massa lv_index_massa INTO lv_comptador_mass.
+                          ASSIGN COMPONENT lv_comptador_mass OF STRUCTURE <fs_alv_massa> TO FIELD-SYMBOL(<fs_value_massa>).
+                          IF sy-subrc = 0.
+                            IF <fs_value_massa> = abap_on.
+                              IF sy-subrc = 0.
+                                ASSIGN COMPONENT lv_comptador_mass OF STRUCTURE <fs_param_co2> TO FIELD-SYMBOL(<fs_valor_param>).
+                                IF sy-subrc = 0.
+                                  lv_valor_ei_d1 = <fs_distancia> * <fs_valor_param>.
+                                  EXIT.
+                                ENDIF.
+                              ENDIF.
+                            ENDIF.
+                          ENDIF.
+                          ADD 1 TO lv_index_massa.
+                        ENDLOOP.
+                      ENDDO.
+                      EXIT.
+                    ENDIF.
+                  ENDIF.
+                ENDIF.
+                ADD 1 TO lv_index_comb.
+              ENDDO.
+            ENDLOOP.
+
+          ELSE.
+            "Traslladem les dades de les distàncies a la taula de base de dades
+            ">> SPEC-72720, Inici Modificació - ETODR
+            "El 0 també és una puntuació vàlida, deixem que ho calculi
+*            IF <fs_distancia> IS NOT INITIAL.
+            "<< SPEC-72720, Final Modificació - ETODR
+            CLEAR: lr_element.
+            lr_element ?= cl_abap_typedescr=>describe_by_name( lv_comptador_dist ).
+            IF lr_element IS BOUND.
+              DATA(lv_relative_name) = lr_element->get_relative_name( ).
+              READ TABLE gt_param_co2 ASSIGNING <fs_param_co2> WITH KEY z_emissions = lv_relative_name.
+              IF sy-subrc = 0.
+                CONCATENATE gc_valor_ei_d lv_index INTO lv_comptador_ei_d.
+                ASSIGN (lv_comptador_ei_d) TO FIELD-SYMBOL(<fs_ei_d>).
+                IF sy-subrc = 0.
+                  <fs_ei_d> = <fs_distancia> * <fs_param_co2>-z_dist.
+                ENDIF.
+              ENDIF.
+              CLEAR: lv_relative_name.
+            ENDIF.
+*            ENDIF.
+          ENDIF.
+
+
+        ENDDO.
+
+        "1 Sumar tots els valors E1 + E2 + E3 + E4 + E5 = Ei.
+        <fs_punt_co2>-z_form_ei = lv_valor_ei_d1 + lv_valor_ei_d2 +
+                                  lv_valor_ei_d3 + lv_valor_ei_d4 +
+                                  lv_valor_ei_d5.
+        "Si no han puntuat o han canviat de X km a 0, ho deixem tot a 0
+        IF <fs_punt_co2>-z_form_ei = 0.
+          <fs_punt_co2>-z_form_pi = 0.
+          <fs_punt_co2>-z_punts   = 0.
+          CONTINUE.
+        ENDIF.
+
+        "2. Calcular Pi = 5,5 + 0,15625 * (Erefi – Ei) on Erefi = 0,16 * distancia Mi i Ei = suma E1 + E2 + E3 + E4 + E5
+        lv_erefi                = ls_formula_co2-z_param_3_co2 * <fs_material>-z_distancia.
+        <fs_punt_co2>-z_form_pi = ls_formula_co2-z_param_1_co2 + ls_formula_co2-z_param_2_co2 * ( lv_erefi - <fs_punt_co2>-z_form_ei ).
+
+        "La Pi no pot ser inferior/superar la puntuació mínima/màxima
+        IF <fs_punt_co2>-z_form_pi > gv_max_punt_criteri.
+          <fs_punt_co2>-z_form_pi = gv_max_punt_criteri.
+        ELSEIF <fs_punt_co2>-z_form_pi < gv_min_punt_criteri.
+          <fs_punt_co2>-z_form_pi = gv_min_punt_criteri.
+        ENDIF.
+      ENDLOOP.
+    ENDDO.
+
+    "3. Puntuació final, P = (tMi* Pi + ....+ tMn*Pn) / (tMi +....+ tMn).
+    CLEAR: lv_suma_punts_tmi_pi, lv_suma_tmi, lv_punts_final.
+    DO gv_num_materials TIMES.
+      READ TABLE gt_dm_mat_co2 ASSIGNING <fs_material> INDEX sy-index.
+      IF sy-subrc = 0.
+        LOOP AT gt_punt_co2 ASSIGNING <fs_punt_co2> WHERE z_codi_mat = <fs_material>-z_codi_mat.
+          "suma de les multiplicacions de tmi*p1
+          lv_suma_punts_tmi_pi = lv_suma_punts_tmi_pi + ( <fs_punt_co2>-z_form_pi * <fs_material>-z_tonelada ).
+          gv_zpunts = <fs_punt_co2>-z_punts.
+        ENDLOOP.
+        lv_suma_tmi = lv_suma_tmi + <fs_material>-z_tonelada.
+      ENDIF.
+    ENDDO.
+
+    lv_punts_final = lv_suma_punts_tmi_pi / lv_suma_tmi.
+
+    "La Puntuació final no pot ser inferior/superar la puntuació mínima/màxima
+    IF lv_punts_final > gv_max_punt_criteri.
+      lv_punts_final = gv_max_punt_criteri.
+    ELSEIF gv_zpunts < gv_min_punt_criteri.
+      lv_punts_final = gv_min_punt_criteri.
+    ENDIF.
+    LOOP AT gt_punt_co2 ASSIGNING <fs_punt_co2>.
+      <fs_punt_co2>-z_punts = lv_punts_final.
+    ENDLOOP.
+
+  ENDMETHOD.
+*******************************************************************************
+**  Es recupera el text de l'element de dades de diccionari, per mostrar a la ALV
+*******************************************************************************
+  METHOD get_ddic_text.
+    DATA: lr_element TYPE REF TO cl_abap_elemdescr,
+          ls_field   TYPE dfies.
+
+    lr_element ?= cl_abap_typedescr=>describe_by_name( iv_field ).
+    CHECK lr_element IS BOUND.
+
+    lr_element->get_ddic_field( RECEIVING   p_flddescr   = ls_field
+                                EXCEPTIONS  OTHERS       = 0  ).
+    ev_scrtext_l = ls_field-reptext.
+
+  ENDMETHOD.
+*******************************************************************************
+**  Manegador de l'esdeveniment de canvis en la ALV de distància
+*******************************************************************************
+  METHOD handle_alv_pri_changed.
+    DATA: lv_text_alv TYPE string,
+          lv_material TYPE string,
+          lv_value_km TYPE string.
+
+    DATA: lv_index TYPE syst_index,
+          lv_lines TYPE i.
+
+
+    FIELD-SYMBOLS: <fs_lt_alv_dist> TYPE ty_t_alv_principal,
+                   <lt_data>        TYPE ty_t_alv_principal,
+                   <fs_lt_alv_comb> TYPE ty_t_alv_combustible,
+                   <fs_lt_alv_mass> TYPE ty_t_alv_massa.
+
+    set_flag_changes( abap_on ).
+
+    LOOP AT er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<fs>).
+      IF <fs>-fieldname = gc_km.
+        "Recuperem quin MATERIAL de distància estan modificant
+        ASSIGN er_data_changed->mp_mod_rows->* TO <lt_data>.
+        CHECK sy-subrc = 0.
+
+        READ TABLE <lt_data> ASSIGNING FIELD-SYMBOL(<fs_data>) INDEX 1.
+        CHECK sy-subrc = 0.
+
+        ASSIGN COMPONENT 'Z_CODI_MAT' OF STRUCTURE <fs_data> TO FIELD-SYMBOL(<fs_material>).
+        CHECK sy-subrc = 0.
+
+        lv_material = CONV string( <fs_material> ).
+        SHIFT lv_material LEFT DELETING LEADING '0'.
+        "ALV Distància
+        CLEAR lv_text_alv.
+        CONCATENATE gc_text_alv_dist lv_material INTO lv_text_alv.
+        ASSIGN (lv_text_alv) TO <fs_lt_alv_dist>.
+        CHECK sy-subrc = 0.
+
+        READ TABLE <fs_lt_alv_dist> ASSIGNING FIELD-SYMBOL(<fs_distancia>) INDEX <fs>-row_id.
+        CHECK sy-subrc = 0.
+
+        CLEAR: lv_value_km.
+        <fs_distancia>-z_km = lv_value_km = <fs>-value.
+        SHIFT lv_value_km LEFT DELETING LEADING space.
+        SHIFT lv_value_km LEFT DELETING LEADING '0'.
+
+        IF lv_value_km IS NOT INITIAL.
+          <fs_distancia>-omplert = abap_on.
+        ELSE.
+          <fs_distancia>-omplert = abap_off.
+        ENDIF.
+
+        IF <fs_distancia>-z_d1 IS NOT INITIAL AND <fs_distancia>-omplert = abap_on.
+          "Si han omplert les dades de KM referents a ZD1, llavors habilitem ALV inferiors, sinó no
+        ELSEIF <fs_distancia>-z_d1 IS NOT INITIAL AND <fs_distancia>-omplert = abap_off.
+          "Netgem els flags de les ALV inferiors per a que no quedi dades incoherents
+          "ALV Combustible
+          CLEAR lv_text_alv.
+          CONCATENATE gc_text_alv_comb lv_material INTO lv_text_alv.
+          ASSIGN (lv_text_alv) TO <fs_lt_alv_comb>.
+          IF sy-subrc = 0.
+            LOOP AT <fs_lt_alv_comb> ASSIGNING FIELD-SYMBOL(<fs_alv_comb>).
+              CLEAR: <fs_alv_comb>-seleccio.
+            ENDLOOP.
+          ENDIF.
+          "ALV Massa
+          CLEAR lv_text_alv.
+          CONCATENATE gc_text_alv_mas lv_material INTO lv_text_alv.
+          ASSIGN (lv_text_alv) TO <fs_lt_alv_mass>.
+          IF sy-subrc = 0.
+            LOOP AT <fs_lt_alv_mass> ASSIGNING FIELD-SYMBOL(<fs_alv_massa>).
+              CLEAR: <fs_alv_massa>-seleccio.
+            ENDLOOP.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    "Actualitzem les ALV inferiors en funció dels valors omplerts a la ALV principal
+    change_style_alv( iv_codi_mat = lv_material ).
+
+
+    CHECK <fs_material> IS ASSIGNED.
+
+    "Finalment actualitzem la taula global GT_ALV_PRINCIPAL GT_ALV_COMBUSTIBLE i GT_ALV_MASSA
+    IF <fs_lt_alv_dist> IS ASSIGNED.
+      DELETE gt_alv_principal WHERE z_codi_mat = <fs_material>.
+      "INI SPEC-87757 Arreglar error de que no es guarden correctament els valors marcats en pantalla
+*      APPEND LINES OF <fs_lt_alv_dist> TO gt_alv_principal.
+*      SORT gt_alv_principal BY z_codi_mat ASCENDING.
+      DESCRIBE TABLE <fs_lt_alv_dist> LINES lv_lines.
+      lv_index = ( <fs_material> - 1 ) * lv_lines.
+      LOOP AT <fs_lt_alv_dist> ASSIGNING FIELD-SYMBOL(<fs_dist>).
+        INSERT <fs_dist> INTO gt_alv_principal INDEX lv_index + sy-tabix.
+      ENDLOOP.
+      "FI-SPEC-87757
+    ENDIF.
+
+    IF <fs_lt_alv_comb> IS ASSIGNED.
+      DELETE gt_alv_combustible WHERE z_codi_mat = <fs_material>.
+      APPEND LINES OF <fs_lt_alv_comb> TO gt_alv_combustible.
+      SORT gt_alv_combustible BY z_codi_mat ASCENDING.
+    ENDIF.
+
+    IF <fs_lt_alv_mass> IS ASSIGNED.
+      DELETE gt_alv_massa WHERE z_codi_mat = <fs_material>.
+      APPEND LINES OF <fs_lt_alv_mass> TO gt_alv_massa.
+      SORT gt_alv_massa BY z_codi_mat ASCENDING.
+    ENDIF.
+
+  ENDMETHOD.
+*******************************************************************************
+**  Manegador de l'esdeveniment de canvis en la ALV de combustible
+*******************************************************************************
+  METHOD handle_alv_comb_changed.
+    DATA: lv_text_alv TYPE string,
+          lv_material TYPE string.
+
+    DATA: lv_index TYPE syst_index,
+          lv_lines TYPE i.
+
+    FIELD-SYMBOLS: <lt_data>        TYPE ty_t_alv_combustible,
+                   <fs_lt_alv_comb> TYPE ty_t_alv_combustible.
+
+    set_flag_changes( abap_on ).
+
+    LOOP AT er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<fs>).
+      IF <fs>-fieldname = gc_seleccio.
+        "Recuperem quin MATERIAL de distància estan modificant
+        ASSIGN er_data_changed->mp_mod_rows->* TO <lt_data>.
+        CHECK sy-subrc = 0.
+
+        READ TABLE <lt_data> ASSIGNING FIELD-SYMBOL(<fs_data>) INDEX 1.
+        CHECK sy-subrc = 0.
+
+        ASSIGN COMPONENT 'Z_CODI_MAT' OF STRUCTURE <fs_data> TO FIELD-SYMBOL(<fs_material>).
+        CHECK sy-subrc = 0.
+
+        lv_material = CONV string( <fs_material> ).
+        SHIFT lv_material LEFT DELETING LEADING '0'.
+        "ALV Combustible
+        CLEAR lv_text_alv.
+        CONCATENATE gc_text_alv_comb lv_material INTO lv_text_alv.
+        ASSIGN (lv_text_alv) TO <fs_lt_alv_comb>.
+        CHECK sy-subrc = 0.
+
+
+        READ TABLE <fs_lt_alv_comb> ASSIGNING FIELD-SYMBOL(<fs_seleccio>) INDEX <fs>-row_id.
+        CHECK sy-subrc = 0.
+
+        IF <fs_seleccio>-seleccio = abap_on.
+          <fs_seleccio>-seleccio = abap_off.
+        ELSE.
+          "Només podem tenir marcat 1 camp, així que esborrem la resta abans
+          LOOP AT <fs_lt_alv_comb> ASSIGNING FIELD-SYMBOL(<fs_combustible_marcat>) WHERE seleccio = abap_on.
+            CLEAR: <fs_combustible_marcat>-seleccio.
+          ENDLOOP.
+          <fs_seleccio>-seleccio = abap_on.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    "Finalment actualitzem la taula global  GT_ALV_COMBUSTIBLE
+    IF <fs_material> IS ASSIGNED.
+      IF <fs_lt_alv_comb> IS ASSIGNED.
+        DELETE gt_alv_combustible WHERE z_codi_mat = <fs_material>.
+        "INI SPEC-87757 Arreglar error de que no es guarden correctament els valors marcats en pantalla
+*        APPEND LINES OF <fs_lt_alv_comb> TO gt_alv_combustible.
+*        SORT gt_alv_combustible BY z_codi_mat ASCENDING.
+        DESCRIBE TABLE <fs_lt_alv_comb> LINES lv_lines.
+        lv_index = ( <fs_material> - 1 ) * lv_lines.
+        LOOP AT <fs_lt_alv_comb> ASSIGNING FIELD-SYMBOL(<fs_comb>).
+          INSERT <fs_comb> INTO gt_alv_combustible INDEX lv_index + sy-tabix.
+        ENDLOOP.
+        "FI-SPEC-87757
+      ENDIF.
+    ENDIF.
+
+    <fs_seleccio>-alv->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                   es_col_id = DATA(ls_col_id)
+                                                   es_row_no = DATA(ls_row_no) ).
+    <fs_seleccio>-alv->refresh_table_display( ).
+    <fs_seleccio>-alv->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                          is_row_no    = ls_row_no ).
+  ENDMETHOD.
+*******************************************************************************
+** Manegador de l'esdeveniment de canvis de la ALV de Massa màxima autoritzada
+*******************************************************************************
+  METHOD handle_alv_massa_changed.
+
+    DATA: lv_text_alv TYPE string,
+          lv_material TYPE string.
+
+    DATA: lv_index TYPE syst_index,
+          lv_lines TYPE i.
+
+    FIELD-SYMBOLS: <lt_data>        TYPE ty_t_alv_massa,
+                   <fs_lt_alv_mass> TYPE ty_t_alv_massa.
+
+    set_flag_changes( abap_on ).
+
+    LOOP AT er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<fs>).
+      IF <fs>-fieldname = gc_seleccio.
+        "Recuperem quin MATERIAL de distància estan modificant
+        ASSIGN er_data_changed->mp_mod_rows->* TO <lt_data>.
+        CHECK sy-subrc = 0.
+
+        READ TABLE <lt_data> ASSIGNING FIELD-SYMBOL(<fs_data>) INDEX 1.
+        CHECK sy-subrc = 0.
+
+        ASSIGN COMPONENT 'Z_CODI_MAT' OF STRUCTURE <fs_data> TO FIELD-SYMBOL(<fs_material>).
+        CHECK sy-subrc = 0.
+
+        lv_material = CONV string( <fs_material> ).
+        SHIFT lv_material LEFT DELETING LEADING '0'.
+        "ALV Massa
+        CLEAR lv_text_alv.
+        CONCATENATE gc_text_alv_mas lv_material INTO lv_text_alv.
+        ASSIGN (lv_text_alv) TO <fs_lt_alv_mass>.
+        CHECK sy-subrc = 0.
+
+
+        READ TABLE <fs_lt_alv_mass> ASSIGNING FIELD-SYMBOL(<fs_seleccio>) INDEX <fs>-row_id.
+        CHECK sy-subrc = 0.
+
+        IF <fs_seleccio>-seleccio = abap_on.
+          <fs_seleccio>-seleccio = abap_off.
+        ELSE.
+          "Només podem tenir marcat 1 camp, així que esborrem la resta abans
+          LOOP AT <fs_lt_alv_mass> ASSIGNING FIELD-SYMBOL(<fs_massa_marcada>) WHERE seleccio = abap_on.
+            CLEAR: <fs_massa_marcada>-seleccio.
+          ENDLOOP.
+          <fs_seleccio>-seleccio = abap_on.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    IF <fs_material> IS ASSIGNED.
+      "Finalment actualitzem la taula global GT_ALV_MASSA
+      IF <fs_lt_alv_mass> IS ASSIGNED.
+        DELETE gt_alv_massa WHERE z_codi_mat = <fs_material>.
+        "INI SPEC-87757 Arreglar error de que no es guarden correctament els valors marcats en pantalla
+*        APPEND LINES OF <fs_lt_alv_mass> TO gt_alv_massa.
+*        SORT gt_alv_massa BY z_codi_mat ASCENDING.
+        DESCRIBE TABLE <fs_lt_alv_mass> LINES lv_lines.
+        lv_index = ( <fs_material> - 1 ) * lv_lines.
+        LOOP AT <fs_lt_alv_mass> ASSIGNING FIELD-SYMBOL(<fs_mass>).
+          INSERT <fs_mass> INTO gt_alv_massa INDEX lv_index + sy-tabix.
+        ENDLOOP.
+        "FI-SPEC-87757
+      ENDIF.
+    ENDIF.
+
+    <fs_seleccio>-alv->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                   es_col_id = DATA(ls_col_id)
+                                                   es_row_no = DATA(ls_row_no) ).
+    <fs_seleccio>-alv->refresh_table_display( ).
+    <fs_seleccio>-alv->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                          is_row_no    = ls_row_no ).
+  ENDMETHOD.
+*******************************************************************************
+** Aplica el canvi d'estils a les ALV corresponents en funció dels canvis
+** realitzats a la ALV de distància
+*******************************************************************************
+  METHOD change_style_alv.
+    DATA: lr_alv_comb        TYPE REF TO cl_gui_alv_grid,
+          lr_alv_massa       TYPE REF TO cl_gui_alv_grid,
+          ls_alv_massa       TYPE ty_s_alv_massa,
+          ls_alv_combustible TYPE ty_s_alv_combustible,
+          lv_text_alv        TYPE string.
+
+    FIELD-SYMBOLS: <fs_lt_alv_comb> TYPE ty_t_alv_combustible,
+                   <fs_lt_alv_mass> TYPE ty_t_alv_massa.
+
+    get_style_for_zd1(  EXPORTING iv_codi_mat     = iv_codi_mat
+                        IMPORTING et_style        = DATA(lt_style)
+                                  ev_d1_informat  = DATA(lv_d1_informat) ).
+
+    "ALV Combustible
+    CLEAR lv_text_alv.
+    CONCATENATE gc_text_alv_comb iv_codi_mat INTO lv_text_alv.
+    ASSIGN (lv_text_alv) TO <fs_lt_alv_comb>.
+    IF sy-subrc = 0.
+      LOOP AT <fs_lt_alv_comb> ASSIGNING FIELD-SYMBOL(<fs_combusitlbe>).
+        <fs_combusitlbe>-style = lt_style.
+        lr_alv_comb           = <fs_combusitlbe>-alv.
+      ENDLOOP.
+    ENDIF.
+    "ALV Massa
+    CLEAR lv_text_alv.
+    CONCATENATE gc_text_alv_mas iv_codi_mat INTO lv_text_alv.
+    ASSIGN (lv_text_alv) TO <fs_lt_alv_mass>.
+    IF sy-subrc = 0.
+      LOOP AT <fs_lt_alv_mass> ASSIGNING FIELD-SYMBOL(<fs_alv_massa>).
+        <fs_alv_massa>-style = lt_style.
+        lr_alv_massa         = <fs_alv_massa>-alv.
+      ENDLOOP.
+    ENDIF.
+
+
+    IF lr_alv_comb IS BOUND AND lr_alv_massa IS BOUND.
+      fill_catalog( EXPORTING is_alv          = ls_alv_combustible
+                              iv_d1_informat  = lv_d1_informat
+                    IMPORTING et_fieldcat     = DATA(lt_fieldcat_comb) ).
+      lr_alv_comb->set_frontend_fieldcatalog( it_fieldcatalog = lt_fieldcat_comb ).
+
+      fill_catalog( EXPORTING is_alv          = ls_alv_massa
+                              iv_d1_informat  = lv_d1_informat
+                    IMPORTING et_fieldcat     = DATA(lt_fieldcat_mass) ).
+      lr_alv_massa->set_frontend_fieldcatalog( it_fieldcatalog = lt_fieldcat_mass ).
+
+      IF lv_d1_informat = abap_true.
+        lr_alv_comb->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+        lr_alv_massa->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+      ELSE.
+        lr_alv_comb->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+        lr_alv_massa->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+      ENDIF.
+
+      lr_alv_comb->refresh_table_display( ).
+      lr_alv_massa->refresh_table_display( ).
+    ENDIF.
+  ENDMETHOD.
+*******************************************************************************
+**  Determina si les puntuacions introduïdes són correctes per procedir amb el
+**  desar, o bé si hi ha errors que cal corregir
+*******************************************************************************
+  METHOD verifica_puntuacions.
+    DATA: ls_message  TYPE ty_s_err_message,
+          lv_text_alv TYPE string,
+          lv_material TYPE string,
+          lv_ko       TYPE abap_bool.
+
+    FIELD-SYMBOLS: <fs_lt_alv_comb> TYPE ty_t_alv_combustible,
+                   <fs_lt_alv_mass> TYPE ty_t_alv_massa.
+
+    rv_dades_ok = abap_true.
+
+    CLEAR: gt_missatges_error.
+
+    DO gv_num_materials TIMES.
+      CLEAR: lv_ko.
+      READ TABLE gt_dm_mat_co2 ASSIGNING FIELD-SYMBOL(<fs_material>) INDEX sy-index.
+      IF sy-subrc = 0.
+
+        lv_material = <fs_material>-z_codi_mat.
+        SHIFT lv_material LEFT DELETING LEADING '0'.
+
+        get_style_for_zd1(  EXPORTING iv_codi_mat     = CONV string( <fs_material>-z_codi_mat )
+                            IMPORTING ev_d1_informat  = DATA(lv_d1_informat) ).
+
+        IF lv_d1_informat = abap_true.
+          "Si han marcat D1, ha d'estar marcat almenys un flag a Massa i un a Combustible
+          "ALV Combustible
+          CLEAR lv_text_alv.
+          CONCATENATE gc_text_alv_comb lv_material INTO lv_text_alv.
+          ASSIGN (lv_text_alv) TO <fs_lt_alv_comb>.
+          IF sy-subrc = 0.
+            READ TABLE <fs_lt_alv_comb> TRANSPORTING NO FIELDS WITH KEY seleccio = abap_on.
+            IF sy-subrc <> 0.
+              lv_ko       = abap_true.
+              rv_dades_ok = abap_false.
+            ENDIF.
+          ENDIF.
+
+          "ALV Massa
+          CLEAR lv_text_alv.
+          CONCATENATE gc_text_alv_mas lv_material INTO lv_text_alv.
+          ASSIGN (lv_text_alv) TO <fs_lt_alv_mass>.
+          IF sy-subrc = 0.
+            READ TABLE <fs_lt_alv_mass> TRANSPORTING NO FIELDS WITH KEY seleccio = abap_on.
+            IF sy-subrc <> 0.
+              lv_ko       = abap_true.
+              rv_dades_ok = abap_false.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+
+      ENDIF.
+      IF lv_ko = abap_true.
+        CLEAR: ls_message.
+        ls_message-icon  = icon_red_light.
+        ls_message-descr = text-e02.
+        REPLACE FIRST OCCURRENCE OF '&' IN ls_message WITH lv_material.
+        APPEND ls_message TO gt_missatges_error.
+      ENDIF.
+    ENDDO.
+  ENDMETHOD.
+*******************************************************************************
+** Traslladem les puntuacions en format taula bbdd per a que es pugui fer el guardat
+*******************************************************************************
+  METHOD save_puntuacions.
+    DATA: lv_comptador_dist TYPE string,
+          lv_comptador_comb TYPE string,
+          lv_comptador_mass TYPE string,
+          lv_index          TYPE string.
+
+    DO gv_num_materials TIMES.
+      READ TABLE gt_dm_mat_co2 ASSIGNING FIELD-SYMBOL(<fs_material>) INDEX sy-index.
+      IF sy-subrc = 0.
+        "Traslladem les dades de les distàncies a la taula de base de dades
+        DATA(lv_index_dist) = CONV char1( 1 ).
+        LOOP AT gt_alv_principal INTO DATA(ls_alv_principal) WHERE z_codi_mat = <fs_material>-z_codi_mat.
+          READ TABLE gt_punt_co2 ASSIGNING FIELD-SYMBOL(<fs_punt_co2>) WITH KEY z_codi_mat = <fs_material>-z_codi_mat.
+          IF sy-subrc = 0.
+            CLEAR: lv_comptador_dist.
+            CONCATENATE gc_distancia lv_index_dist INTO lv_comptador_dist.
+            ASSIGN COMPONENT lv_comptador_dist OF STRUCTURE <fs_punt_co2> TO FIELD-SYMBOL(<fs_distancia>).
+            IF sy-subrc = 0.
+              ASSIGN COMPONENT gc_km OF STRUCTURE ls_alv_principal TO FIELD-SYMBOL(<fs_dist_alv>).
+              IF sy-subrc = 0.
+                <fs_distancia> = <fs_dist_alv>.
+              ENDIF.
+            ENDIF.
+            ADD 1 TO lv_index_dist.
+          ENDIF.
+        ENDLOOP.
+
+        "Traslladem les dades del combustible a la taula de base de dades
+        DATA(lv_index_comb) = CONV char1( 1 ).
+        LOOP AT gt_alv_combustible INTO DATA(ls_alv_combustible) WHERE z_codi_mat = <fs_material>-z_codi_mat.
+          READ TABLE gt_punt_co2 ASSIGNING <fs_punt_co2> WITH KEY z_codi_mat = <fs_material>-z_codi_mat.
+          IF sy-subrc = 0.
+            CLEAR: lv_comptador_comb.
+            CONCATENATE gc_combustible lv_index_comb INTO lv_comptador_comb.
+            ASSIGN COMPONENT lv_comptador_comb OF STRUCTURE <fs_punt_co2> TO FIELD-SYMBOL(<fs_combustible>).
+            IF sy-subrc = 0.
+              ASSIGN COMPONENT gc_seleccio OF STRUCTURE ls_alv_combustible TO FIELD-SYMBOL(<fs_comb_alv>).
+              IF sy-subrc = 0.
+                <fs_combustible> = <fs_comb_alv>.
+              ENDIF.
+            ENDIF.
+            ADD 1 TO lv_index_comb.
+          ENDIF.
+        ENDLOOP.
+
+        "Traslladem les dades de la massa a la taula de base de dades
+        DATA(lv_index_mass) = CONV char1( 1 ).
+        LOOP AT gt_alv_massa INTO DATA(ls_alv_massa) WHERE z_codi_mat = <fs_material>-z_codi_mat.
+          READ TABLE gt_punt_co2 ASSIGNING <fs_punt_co2> WITH KEY z_codi_mat = <fs_material>-z_codi_mat.
+          IF sy-subrc = 0.
+            CLEAR: lv_comptador_dist.
+            CONCATENATE gc_massa lv_index_mass INTO lv_comptador_mass.
+            ASSIGN COMPONENT lv_comptador_mass OF STRUCTURE <fs_punt_co2> TO FIELD-SYMBOL(<fs_massa>).
+            IF sy-subrc = 0.
+              ASSIGN COMPONENT gc_seleccio OF STRUCTURE ls_alv_massa TO FIELD-SYMBOL(<fs_mass_alv>).
+              IF sy-subrc = 0.
+                <fs_massa> = <fs_mass_alv>.
+              ENDIF.
+            ENDIF.
+            ADD 1 TO lv_index_mass.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+    ENDDO.
+
+  ENDMETHOD.
+*******************************************************************************
+** Retorna les puntuacions que s'han fet i amb el càlcul de la fòrmula de Z_PUNTS
+** per tal que es vegin els resultats a la graella de puntuacions
+*******************************************************************************
+  METHOD get_puntuacions.
+    "Actualitzem la taula de puntuacions amb els valors de les fòrmules
+    set_formula_punts( ).
+
+    et_punt_co2    = gt_punt_co2.
+    "Traspassem el valor de Z_PUNTS a la taula referent a la graella de puntuacions
+    LOOP AT gt_graella_puntuacio ASSIGNING FIELD-SYMBOL(<fs_change_punts>) WHERE z_codi_crit_punt = gv_codi_crit_punt
+                                                                             AND z_num_gen        = gv_num_ofer.
+
+      READ TABLE gt_punt_co2 ASSIGNING FIELD-SYMBOL(<fs_punt_co2>) WITH KEY z_codi_crit_punt = gv_codi_crit_punt
+                                                                            z_num_ofer       = gv_num_ofer.
+      IF sy-subrc = 0.
+        <fs_change_punts>-z_punts         = <fs_punt_co2>-z_punts.
+        <fs_change_punts>-z_punts_no_pond = <fs_punt_co2>-z_punts.
+      ENDIF.
+    ENDLOOP.
+    et_punts_offer = gt_graella_puntuacio.
+  ENDMETHOD.
+
+  METHOD free_variables.
+    TRY.
+
+        IF gr_docking               IS BOUND. gr_docking->free( ).                ENDIF.
+        CLEAR: gr_docking, gr_splitter.
+        CLEAR: gr_container_1_1, gr_container_1_2, gr_container_1_3,
+               gr_container_2_1, gr_container_2_2, gr_container_2_3,
+               gr_container_3_1, gr_container_3_2, gr_container_3_3,
+               gr_container_4_1, gr_container_4_2, gr_container_4_3,
+               gr_container_5_1, gr_container_5_2, gr_container_5_3,
+               gr_container_6_1 ,gr_container_6_2, gr_container_6_3,
+               gr_container_7_1, gr_container_7_2, gr_container_7_3, "SPEC-87757
+               gr_container_8_1, gr_container_8_2, gr_container_8_3, "SPEC-87757
+               gr_container_9_1, gr_container_9_2, gr_container_9_3. "SPEC-87757
+
+
+        CLEAR: gr_alv_1_1, gr_alv_1_2, gr_alv_1_3,
+               gr_alv_2_1, gr_alv_2_2, gr_alv_2_3,
+               gr_alv_3_1, gr_alv_3_2, gr_alv_3_3,
+               gr_alv_4_1, gr_alv_4_2, gr_alv_4_3,
+               gr_alv_5_1, gr_alv_5_2, gr_alv_5_3,
+               gr_alv_6_1, gr_alv_6_2, gr_alv_6_3,
+               gr_alv_7_1, gr_alv_7_2, gr_alv_7_3, "SPEC-87757
+               gr_alv_8_1, gr_alv_8_2, gr_alv_8_3, "SPEC-87757
+               gr_alv_9_1, gr_alv_9_2, gr_alv_9_3. "SPEC-87757
+
+      CATCH cx_root.
+        EXIT.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD set_flag_changes.
+    gv_changes_done = iv_changes.
+  ENDMETHOD.
+
+  METHOD get_flag_changes.
+    rv_changes = gv_changes_done.
+  ENDMETHOD.
+
+  METHOD create_alv.
+    CALL SCREEN '1005'.
+  ENDMETHOD.
+
+  METHOD show_alv.
+    IF gr_docking IS INITIAL.
+      crea_split_container( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD user_command.
+    DATA: lv_answer TYPE c.
+    CASE iv_ucomm.
+      WHEN 'BACK'.
+*          gt_alv_comb_mat_1
+
+        IF gv_readonly = abap_on.
+          gv_changes_done   = abap_off.
+          gv_cancel_changes = abap_off.
+        ELSE.
+          IF get_flag_changes( ) = abap_on.
+            CLEAR:lv_answer.
+
+            CALL FUNCTION 'POPUP_TO_CONFIRM'
+              EXPORTING
+                titlebar              = text-i01
+                text_question         = text-i00
+                display_cancel_button = abap_off
+              IMPORTING
+                answer                = lv_answer.
+            IF lv_answer = '1'. "Desar
+              IF verifica_puntuacions( ) = abap_true.
+                save_puntuacions( ).
+              ELSE.
+                CALL FUNCTION 'ZPOPUP_WITH_TABLE'
+                  EXPORTING
+                    endpos_col   = 130
+                    endpos_row   = 20
+                    startpos_col = 20
+                    startpos_row = 10
+                    titletext    = text-e01
+                  TABLES
+                    valuetab     = gt_missatges_error
+                  EXCEPTIONS
+                    OTHERS       = 0.
+                EXIT.
+              ENDIF.
+            ELSE.
+              "Si es cancel·len els canvis s'ha de forçar que no actualitzi els valors
+              set_flag_changes( abap_off ).
+            ENDIF.
+          ENDIF.
+        ENDIF.
+        CALL METHOD cl_gui_cfw=>flush.
+        LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+      WHEN OTHERS.
+        EXIT.
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD get_materials_param.
+    CLEAR: gt_dm_mat_co2, gv_num_materials.
+    ">> SPEC-72720, Inici Modificació - ETODR
+*    SELECT *
+*      FROM zrm_dm_mat_co2
+*      INTO TABLE gt_dm_mat_co2
+*      WHERE z_mod_crit_punt = gv_mod_crit_punt.
+    IF gv_nlot IS INITIAL.
+      SELECT *
+        FROM zrm_dm_mat_co2
+        INTO TABLE gt_dm_mat_co2
+        WHERE z_mod_crit_punt = gv_mod_crit_punt
+          AND docclass        = gv_docclass
+          AND objectid        = gv_objectid.
+    ELSE.
+      SELECT *
+        FROM zrm_dm_mat_co2
+        INTO TABLE gt_dm_mat_co2
+        WHERE z_mod_crit_punt = gv_mod_crit_punt
+          AND docclass        = gv_docclass
+          AND objectid        = gv_objectid
+          AND znlot           = gv_nlot.
+    ENDIF.
+    "<< SPEC-72720, Final Modificació - ETODR
+
+    DESCRIBE TABLE gt_dm_mat_co2 LINES gv_num_materials.
+
+    IF gv_num_materials IS INITIAL.
+      gv_num_materials = 1.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_materials_formula.
+
+    SELECT *
+      FROM zrm_dm_for_co2
+      INTO TABLE gt_dm_for_co2
+      WHERE z_mod_crit_punt = gv_mod_crit_punt.
+
+  ENDMETHOD.
+*******************************************************************************
+** Crea els splitters ALV. Tantes columnes com MATERIALS hi hagi parametritzats
+** i per cada Material, 3 ALV referents a Distància, Combustible i Massa Màx. Aut.
+*******************************************************************************
+  METHOD crea_split_container.
+
+    DATA: lt_fieldcat_pri    TYPE lvc_t_fcat,
+          lt_fieldcat_com    TYPE lvc_t_fcat,
+          lt_fieldcat_mas    TYPE lvc_t_fcat,
+          lt_fieldcat        TYPE lvc_t_fcat,
+          lt_excluded        TYPE ui_functions,
+          ls_exclude         TYPE ui_func,
+          ls_alv_principal   TYPE ty_s_alv_principal,
+          ls_alv_combustible TYPE ty_s_alv_combustible,
+          ls_alv_massa       TYPE ty_s_alv_massa,
+          is_estable         TYPE lvc_s_stbl.
+
+    DATA: lv_comptador_alv       TYPE string,
+          lv_comptador_gralv     TYPE string,
+          lv_comptador_container TYPE string.
+
+    FIELD-SYMBOLS: <fs_gralv> TYPE REF TO cl_gui_alv_grid.
+    FIELD-SYMBOLS: <fs_container> TYPE REF TO cl_gui_container.
+    FIELD-SYMBOLS: <fs_gtalv> TYPE ANY TABLE.
+
+    CLEAR: lt_excluded[].
+    ls_exclude = cl_gui_alv_grid=>mc_fc_excl_all.
+    APPEND ls_exclude TO lt_excluded.
+
+* Es crea el docking container
+    CREATE OBJECT gr_docking
+      EXPORTING
+        repid      = sy-repid
+        dynnr      = sy-dynnr
+        side       = cl_gui_docking_container=>dock_at_top
+        extension  = 300
+        ratio      = 90
+      EXCEPTIONS
+        cntl_error = 1
+        OTHERS     = 2.
+    CHECK sy-subrc = 0.
+
+* Es crea el splitter container
+    CREATE OBJECT gr_splitter
+      EXPORTING
+        link_dynnr = sy-dynnr
+        link_repid = sy-repid
+        parent     = gr_docking
+        rows       = 3
+        columns    = gv_num_materials
+      EXCEPTIONS
+        OTHERS     = 1.
+    CHECK sy-subrc = 0.
+
+
+** Es creen els contenidors de cada divisió
+
+    fill_catalog( EXPORTING is_alv      = ls_alv_principal
+                  IMPORTING et_fieldcat = lt_fieldcat_pri ).
+
+    DO gv_num_materials TIMES.
+      DATA(lv_index_material) = CONV char1( sy-index ).
+
+      get_style_for_zd1(  EXPORTING iv_codi_mat     = CONV string( lv_index_material )
+                          IMPORTING ev_d1_informat  = DATA(lv_d1_informat) ).
+      CLEAR: lt_fieldcat_com, lt_fieldcat_mas.
+
+      fill_catalog( EXPORTING is_alv          = ls_alv_combustible
+                              iv_d1_informat  = lv_d1_informat
+                    IMPORTING et_fieldcat     = lt_fieldcat_com ).
+
+      fill_catalog( EXPORTING is_alv          = ls_alv_massa
+                              iv_d1_informat  = lv_d1_informat
+                    IMPORTING et_fieldcat     = lt_fieldcat_mas ).
+
+      DO 3 TIMES. "Un cop tenim els contenidors genèrics, generem els contenidors de les ALV i aquestes
+        DATA(lv_index_row) = CONV char1( sy-index ).
+        CLEAR: lv_comptador_alv, lv_comptador_container, lv_comptador_gralv.
+
+        READ TABLE gt_dm_mat_co2 ASSIGNING FIELD-SYMBOL(<fs_material>) INDEX lv_index_material.
+        IF sy-subrc = 0.
+
+          set_layout( EXPORTING iv_title  = CONV #( <fs_material>-z_descripcio )
+                      IMPORTING es_layout = DATA(ls_layout) ).
+
+          CONCATENATE gc_text_grcontainer lv_index_material '_' lv_index_row INTO lv_comptador_container.
+          SHIFT lv_comptador_container LEFT DELETING LEADING space.
+          ASSIGN (lv_comptador_container) TO <fs_container>.
+          CHECK sy-subrc = 0.
+
+
+          CONCATENATE gc_text_gralv lv_index_material '_' lv_index_row INTO lv_comptador_gralv.
+          SHIFT lv_comptador_gralv LEFT DELETING LEADING space.
+          ASSIGN (lv_comptador_gralv) TO <fs_gralv>.
+          CHECK sy-subrc = 0.
+
+** Es creen els contenidors la ALV del material i fila actual
+          CALL METHOD gr_splitter->get_container
+            EXPORTING
+              row       = CONV #( lv_index_row )
+              column    = CONV #( lv_index_material )
+            RECEIVING
+              container = <fs_container>.
+
+** Es creen la ALV del material i fila actual
+          CREATE OBJECT <fs_gralv>
+            EXPORTING
+              i_parent = <fs_container>
+            EXCEPTIONS
+              OTHERS   = 1.
+          CHECK sy-subrc = 0.
+
+
+          "En funció de la fila, creem taula i el gestor d'edevenimets de distància, combustible o massa
+          CASE lv_index_row.
+            WHEN 1.
+              CONCATENATE gc_text_alv_dist lv_index_material INTO lv_comptador_alv.
+
+              SET HANDLER gr_util_co2->handle_alv_pri_changed FOR <fs_gralv>.
+
+              lt_fieldcat = lt_fieldcat_pri.
+            WHEN 2.
+              CONCATENATE gc_text_alv_comb lv_index_material INTO lv_comptador_alv.
+              SET HANDLER gr_util_co2->handle_alv_comb_changed FOR <fs_gralv>.
+
+              lt_fieldcat = lt_fieldcat_com.
+
+            WHEN 3.
+              CONCATENATE gc_text_alv_mas lv_index_material INTO lv_comptador_alv.
+
+              SET HANDLER gr_util_co2->handle_alv_massa_changed FOR <fs_gralv>.
+
+              lt_fieldcat = lt_fieldcat_mas.
+
+            WHEN OTHERS.
+              CONTINUE.
+          ENDCASE.
+
+          <fs_gralv>->register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+
+          SHIFT lv_comptador_alv LEFT DELETING LEADING space.
+          ASSIGN (lv_comptador_alv) TO <fs_gtalv>.
+          CHECK sy-subrc = 0.
+
+          LOOP AT <fs_gtalv> ASSIGNING FIELD-SYMBOL(<fs_alv_line>).
+            ASSIGN COMPONENT 'ALV' OF STRUCTURE <fs_alv_line> TO FIELD-SYMBOL(<fs_alv_value>).
+            IF sy-subrc = 0.
+              <fs_alv_value> = <fs_gralv>.
+            ENDIF.
+          ENDLOOP.
+
+          <fs_gralv>->set_table_for_first_display( EXPORTING  is_layout             = ls_layout
+                                                              it_toolbar_excluding  = lt_excluded
+                                                   CHANGING   it_outtab             = <fs_gtalv>
+                                                              it_fieldcatalog       = lt_fieldcat
+                                                   EXCEPTIONS OTHERS                = 1 ).
+          CHECK sy-subrc = 0.
+
+          IF gv_readonly = abap_on.
+            <fs_gralv>->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+          ELSE.
+            IF lv_index_row > 1.
+              IF lv_d1_informat = abap_true.
+                <fs_gralv>->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+              ELSE.
+                <fs_gralv>->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+              ENDIF.
+            ELSE.
+              <fs_gralv>->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDDO.
+    ENDDO.
+
+
+  ENDMETHOD.
+
+*  METHOD crea_split_container_old.
+*
+*    DATA: lt_fieldcat_pri    TYPE lvc_t_fcat,
+*          lt_fieldcat_com    TYPE lvc_t_fcat,
+*          lt_fieldcat_mas    TYPE lvc_t_fcat,
+*          lt_excluded        TYPE ui_functions,
+*          ls_exclude         TYPE ui_func,
+*          ls_alv_principal   TYPE ty_s_alv_principal,
+*          ls_alv_combustible TYPE ty_s_alv_combustible,
+*          ls_alv_massa       TYPE ty_s_alv_massa,
+*          is_estable         TYPE lvc_s_stbl,
+*          ls_layout_pri      TYPE lvc_s_layo,
+*          ls_layout_com      TYPE lvc_s_layo,
+*          ls_layout_mas      TYPE lvc_s_layo.
+*
+*    CLEAR: lt_excluded[].
+*    ls_exclude = cl_gui_alv_grid=>mc_fc_excl_all.
+*    APPEND ls_exclude TO lt_excluded.
+*
+** Es crea el docking container
+*    CREATE OBJECT gr_docking
+*      EXPORTING
+*        repid      = sy-repid
+*        dynnr      = sy-dynnr
+*        side       = cl_gui_docking_container=>dock_at_top
+*        extension  = 300
+*        ratio      = 90
+*      EXCEPTIONS
+*        cntl_error = 1
+*        OTHERS     = 2.
+*    CHECK sy-subrc = 0.
+*
+** Es crea el splitter container
+*    CREATE OBJECT gr_splitter
+*      EXPORTING
+*        link_dynnr = sy-dynnr
+*        link_repid = sy-repid
+*        parent     = gr_docking
+*        rows       = 3
+*        columns    = 1
+*      EXCEPTIONS
+*        OTHERS     = 1.
+*    CHECK sy-subrc = 0.
+*
+*
+** Es creen els contenidors de cada divisió
+*    CALL METHOD gr_splitter->get_container
+*      EXPORTING
+*        row       = 1
+*        column    = 1
+*      RECEIVING
+*        container = gr_container_principal.
+*    CALL METHOD gr_splitter->get_container
+*      EXPORTING
+*        row       = 2
+*        column    = 1
+*      RECEIVING
+*        container = gr_container_combustible.
+*
+*    CALL METHOD gr_splitter->get_container
+*      EXPORTING
+*        row       = 3
+*        column    = 1
+*      RECEIVING
+*        container = gr_container_massa.
+*
+*
+** Es creen les tres ALV
+*    CREATE OBJECT gr_alv_principal
+*      EXPORTING
+*        i_parent = gr_container_principal
+*      EXCEPTIONS
+*        OTHERS   = 1.
+*    CHECK sy-subrc = 0.
+*
+*    CREATE OBJECT gr_alv_combustible
+*      EXPORTING
+*        i_parent = gr_container_combustible
+*      EXCEPTIONS
+*        OTHERS   = 1.
+*    CHECK sy-subrc = 0.
+*    CREATE OBJECT gr_alv_massa
+*      EXPORTING
+*        i_parent = gr_container_massa
+*      EXCEPTIONS
+*        OTHERS   = 1.
+*    CHECK sy-subrc = 0.
+*
+*
+*    set_layout( EXPORTING iv_title      = space
+*                IMPORTING es_layout     = DATA(ls_layout) ).
+*    ls_layout_pri = ls_layout_com = ls_layout_mas = ls_layout.
+*
+*    fill_catalog( EXPORTING is_alv      = ls_alv_principal
+*                  IMPORTING et_fieldcat = lt_fieldcat_pri ).
+*
+*    fill_catalog( EXPORTING is_alv      = ls_alv_combustible
+*                  IMPORTING et_fieldcat = lt_fieldcat_com ).
+*
+*    fill_catalog( EXPORTING is_alv      = ls_alv_massa
+*                  IMPORTING et_fieldcat = lt_fieldcat_mas ).
+*
+***"S'omple l'ALV referent a la ALV principal
+** --------------------------------------------------------------------*
+*** Aplicar el manegador del hotspot.
+*    SET HANDLER gr_util_co2->handle_alv_pri_changed FOR gr_alv_principal.
+*    gr_alv_principal->register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+** --------------------------------------------------------------------*
+*
+*    gr_alv_principal->set_table_for_first_display( EXPORTING  is_layout             = ls_layout_pri
+*                                                              it_toolbar_excluding  = lt_excluded
+*                                                   CHANGING   it_outtab             = gt_alv_principal
+*                                                              it_fieldcatalog       = lt_fieldcat_pri
+*                                                   EXCEPTIONS OTHERS                = 1 ).
+*    CHECK sy-subrc = 0.
+****"S'omple l'ALV referent al combustible
+** --------------------------------------------------------------------*
+*** Aplicar el manegador del hotspot.
+*    SET HANDLER gr_util_co2->handle_hotspot_click_comb FOR gr_alv_combustible.
+*    gr_alv_combustible->register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+** --------------------------------------------------------------------*
+*    gr_alv_combustible->set_table_for_first_display( EXPORTING  is_layout            = ls_layout_com
+*                                                                it_toolbar_excluding = lt_excluded
+*                                                     CHANGING   it_outtab            = gt_alv_combustible
+*                                                                it_fieldcatalog      = lt_fieldcat_com
+*                                                     EXCEPTIONS OTHERS               = 1 ).
+*    CHECK sy-subrc = 0.
+*
+****"S'omple l'ALV referent a la massa
+** --------------------------------------------------------------------*
+*** Aplicar el manegador del hotspot.
+*    SET HANDLER gr_util_co2->handle_hotspot_click_mass FOR gr_alv_massa.
+*    gr_alv_massa->register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+** --------------------------------------------------------------------*
+*    gr_alv_massa->set_table_for_first_display( EXPORTING  is_layout             = ls_layout_mas
+*                                                          it_toolbar_excluding  = lt_excluded
+*                                               CHANGING   it_outtab             = gt_alv_massa
+*                                                          it_fieldcatalog       = lt_fieldcat_mas
+*                                               EXCEPTIONS OTHERS                = 1 ).
+*    CHECK sy-subrc = 0.
+*
+*
+*    IF gv_readonly = abap_on.
+*      gr_alv_principal->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+*      gr_alv_combustible->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+*      gr_alv_massa->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+*    ELSE.
+*      gr_alv_principal->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+*      IF gv_d1_informat = abap_true.
+*        gr_alv_combustible->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+*        gr_alv_massa->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+*      ELSE.
+*        gr_alv_combustible->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+*        gr_alv_massa->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+*      ENDIF.
+*    ENDIF.
+*  ENDMETHOD.
+
+  METHOD set_layout.
+
+    es_layout-smalltitle = abap_on.
+    es_layout-grid_title = iv_title.
+    es_layout-no_totline = abap_off.
+    es_layout-no_toolbar = abap_off.
+    es_layout-no_rowins  = abap_on.
+    es_layout-no_rowmove = abap_on.
+    es_layout-zebra      = abap_on.
+    es_layout-numc_total = abap_off.
+    es_layout-col_opt    = abap_on.
+    es_layout-sel_mode   = 'A'.
+
+  ENDMETHOD.
+
+  METHOD fill_catalog.
+    DATA: lr_desc TYPE REF TO cl_abap_structdescr,
+          ls_fcat TYPE lvc_s_fcat,
+          lv_tag  TYPE lvc_fname.
+
+    lr_desc ?= cl_abap_typedescr=>describe_by_data( is_alv ).
+    DATA(lt_components) = lr_desc->get_components( ).
+    LOOP AT lt_components ASSIGNING FIELD-SYMBOL(<fs_component>).
+      lv_tag = <fs_component>-name.
+      IF lv_tag <> gc_cell_style AND lv_tag <> gc_tag_alv.
+        set_description( EXPORTING iv_tag         = lv_tag
+                                   ir_type        = <fs_component>-type
+                                   iv_d1_informat = iv_d1_informat
+                         CHANGING  ct_fieldcat    = et_fieldcat ).
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD set_description.
+    DATA: lr_element TYPE REF TO cl_abap_elemdescr,
+          ls_field   TYPE dfies,
+          ls_fcat    TYPE lvc_s_fcat.
+
+    lr_element ?= ir_type.
+    CHECK lr_element IS BOUND.
+    IF iv_tag = gc_seleccio.
+      ls_fcat-fieldname     = gc_seleccio.
+      ls_fcat-outputlen     = 8.
+      ls_fcat-just          = 'L'.
+      IF gv_readonly IS INITIAL AND iv_d1_informat = abap_true.
+        ls_fcat-edit          = abap_true.
+        ls_fcat-checkbox      = abap_true.
+      ELSE.
+        ls_fcat-just          = 'C'.
+        ls_fcat-checkbox      = abap_true.
+      ENDIF.
+      ls_fcat-scrtext_s     = gc_text_seleccio.
+      ls_fcat-scrtext_m     = gc_text_seleccio.
+      ls_fcat-scrtext_l     = gc_text_seleccio.
+
+    ELSEIF iv_tag CS gc_distancia OR iv_tag = gc_tag_omplert OR iv_tag CS gc_combustible OR iv_tag CS gc_massa.
+      ls_fcat-fieldname = iv_tag.
+      ls_fcat-no_out    = abap_on.
+      ls_fcat-reptext   = iv_tag.
+
+    ELSE.
+      lr_element->get_ddic_field(   RECEIVING   p_flddescr   = ls_field
+                                    EXCEPTIONS  OTHERS       = 0  ).
+      IF ls_field IS INITIAL.
+        ls_fcat-reptext     = iv_tag.
+        ls_fcat-scrtext_l   = iv_tag.
+        ls_fcat-scrtext_m   = iv_tag.
+        ls_fcat-scrtext_s   = iv_tag.
+        ls_fcat-fieldname   = iv_tag.
+      ELSE.
+        ls_fcat-reptext     = ls_field-scrtext_l.
+        ls_fcat-scrtext_l   = ls_field-scrtext_l.
+        ls_fcat-scrtext_m   = ls_field-scrtext_m.
+        ls_fcat-scrtext_s   = ls_field-scrtext_s.
+        ls_fcat-fieldname   = iv_tag.
+      ENDIF.
+
+      IF iv_tag = gc_material.
+        ls_fcat-no_out = abap_on.
+      ENDIF.
+
+      IF iv_tag = gc_km.
+
+        ">>>SPEC:80115, Inici modificació - 27.11.2023 12:31:02
+        ls_fcat-decimals   = lr_element->decimals.
+        ">>>SPEC:80115, Final modificació - 27.11.2023 12:31:02
+
+        IF gv_readonly IS INITIAL.
+          ls_fcat-edit          = abap_true.
+        ELSE.
+          ls_fcat-edit          = abap_false.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    ls_fcat-col_opt = abap_on.
+    APPEND ls_fcat TO ct_fieldcat.
+  ENDMETHOD.
+ENDCLASS.

@@ -1,0 +1,262 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESF06.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  CRIDA_PUNTUA_EQUIP_MAX
+*&---------------------------------------------------------------------*
+FORM crida_puntua_equip_max USING   pt_graella_criteris TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt
+                                    pt_graella_equip    TYPE zrm_tt_dt_punt_equi
+                                    p_readonly          TYPE xfeld
+                                    p_objectid          TYPE bapiguid
+                                    p_docclass          TYPE bapidclass
+                                    p_num_ofer          TYPE z_num_ofer
+                           CHANGING c_no_changes        TYPE xfeld
+                                    ct_max_punts_carrec TYPE ztt_equip_max
+                                    ct_punt_offers      TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                                    ct_puntuacio        TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats.
+  CREATE OBJECT gr_util_alv
+    EXPORTING
+      it_graella_criteris = pt_graella_criteris
+      it_equip            = pt_graella_equip
+      it_puntuacio        = ct_puntuacio
+      i_readonly          = p_readonly
+      i_objectid          = p_objectid
+      i_docclass          = p_docclass
+      i_num_oferta        = p_num_ofer.
+
+  CLEAR ct_puntuacio[].
+
+  CHECK gr_util_alv IS BOUND.
+
+  gr_util_alv->create_alv( ).
+  IF gr_util_alv->get_flag_changes( ) = abap_on.
+    c_no_changes = abap_off.
+    gr_util_alv->get_max_puntuacions( IMPORTING et_max_punts_carrec = ct_max_punts_carrec
+                                                et_punt_offers      = ct_punt_offers
+                                                et_puntuacio        = ct_puntuacio ).
+  ELSE.
+    c_no_changes = abap_on.
+  ENDIF.
+  gr_util_alv->free_variables( ).
+  FREE gr_util_alv.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0700  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_0700 OUTPUT.
+  ">>>SPEC-56253, Inici modificació  - ETODR
+*  IF g_readonly = abap_off.
+*    SET PF-STATUS 'STATUS_EQUIP_MAX'.
+*  ELSE.
+*    SET PF-STATUS 'VACIO'.
+*  ENDIF.
+  SET PF-STATUS 'STATUS_EQUIP_MAX'.
+  "<<<SPEC-56253, Final modificació - ETODR
+  SET TITLEBAR  'TITOL_EQUIP_MAX'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  SHOW_ALV  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE show_alv OUTPUT.
+  gr_util_alv->show_alv( ).
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0701  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_0701 OUTPUT.
+  SET PF-STATUS 'VACIO_EQUI'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  SHOW_ALV_0701  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE show_alv_0701 OUTPUT.
+  gr_util_alv->show_alv_modif_carrecs( ).
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Form  CRIDA_PUNTUA_INCR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_IT_GRAELLA_CRITERIS  text
+*      -->P_IT_GRAELLA_EQUIP  text
+*      -->P_I_READONLY  text
+*      -->P_IM_OBJECTID  text
+*      -->P_IM_DOCCLASS  text
+*      -->P_IM_NUM_OFER  text
+*      <--P_LV_NO_CHANGES  text
+*      <--P_ET_INCR  text
+*      <--P_ET_PUNTS_OFFER  text
+*----------------------------------------------------------------------*
+FORM crida_puntua_incr  USING    pt_graella_criteris TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt
+                                 pt_graella_incr     TYPE ztt_punt_incr
+                                 pv_readonly         TYPE xfeld
+                                 pv_objectid         TYPE bapiguid
+                                 pv_docclass         TYPE bapidclass
+                                 pv_num_ofer         TYPE z_num_ofer
+                        CHANGING pv_no_changes       TYPE xfeld
+                                 pt_incr             TYPE ztt_punt_incr
+                                 pt_punts_offer      TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen.
+
+
+
+  CREATE OBJECT gr_util_incr
+    EXPORTING
+      it_incr      = pt_graella_incr
+      it_puntuacio = pt_punts_offer
+      i_readonly   = pv_readonly.
+
+  CHECK gr_util_incr IS BOUND.
+*  gv_t = p_num_ofer.
+  gr_util_incr->create_alv( ).
+
+  gr_util_incr->get_puntuacions(
+      IMPORTING et_puntuacio   = pt_punts_offer
+                et_incr        = pt_incr
+                et_no_changes  = pv_no_changes ).
+
+  gr_util_incr->free_variables( ).
+
+
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  CRIDA_PUNTUA_INCR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_IT_GRAELLA_CRITERIS  text
+*      -->P_IT_GRAELLA_EQUIP  text
+*      -->P_I_READONLY  text
+*      -->P_IM_OBJECTID  text
+*      -->P_IM_DOCCLASS  text
+*      -->P_IM_NUM_OFER  text
+*      <--P_LV_NO_CHANGES  text
+*      <--P_ET_INCR  text
+*      <--P_ET_PUNTS_OFFER  text
+*----------------------------------------------------------------------*
+FORM crida_puntua_incr_equip
+     USING pt_graella_incr     TYPE zrm_tt_dt_punt_equi
+           pv_readonly         TYPE xfeld
+           pv_objectid         TYPE bapiguid
+           pv_docclass         TYPE bapidclass
+           pv_num_ofer         TYPE z_num_ofer
+    CHANGING pv_no_changes       TYPE xfeld
+             pt_incr             TYPE zrm_tt_dt_punt_equi
+             pt_punts_offer      TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen.
+
+
+  IF gr_util_incr_equip IS NOT BOUND.
+    CREATE OBJECT gr_util_incr_equip
+      EXPORTING
+        it_incr      = pt_graella_incr
+        it_puntuacio = pt_punts_offer
+        i_readonly   = pv_readonly.
+  ENDIF.
+
+  CHECK gr_util_incr_equip IS BOUND.
+*  gv_t = p_num_ofer.
+  gr_util_incr_equip->create_alv( ).
+
+  gr_util_incr_equip->get_puntuacions(
+      IMPORTING et_puntuacio   = pt_punts_offer
+                et_incr        = pt_incr
+                et_no_changes  = pv_no_changes ).
+
+  gr_util_incr_equip->free_variables( ).
+
+
+
+
+ENDFORM.
+
+">>>SPEC:67070, Inici modificació - ECJMS
+
+FORM crida_puntua_incr_obj
+      USING pt_graella_criteris TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt
+            pt_graella_equip    TYPE zrm_tt_dt_punt_equi
+            pv_readonly         TYPE xfeld
+            pv_objectid         TYPE bapiguid
+            pv_docclass         TYPE bapidclass
+            pv_num_ofer         TYPE z_num_ofer
+            pv_mod_crit_punt    TYPE z_mod_crit_punt
+      CHANGING cv_no_changes    TYPE xfeld
+               ct_punt_equi     TYPE zrm_tt_dt_punt_equi
+               ct_punts_offer   TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen.
+
+  DATA: lt_incr_style TYPE zrm_tt_dt_punt_equi_amp.
+
+  CLEAR lt_incr_style.
+  MOVE-CORRESPONDING ct_punt_equi TO lt_incr_style.
+
+  CREATE OBJECT gr_util_incr_obj
+    EXPORTING
+      it_equip         = pt_graella_equip
+      it_graella_crits = pt_graella_criteris
+      iv_mod_crit_punt = pv_mod_crit_punt
+      it_puntuacio     = ct_punts_offer
+      i_readonly       = pv_readonly.
+
+  CHECK gr_util_incr_obj IS BOUND.
+
+  gr_util_incr_obj->create_alv( ).
+
+  gr_util_incr_obj->get_valors_finals(
+      IMPORTING et_puntuacio   = ct_punts_offer
+                et_equip       = ct_punt_equi
+                et_no_changes  = cv_no_changes ).
+
+*  MOVE-CORRESPONDING lt_incr_style TO ct_punt_equi.
+
+  gr_util_incr_obj->free_variables( ).
+
+ENDFORM.
+
+FORM crida_puntua_incr_equip_obj
+     USING pt_graella_incr     TYPE zrm_tt_dt_punt_equi
+           pv_readonly         TYPE xfeld
+           pv_objectid         TYPE bapiguid
+           pv_docclass         TYPE bapidclass
+           pv_num_ofer         TYPE z_num_ofer
+     CHANGING pv_no_changes       TYPE xfeld
+              pt_incr             TYPE zrm_tt_dt_punt_equi
+              pt_punts_offer      TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen.
+
+  DATA it_incr TYPE zrm_tt_dt_punt_equi_amp.
+
+  CLEAR it_incr.
+  MOVE-CORRESPONDING pt_incr TO it_incr.
+
+  IF gr_util_incr_equip_obj IS NOT BOUND.
+    CREATE OBJECT gr_util_incr_equip_obj
+      EXPORTING
+        it_incr      = pt_graella_incr
+        it_puntuacio = pt_punts_offer
+        i_readonly   = pv_readonly.
+  ENDIF.
+
+  CHECK gr_util_incr_equip_obj IS BOUND.
+
+  gr_util_incr_equip_obj->create_alv( ).
+
+  gr_util_incr_equip_obj->get_puntuacions(
+      IMPORTING et_puntuacio   = pt_punts_offer
+                et_incr        = it_incr
+                et_no_changes  = pv_no_changes ).
+
+  MOVE-CORRESPONDING it_incr TO pt_incr.
+
+  gr_util_incr_equip_obj->free_variables( ).
+
+ENDFORM.
+"<<<SPEC:67070, Final modificació - ECJMS

@@ -1,0 +1,509 @@
+*&---------------------------------------------------------------------*
+*&  Include           LZRM_VALORACIO_OFERTESCL4
+*&---------------------------------------------------------------------*
+
+CLASS lcl_alv_0800_util DEFINITION FINAL.
+  PUBLIC SECTION.
+    CONSTANTS: co_cell_color TYPE string  VALUE 'CELL_COLOR',
+               co_cell_style TYPE string  VALUE 'CELL_STYLE'.
+
+    DATA: g_changes_done          TYPE xfeld VALUE abap_off,
+          t_fcat                  TYPE lvc_t_fcat,
+          gr_cont_pdm             TYPE REF TO cl_gui_custom_container,
+          gr_alv_pdm_equip        TYPE REF TO cl_gui_alv_grid,
+          my_current_line         TYPE lvc_s_row,
+          my_equip_for_pdm        TYPE ztt_punt_equi,
+          my_exp_cont             TYPE zrm_dt_exp_cont,
+          my_company_name         TYPE string,
+          my_puntuacions_inicials TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen,
+          my_carrecs              TYPE tty_carrec,
+          my_equip                TYPE zrm_tt_dt_punt_equi,
+          my_num_oferta           TYPE z_num_ofer,
+          my_objectid             TYPE bapiguid,
+          my_doclass              TYPE bapidclass,
+          my_mod_crit_punt        TYPE zrm_dm_crit_punt-z_mod_crit_punt,
+          my_readonly             TYPE xfeld.
+
+    METHODS constructor IMPORTING it_equip     TYPE zrm_tt_dt_punt_equi
+                                  it_puntuacio TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                                  i_readonly   TYPE xfeld
+                                  i_objectid   TYPE bapiguid
+                                  i_docclass   TYPE bapidclass
+                                  i_num_oferta TYPE z_num_ofer.
+    METHODS create_alv.
+    METHODS show_alv.
+    METHODS handle_dedicacio_changed       FOR EVENT data_changed   OF cl_gui_alv_grid IMPORTING er_data_changed.
+    METHODS set_layout    EXPORTING es_layout   TYPE lvc_s_layo.
+    METHODS fill_catalog  EXPORTING et_fieldcat TYPE lvc_t_fcat.
+    METHODS user_command     IMPORTING i_ucomm TYPE syst_ucomm.
+    METHODS free_variables.
+    METHODS check_dedicacio_introduida RETURNING VALUE(r_dedicacio_ok) TYPE xfeld.
+    METHODS get_flag_changes RETURNING VALUE(r_changes) TYPE xfeld.
+    METHODS set_flag_changes IMPORTING i_changes TYPE xfeld.
+    METHODS get_pdm_puntuacions CHANGING ct_punts_offer TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen.
+ENDCLASS.
+
+
+CLASS lcl_alv_0800_util IMPLEMENTATION.
+**********************************************************************************************
+*                                         PUBLIC SECTION                                     *
+**********************************************************************************************
+*---------------------------------------------------------------------*
+* METHOD CONSTRUCTOR
+*---------------------------------------------------------------------*
+* Mètode constructor.
+*---------------------------------------------------------------------*
+  METHOD constructor.
+    DATA: wa_dades_equip_pdm TYPE zty_dades_equip.
+
+    SELECT SINGLE *
+      FROM zrm_dt_exp_cont
+      INTO @my_exp_cont
+      WHERE docclass = @i_docclass
+        AND objectid = @i_objectid.
+
+*-- Nom sencer del proveidor ------------------------------------
+    SELECT SINGLE proveidor
+      FROM zrm_dt_ofertes
+      INTO @DATA(lv_lifnr)
+      WHERE objectid    = @i_objectid
+        AND docclass    = @i_docclass
+        AND z_num_ofer  = @i_num_oferta.
+    IF sy-subrc = 0 AND lv_lifnr IS NOT INITIAL.
+      SELECT SINGLE name1,name2,name3,name4
+        FROM lfa1
+        INTO (@DATA(l_name1),@DATA(l_name2),@DATA(l_name3),@DATA(l_name4))
+        WHERE lifnr EQ @lv_lifnr.
+
+      CONCATENATE l_name1 l_name2 l_name3 l_name4 INTO my_company_name  SEPARATED BY space.
+      CONDENSE my_company_name.
+    ENDIF.
+
+    CLEAR my_carrecs[].
+    SELECT b~docclass, b~objectid, a~z_carrec_equip, a~z_descripcio, a~z_carrec_def, a~z_carrec_cap
+      INTO TABLE @my_carrecs
+      FROM zrm_dt_exp_cont AS b
+     INNER JOIN zrm_dm_carrec_pt AS a
+        ON a~z_subtius_cont EQ b~z_subtipus_cont
+      FOR ALL ENTRIES IN @it_equip
+     WHERE b~docclass        EQ @i_docclass AND
+           b~objectid        EQ @i_objectid AND
+           a~z_mod_crit_punt EQ @it_equip-z_mod_crit_punt.
+
+    SORT my_carrecs.
+    DELETE ADJACENT DUPLICATES FROM my_carrecs.
+
+    IF gt_punt_equi_pdm[] IS NOT INITIAL.
+      LOOP AT gt_punt_equi_pdm ASSIGNING FIELD-SYMBOL(<fs_punt_equi>) WHERE z_equip_pdm = abap_on.
+        CLEAR: wa_dades_equip_pdm.
+        MOVE-CORRESPONDING <fs_punt_equi> TO wa_dades_equip_pdm.
+        APPEND wa_dades_equip_pdm TO my_equip_for_pdm.
+      ENDLOOP.
+      DELETE my_equip_for_pdm WHERE z_num_ofer <> i_num_oferta.
+    ENDIF.
+    IF my_equip_for_pdm[] IS INITIAL.
+      LOOP AT it_equip ASSIGNING FIELD-SYMBOL(<fs_punt_equi_import>) WHERE z_equip_pdm = abap_on
+        ">> SPEC-66771, Inici Modificació - ETODR
+                                                                       AND z_is_header = abap_off.
+        "<< SPEC-66771, Final Modificació - ETODR.
+        CLEAR: wa_dades_equip_pdm.
+        MOVE-CORRESPONDING <fs_punt_equi_import> TO wa_dades_equip_pdm.
+        APPEND wa_dades_equip_pdm TO my_equip_for_pdm.
+      ENDLOOP.
+      DELETE my_equip_for_pdm WHERE z_num_ofer <> i_num_oferta.
+    ENDIF.
+
+    DATA: ls_style TYPE lvc_s_styl.
+    LOOP AT my_equip_for_pdm ASSIGNING FIELD-SYMBOL(<fs_equip_pdm>).
+      ls_style-fieldname = 'Z_DEDICACIO_OFERTADA'.
+      IF <fs_equip_pdm>-z_exclusivitat = abap_on OR <fs_equip_pdm>-z_dedicacio_min = 100.
+        ls_style-style     = cl_gui_alv_grid=>mc_style_disabled.
+      ELSE.
+        ls_style-style     = cl_gui_alv_grid=>mc_style_enabled.
+      ENDIF.
+      INSERT ls_style INTO TABLE <fs_equip_pdm>-style.
+    ENDLOOP.
+
+    my_readonly             = i_readonly.
+    my_equip[]              = it_equip[].
+    my_num_oferta           = i_num_oferta.
+    my_puntuacions_inicials = it_puntuacio.
+    my_doclass              = i_docclass.
+    my_objectid             = i_objectid.
+
+    LOOP AT my_equip_for_pdm ASSIGNING <fs_equip_pdm>.
+      READ TABLE my_puntuacions_inicials ASSIGNING FIELD-SYMBOL(<fs_punts_ini>) WITH KEY z_num_gen      = my_num_oferta
+                                                                                         z_carrec_equip = <fs_equip_pdm>-z_carrec_equip
+                                                                                         z_num_equip    = <fs_equip_pdm>-z_comptador_equip.
+      IF sy-subrc = 0.
+        <fs_equip_pdm>-z_punts = <fs_punts_ini>-z_punts.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SHOW_ALV
+*---------------------------------------------------------------------*
+* Mètode que mostra la ALV.
+*---------------------------------------------------------------------*
+  METHOD create_alv.
+    CALL SCREEN '0800' STARTING AT 10 10.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD SHOW_ALV
+*---------------------------------------------------------------------*
+* Mètode que mostra la ALV.
+*---------------------------------------------------------------------*
+  METHOD show_alv.
+
+    IF gr_alv_pdm_equip IS INITIAL.
+      CREATE OBJECT gr_cont_pdm
+        EXPORTING
+          container_name = 'CC_ALV_PDM_EQUIP'.
+      CHECK gr_cont_pdm IS BOUND.
+
+      CREATE OBJECT gr_alv_pdm_equip
+        EXPORTING
+          i_parent = gr_cont_pdm
+        EXCEPTIONS
+          OTHERS   = 0.
+      CHECK gr_alv_pdm_equip IS BOUND.
+
+* --------------------------------------------------------------------*
+** Aplicar el manegador del hotspot.
+      SET HANDLER gr_pdm_alv->handle_dedicacio_changed FOR gr_alv_pdm_equip.
+      gr_alv_pdm_equip->register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+* --------------------------------------------------------------------*
+
+      set_layout( IMPORTING es_layout = DATA(ls_layout) ).
+      fill_catalog( IMPORTING et_fieldcat = DATA(lt_fcat) ).
+
+      DATA: lt_exclude TYPE ui_functions,
+            wa_exclude TYPE ui_func.
+
+      CLEAR: lt_exclude[].
+      wa_exclude = cl_gui_alv_grid=>mc_fc_excl_all.
+      APPEND wa_exclude TO lt_exclude.
+
+      SORT my_equip_for_pdm BY z_carrec_equip ASCENDING.
+
+      gr_alv_pdm_equip->set_table_for_first_display( EXPORTING  is_layout                     = ls_layout
+                                                                it_toolbar_excluding          = lt_exclude
+                                                     CHANGING   it_outtab                     = my_equip_for_pdm
+                                                                it_fieldcatalog               = lt_fcat
+                                                     EXCEPTIONS invalid_parameter_combination = 1
+                                                                program_error                 = 2
+                                                                too_many_lines                = 3
+                                                                OTHERS                        = 4 ).
+
+      CHECK sy-subrc = 0.
+      ">>>SPEC-56253, Inici modificació  - ETODR
+      IF my_readonly = abap_on.
+        gr_alv_pdm_equip->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+      ELSE.
+        "<<<SPEC-56253, Final modificació - ETODR
+        gr_alv_pdm_equip->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+      ENDIF.
+    ELSE.
+      SORT my_equip_for_pdm BY z_carrec_equip ASCENDING.
+      gr_alv_pdm_equip->refresh_table_display( ).
+    ENDIF.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD GET_FLAG_CHANGES
+*---------------------------------------------------------------------*
+* Mètode que retorna si s'han realitzat canvis
+*---------------------------------------------------------------------*
+  METHOD get_flag_changes.
+    r_changes = g_changes_done.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SET_FLAG_CHANGES
+*---------------------------------------------------------------------*
+* Mètode que determina si s'han realitzat canvis
+*---------------------------------------------------------------------*
+  METHOD set_flag_changes.
+    g_changes_done = i_changes.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD GET_PDM_PUNTUACIONS
+*---------------------------------------------------------------------*
+* Mètode que retorna les puntuacions del criteri de PDM per tècnic
+*---------------------------------------------------------------------*
+  METHOD get_pdm_puntuacions.
+    DATA: wa_equip TYPE zrm_dt_punt_equi.
+
+    LOOP AT my_puntuacions_inicials ASSIGNING FIELD-SYMBOL(<fs_punt>) WHERE z_num_gen = my_num_oferta.
+      READ TABLE my_equip_for_pdm ASSIGNING FIELD-SYMBOL(<fs_equip>) WITH KEY z_codi_crit_punt  = <fs_punt>-z_codi_crit_punt
+                                                                              z_carrec_equip    = <fs_punt>-z_carrec_equip
+                                                                              z_comptador_equip = <fs_punt>-z_num_equip.
+      IF sy-subrc = 0 AND <fs_equip>-z_equip_pdm = abap_on.
+        <fs_punt>-z_punts = <fs_punt>-z_punts_no_pond =  <fs_equip>-z_punts.
+      ENDIF.
+    ENDLOOP.
+    ct_punts_offer[] = my_puntuacions_inicials[].
+    LOOP AT my_equip_for_pdm ASSIGNING <fs_equip>.
+      READ TABLE gt_punt_equi_pdm ASSIGNING FIELD-SYMBOL(<fs_pdm>) WITH KEY z_codi_crit_punt  = <fs_equip>-z_codi_crit_punt
+                                                                            z_num_ofer        = my_num_oferta
+                                                                            z_comptador_equip = <fs_equip>-z_comptador_equip.
+      IF sy-subrc = 0.
+        <fs_pdm>-z_punts              = <fs_equip>-z_punts.
+        <fs_pdm>-z_dedicacio_ofertada = <fs_equip>-z_dedicacio_ofertada.
+      ELSE.
+        CLEAR: wa_equip.
+        MOVE-CORRESPONDING <fs_equip> TO wa_equip.
+        APPEND wa_equip TO gt_punt_equi_pdm.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SET_LAYOUT
+*---------------------------------------------------------------------*
+* Layout per la ALV de modificacions de càrrecs de l'equip
+*---------------------------------------------------------------------*
+  METHOD set_layout.
+    es_layout-smalltitle = abap_off.
+    es_layout-no_totline = abap_off.
+    es_layout-no_toolbar = abap_off.
+    es_layout-no_rowins  = abap_on.
+    es_layout-no_rowmove = abap_on.
+    es_layout-zebra      = abap_on.
+    es_layout-edit_mode  = abap_on.
+    es_layout-numc_total = abap_off.
+    es_layout-col_opt    = abap_on.
+    es_layout-sel_mode   = 'A'.
+*    es_layout-grid_title = 'Informar dedicació ofertada'.
+    es_layout-stylefname = 'STYLE'.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD FILL_CATALOG
+*---------------------------------------------------------------------*
+* Catàleg de camps per la ALV de modificacions de càrrecs de l'equip
+*---------------------------------------------------------------------*
+  METHOD fill_catalog.
+    DATA: wa_fcat     TYPE lvc_s_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_CARREC_EQUIP'.
+    wa_fcat-outputlen     = 8.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'Càrrec'.
+    wa_fcat-scrtext_m     = 'Càrrec'.
+    wa_fcat-scrtext_l     = 'Càrrec'.
+    wa_fcat-drdn_hndl     = 1.
+    wa_fcat-drdn_alias    = 'X'.
+    wa_fcat-convexit      = 'CARREC'.
+
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_DESCRIPCIO'.
+    wa_fcat-outputlen     = 15.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'Descr.'.
+    wa_fcat-scrtext_m     = 'Descripció'.
+    wa_fcat-scrtext_l     = 'Descripció'.
+    wa_fcat-lowercase     = 'X'.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_DEDICACIO_MIN'.
+    wa_fcat-outputlen     = 10.
+    wa_fcat-just          = 'L'.
+    wa_fcat-no_zero       = abap_on.
+    wa_fcat-scrtext_s     = 'Dedic.'.
+    wa_fcat-scrtext_m     = 'Dedic. mín.'.
+    wa_fcat-scrtext_l     = 'Dedicació mínima'.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_DEDICACIO_OFERTADA'.
+    wa_fcat-outputlen     = 10.
+    wa_fcat-just          = 'L'.
+    ">> SPEC-68940, Inici Modificació - ETODR
+*    wa_fcat-no_zero       = abap_on.
+    wa_fcat-no_zero       = abap_off.
+    wa_fcat-decimals      = 2.
+    wa_fcat-decimals_o    = 2.
+    "<< SPEC-68940, Final Modificació - ETODR
+    wa_fcat-scrtext_s     = 'Dedic.'.
+    wa_fcat-scrtext_m     = 'Dedic. ofert.'.
+    wa_fcat-scrtext_l     = 'Dedicació ofertada'.
+*    wa_fcat-lowercase     = 'X'.
+    APPEND wa_fcat TO et_fieldcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname     = 'Z_PUNTS'.
+    wa_fcat-outputlen     = 5.
+    wa_fcat-just          = 'L'.
+    wa_fcat-scrtext_s     = 'Punt.'.
+    wa_fcat-scrtext_m     = 'Puntuació'.
+    wa_fcat-scrtext_l     = 'Puntuació'.
+    wa_fcat-lowercase     = 'X'.
+    APPEND wa_fcat TO et_fieldcat.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD HANDLE_DEDICACIO_CHANGED
+*---------------------------------------------------------------------*
+* Mètode per controlar els canvis en la ALV de càrrecs
+*---------------------------------------------------------------------*
+  METHOD handle_dedicacio_changed.
+    set_flag_changes( abap_on ).
+    LOOP AT er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<fs>).
+      READ TABLE my_equip_for_pdm ASSIGNING FIELD-SYMBOL(<fs_dades_equip>) INDEX <fs>-row_id.
+      CHECK sy-subrc EQ 0.
+      CASE <fs>-fieldname.
+        WHEN 'Z_DEDICACIO_OFERTADA'.
+          IF <fs>-value < <fs_dades_equip>-z_dedicacio_min.
+            MESSAGE 'No es pot introduir una dedicació inferior a la mínima establerta' TYPE 'I'.
+            <fs_dades_equip>-z_dedicacio_ofertada = <fs_dades_equip>-z_dedicacio_min.
+          ELSEIF <fs>-value > 100.
+            MESSAGE 'No es pot introduir una dedicació superior al 100%' TYPE 'I'.
+            <fs_dades_equip>-z_dedicacio_ofertada = 100.
+          ELSE.
+            <fs_dades_equip>-z_dedicacio_ofertada   = <fs>-value.
+          ENDIF.
+        WHEN OTHERS.
+          CONTINUE.
+      ENDCASE.
+    ENDLOOP.
+    "DT = MIN (100, DM+20)
+    "DM = Dedicació mínima (ZRM_DT_PUNT_EQUI-Z_DEDICACIO_MIN
+    "DO = Dedicació ofertada pel tècnic per cada oferta
+    "Si DO < DT
+    """" PUNTUACIÓ = (DO-DM)/5
+    "Si DO >= DT
+    """" PUNTUACIÓ = PDM
+
+
+    LOOP AT my_equip_for_pdm ASSIGNING <fs_dades_equip>.
+      IF <fs_dades_equip>-z_dedicacio_ofertada IS NOT INITIAL.
+        IF <fs_dades_equip>-z_exclusivitat = abap_off.
+          DATA(lv_min_dt) = 100.
+
+* JGG 09/10/19 SPEC-55448 -->
+          SELECT SINGLE z_valor_dm_pdm, z_valor_div_pdm  FROM zrm_dm_crit_punt
+            INTO (@DATA(lv_valor_dm), @DATA(lv_valor_div_pdm))
+            WHERE z_mod_crit_punt = @<fs_dades_equip>-z_mod_crit_punt
+             AND  z_codi_crit_punt = @<fs_dades_equip>-z_codi_crit_punt.
+
+          IF lv_valor_dm IS NOT INITIAL.
+            IF ( <fs_dades_equip>-z_dedicacio_min + lv_valor_dm ) < lv_min_dt.
+              lv_min_dt = <fs_dades_equip>-z_dedicacio_min + lv_valor_dm.
+            ENDIF.
+          ELSE.
+* JGG 09/10/19 SPEC-55448 <--
+
+            IF ( <fs_dades_equip>-z_dedicacio_min + 20 ) < lv_min_dt. " ECAGM SPEC-79086 canvi de fórmula
+              lv_min_dt = <fs_dades_equip>-z_dedicacio_min + 20.
+            ENDIF.
+* JGG 09/10/19 SPEC-55448 -->
+          ENDIF.
+* JGG 09/10/19 SPEC-55448 <--
+
+          IF <fs_dades_equip>-z_dedicacio_ofertada < lv_min_dt.
+            "INI ECDRB SPEC-64893
+            IF lv_valor_div_pdm IS NOT INITIAL.
+              <fs_dades_equip>-z_punts = ( <fs_dades_equip>-z_dedicacio_ofertada - <fs_dades_equip>-z_dedicacio_min ) / lv_valor_div_pdm.
+            ELSE.
+              "FI ECDRB SPEC-64893
+              <fs_dades_equip>-z_punts = ( <fs_dades_equip>-z_dedicacio_ofertada - <fs_dades_equip>-z_dedicacio_min ) / 5.
+            ENDIF.
+          ELSE.
+            <fs_dades_equip>-z_punts = <fs_dades_equip>-z_valor_pdm.
+          ENDIF.
+        ELSE.
+          <fs_dades_equip>-z_punts = 0.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    gr_alv_pdm_equip->refresh_table_display( ).
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD USER_COMMAND
+*---------------------------------------------------------------------*
+* Mètode que realitza la acció del botó premut per l'usuari
+*---------------------------------------------------------------------*
+  METHOD user_command.
+    DATA: l_answer TYPE c.
+    CASE i_ucomm.
+
+      WHEN 'CANC_EQUI'.
+        IF get_flag_changes( ) = abap_on.
+          CLEAR:l_answer.
+          CALL FUNCTION 'POPUP_TO_CONFIRM'
+            EXPORTING
+              titlebar              = text-i01
+              text_question         = text-i02
+              display_cancel_button = abap_off
+            IMPORTING
+              answer                = l_answer.
+          CHECK l_answer = 1.
+          CLEAR: my_equip_for_pdm[].
+        ENDIF.
+        CALL METHOD cl_gui_cfw=>flush.
+        LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+*
+      WHEN 'OK_PDM'.
+        ">>>SPEC-56253, Inici modificació  - ETODR
+        IF my_readonly = abap_off.
+          CALL METHOD cl_gui_cfw=>flush.
+          LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+        ELSE.
+          "<<<SPEC-56253, Final modificació - ETODR
+          IF check_dedicacio_introduida( ) = abap_off.
+            MESSAGE 'No es pot introduir una dedicació inferior a la mínima establerta ni tampoc superior al 100%' TYPE 'I'.
+          ELSE.
+            CALL METHOD cl_gui_cfw=>flush.
+            LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+          ENDIF.
+        ENDIF.
+      WHEN OTHERS.
+        EXIT.
+    ENDCASE.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD check_dedicacio_introduida
+*---------------------------------------------------------------------*
+* Mètode que comprova si la dedicació ofertada introduïda és vàlida
+*---------------------------------------------------------------------*
+  METHOD check_dedicacio_introduida.
+    r_dedicacio_ok = abap_on.
+    LOOP AT my_equip_for_pdm ASSIGNING FIELD-SYMBOL(<fs_dades_equip>) WHERE z_exclusivitat IS INITIAL.
+      IF <fs_dades_equip>-z_dedicacio_ofertada IS NOT INITIAL.
+        IF <fs_dades_equip>-z_dedicacio_ofertada < <fs_dades_equip>-z_dedicacio_min.
+          r_dedicacio_ok = abap_off.
+        ELSEIF <fs_dades_equip>-z_dedicacio_ofertada > 100.
+          r_dedicacio_ok = abap_off.
+        ENDIF.
+      ELSE.
+        r_dedicacio_ok = abap_off.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD free_variables
+*---------------------------------------------------------------------*
+* Mètode que allibera la memòria de les variables
+*---------------------------------------------------------------------*
+  METHOD free_variables.
+    TRY.
+        IF gr_alv_pdm_equip IS BOUND . gr_alv_pdm_equip->free( ). ENDIF.
+        IF gr_cont_pdm      IS BOUND . gr_cont_pdm->free( ).      ENDIF.
+        FREE: gr_alv_pdm_equip, gr_cont_pdm.
+      CATCH cx_root.
+        EXIT.
+    ENDTRY.
+  ENDMETHOD.
+ENDCLASS.

@@ -1,0 +1,79 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESI05.
+*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_COMMAND_0800  INPUT
+*&---------------------------------------------------------------------*
+MODULE exit_command_0800 INPUT.
+  DATA: l_answer_0800 TYPE c.
+  IF gr_pdm_alv IS BOUND.
+*"Es comprova si s'han relitzat canvis a la simulació abans de sortir
+    IF gr_pdm_alv->get_flag_changes( ) = abap_on.
+      CLEAR:l_answer_0800.
+      CALL FUNCTION 'POPUP_TO_CONFIRM'
+        EXPORTING
+          titlebar              = text-i01
+          text_question         = text-i02
+          display_cancel_button = abap_off
+        IMPORTING
+          answer                = l_answer_0800.
+      CHECK l_answer_0800 = 1.
+    ENDIF.
+  ENDIF.
+
+  CALL METHOD cl_gui_cfw=>flush.
+  LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0800  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_0800 INPUT.
+  IF gr_pdm_alv IS BOUND.
+    gr_pdm_alv->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_COMMAND_0850  INPUT
+*&---------------------------------------------------------------------*
+MODULE exit_command_0850 INPUT.
+  DATA: l_answer_0850 TYPE c.
+  IF gr_pdm_alv IS BOUND.
+*"Es comprova si s'han relitzat canvis a la simulació abans de sortir
+    IF gr_pdm_alv->get_flag_changes( ) = abap_on.
+      CLEAR:l_answer_0800.
+      CALL FUNCTION 'POPUP_TO_CONFIRM'
+        EXPORTING
+          titlebar              = text-i01
+          text_question         = text-i02
+          display_cancel_button = abap_off
+        IMPORTING
+          answer                = l_answer_0850.
+      CHECK l_answer_0850 = 1.
+    ENDIF.
+  ENDIF.
+
+  CALL METHOD cl_gui_cfw=>flush.
+  LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0850  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_0850 INPUT.
+  IF gr_util_incr IS BOUND.
+    gr_util_incr->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.
+
+">>>SPEC:67070, Inici modificació - ECJMS
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0850  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_0860 INPUT.
+  IF gr_util_incr_obj IS BOUND.
+    gr_util_incr_obj->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.
+"<<<SPEC:67070, Final modificació - ECJMS

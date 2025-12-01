@@ -1,0 +1,50 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESF09.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  CRIDA_PUNTUA_CO2
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM crida_puntua_co2  USING    iv_readonly     TYPE xfeld
+                                iv_docclass     TYPE bapidclass
+                                iv_objectid     TYPE bapiguid
+                                io_backend      TYPE REF TO zrm_cl_valoracio_ofertes
+                                iv_column       TYPE any
+                                io_grid         TYPE any
+                                iv_num_ofer     TYPE z_num_ofer
+                       CHANGING cv_no_changes   TYPE xfeld
+                                ct_punt_co2     TYPE zrm_tt_punt_co2
+                                ct_punts_offer  TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen..
+
+  DATA(lt_punt_co2_inicials) = ct_punt_co2.
+
+  CREATE OBJECT gr_util_co2
+    EXPORTING
+      it_co2       = lt_punt_co2_inicials
+      it_puntuacio = ct_punts_offer
+      iv_readonly  = iv_readonly
+      iv_docclass  = iv_docclass
+      iv_objectid  = iv_objectid
+      io_backend   = io_backend
+      iv_column    = iv_column
+      is_grid      = io_grid
+      iv_num_ofer  = iv_num_ofer.
+
+  CHECK gr_util_co2 IS BOUND.
+  gr_util_co2->create_alv( ).
+
+  IF gr_util_co2->get_flag_changes( ) = abap_on.
+    cv_no_changes = abap_off.
+
+    gr_util_co2->get_puntuacions(
+        IMPORTING et_punts_offer = ct_punts_offer
+                  et_punt_co2    = ct_punt_co2 ).
+  ELSE.
+    cv_no_changes = abap_on.
+  ENDIF.
+
+  gr_util_co2->free_variables( ).
+  FREE gr_util_co2.
+
+ENDFORM.

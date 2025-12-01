@@ -1,0 +1,978 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESF05.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND_0501
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM user_command_0501 USING p_ucomm.
+
+  CASE p_ucomm.
+    WHEN 'CANCEL'.
+      PERFORM check_and_save_cancel USING     gs_dyn_0501-gt_punt_ofer_alv
+                                              gs_dyn_0501-gt_puntuacio_ori
+                                              gs_dyn_0501-gs_punt_rec
+                                    CHANGING  gs_dyn_0501-gt_puntuacio.
+
+      PERFORM liberar_objetos_punt USING gs_dyn_0501-gv_alv_puntuacio
+                                         gs_dyn_0501-gv_cont_puntuacio.
+      LEAVE TO SCREEN 0.
+    WHEN 'BACK'.
+      PERFORM check_and_save USING    gs_dyn_0501-gt_punt_ofer_alv
+                                      gs_dyn_0501-gt_puntuacio_ori
+                                      gs_dyn_0501-gs_punt_rec
+                             CHANGING gs_dyn_0501-gt_puntuacio.
+    WHEN OTHERS.
+      RETURN.
+  ENDCASE.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_AND_SAVE_CANCEL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM check_and_save_cancel  USING    pt_punt_ofer_alv TYPE tty_punt_ofer_alv
+                                     pt_puntuacio_ori TYPE tty_puntuacio
+                                     ps_punt_rec      TYPE zrm_dt_punt_rec
+                            CHANGING ct_puntuacio     TYPE tty_puntuacio.
+  DATA: l_save     TYPE xfeld,
+        lv_answer  TYPE c,
+        lv_changes TYPE xfeld.
+
+  DESCRIBE TABLE pt_punt_ofer_alv LINES DATA(lv_tabix).
+
+  LOOP AT pt_punt_ofer_alv ASSIGNING FIELD-SYMBOL(<fs>).
+    IF <fs>-puntuacio_inicial <> <fs>-puntuacio.
+      lv_changes = abap_on.
+    ENDIF.
+  ENDLOOP.
+  IF lv_changes = abap_on.
+    CALL FUNCTION 'POPUP_TO_DECIDE_INFO'
+      EXPORTING
+        textline1 = 'Vol desar els canvis abans de sortir?'
+        titel     = 'Sortir sense desar?'
+      IMPORTING
+        answer    = lv_answer.
+    IF lv_answer = 'A'.
+      l_save = abap_off.
+    ELSE.
+      l_save = abap_on.
+      PERFORM check_before_puntuar  USING    pt_puntuacio_ori
+                                    CHANGING l_save.
+    ENDIF.
+  ELSE.
+    l_save = abap_off.
+  ENDIF.
+
+  IF l_save = abap_on.
+    PERFORM puntuar_0501 USING    pt_puntuacio_ori
+                         CHANGING ct_puntuacio.
+    PERFORM guardar_taules_rel USING ct_puntuacio
+                                     gs_dyn_0501-gs_punt_rec.
+  ELSE.
+    gv_cancel_changes = abap_on.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_AND_SAVE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM check_and_save USING    pt_punt_ofer_alv TYPE tty_punt_ofer_alv
+                             pt_puntuacio_ori TYPE tty_puntuacio
+                             ps_punt_rec      TYPE zrm_dt_punt_rec
+                    CHANGING ct_puntuacio     TYPE tty_puntuacio.
+
+  DATA: l_save TYPE xfeld.
+  PERFORM check_before_puntuar  USING    pt_puntuacio_ori
+                                CHANGING l_save.
+  IF l_save = abap_on.
+    PERFORM puntuar_0501 USING    pt_puntuacio_ori
+                         CHANGING ct_puntuacio.
+    PERFORM guardar_taules_rel USING ct_puntuacio
+                                     ps_punt_rec.
+    PERFORM liberar_objetos_punt USING gs_dyn_0501-gv_alv_puntuacio
+                                       gs_dyn_0501-gv_cont_puntuacio.
+    LEAVE TO SCREEN 0.
+  ELSE.
+    gv_cancel_changes = abap_on.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GUARDAR_TAULES_REL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM guardar_taules_rel USING it_puntuacio TYPE tty_puntuacio
+                              wa_punt_rec  TYPE zrm_dt_punt_rec.
+  FIELD-SYMBOLS: <puntuacio> LIKE LINE OF it_puntuacio,
+                 <punt_rec>  LIKE LINE OF gt_punt_rec,
+                 <punt_sel>  LIKE LINE OF gt_punt_sel.
+**EQUIP**
+  READ TABLE it_puntuacio ASSIGNING <puntuacio> WITH KEY z_mult_equip = abap_true.
+*  CHECK <puntuacio> IS ASSIGNED
+  IF sy-subrc = 0.
+    LOOP AT it_puntuacio ASSIGNING <puntuacio> WHERE seleccio     EQ abap_on
+                                                 AND z_mult_equip IS NOT INITIAL .
+      READ TABLE gt_punt_equi ASSIGNING FIELD-SYMBOL(<punt_equi>) WITH KEY z_codi_crit_punt   = <puntuacio>-z_codi_crit_punt
+                                                                           z_num_ofer         = <puntuacio>-z_num_ofer
+                                                                           z_comptador_equip  = <puntuacio>-z_comptador_equip.
+      IF sy-subrc = 0.
+        <punt_equi>-z_punts            = <puntuacio>-z_punt_max_do.
+        <punt_equi>-z_sec              = <puntuacio>-z_sec.
+      ENDIF.
+      READ TABLE gt_punt_sel ASSIGNING FIELD-SYMBOL(<fs_punt_sel>) WITH KEY z_codi_crit_punt   = <puntuacio>-z_codi_crit_punt
+                                                                            z_num_ofer         = <puntuacio>-z_num_ofer
+                                                                            z_comptador_recurs = <puntuacio>-z_comptador_equip.
+      IF sy-subrc = 0.
+        <fs_punt_sel>-z_sec              = <puntuacio>-z_sec.
+      ENDIF.
+    ENDLOOP.
+
+  ENDIF.
+**RECURSOS**
+  READ TABLE it_puntuacio ASSIGNING <puntuacio> WITH KEY z_mult_rec = abap_true.
+  IF sy-subrc = 0.
+    LOOP AT it_puntuacio ASSIGNING <puntuacio> WHERE seleccio   EQ abap_on
+                                                 AND z_mult_rec IS NOT INITIAL .
+
+      READ TABLE gt_punt_rec ASSIGNING <punt_rec> WITH KEY docclass           = <puntuacio>-docclass
+                                                           objectid           = <puntuacio>-objectid
+                                                           z_num_ofer         = <puntuacio>-z_num_ofer
+                                                           z_mod_crit_punt    = gs_dyn_0500-gv_mod_punt
+                                                           z_codi_crit_punt   = <puntuacio>-z_codi_crit_punt
+                                                           z_comptador_recurs = <puntuacio>-z_compta_rec
+                                                           z_sec              = <puntuacio>-z_sec. " ETLJS SPEC-47173
+      IF sy-subrc EQ 0.
+        <punt_rec>-docclass           = <puntuacio>-docclass.
+        <punt_rec>-objectid           = <puntuacio>-objectid.
+        <punt_rec>-z_num_ofer         = <puntuacio>-z_num_ofer.
+        <punt_rec>-z_mod_crit_punt    = gs_dyn_0500-gv_mod_punt.
+        <punt_rec>-z_codi_crit_punt   = <puntuacio>-z_codi_crit_punt.
+        <punt_rec>-z_punts            = <puntuacio>-z_punt_max_do.
+        <punt_rec>-z_sec              = <puntuacio>-z_sec.
+        <punt_rec>-z_pes              = <puntuacio>-z_pes.
+      ELSE.
+        APPEND INITIAL LINE TO gt_punt_rec ASSIGNING <punt_rec>.
+        <punt_rec>-docclass         = <puntuacio>-docclass.
+        <punt_rec>-objectid         = <puntuacio>-objectid.
+        <punt_rec>-z_num_ofer       = <puntuacio>-z_num_ofer.
+        <punt_rec>-z_mod_crit_punt  = gs_dyn_0500-gv_mod_punt.
+        <punt_rec>-z_codi_crit_punt = <puntuacio>-z_codi_crit_punt.
+        <punt_rec>-z_punts          = <puntuacio>-z_punt_max_do.
+        <punt_rec>-z_sec            = <puntuacio>-z_sec.
+        IF gs_dyn_0500-g_show_all EQ abap_true AND <fs> IS ASSIGNED.
+          <punt_rec>-z_punt_max         = <fs>-z_punt_max.
+          <punt_rec>-z_descripcio       = <fs>-z_descripcio.
+          <punt_rec>-z_comptador_recurs = <fs>-z_compta_rec.
+          <punt_rec>-z_pes              = <fs>-z_pes.
+        ELSE.
+          <punt_rec>-z_punt_max         = wa_punt_rec-z_punt_max.
+          <punt_rec>-z_descripcio       = wa_punt_rec-z_descripcio.
+          <punt_rec>-z_comptador_recurs = wa_punt_rec-z_comptador_recurs.
+          <punt_rec>-z_pes              = wa_punt_rec-z_pes.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+**PUNTUACIONS MÚLTIPLES depenents de valor**
+  READ TABLE it_puntuacio ASSIGNING <puntuacio> WITH KEY z_pun_rel_sel = abap_true.
+*  CHECK <puntuacio> IS ASSIGNED.
+  IF sy-subrc = 0.
+    IF <puntuacio>-z_mult_equip EQ 'X'.
+      DELETE gt_punt_sel WHERE z_codi_crit_punt   = <puntuacio>-z_codi_crit_punt AND
+                               z_num_ofer         = <puntuacio>-z_num_ofer AND
+                               z_comptador_recurs = <puntuacio>-z_comptador_equip.
+    ELSE.
+      DELETE gt_punt_sel WHERE z_codi_crit_punt = <puntuacio>-z_codi_crit_punt AND
+                               z_num_ofer       = <puntuacio>-z_num_ofer.
+    ENDIF.
+  ENDIF.
+
+**PUNTUACIONS MÚLTIPLES**
+  LOOP AT it_puntuacio ASSIGNING <puntuacio> WHERE seleccio   EQ abap_on.
+    APPEND INITIAL LINE TO gt_punt_sel ASSIGNING <punt_sel>.
+    <punt_sel>-docclass         = <puntuacio>-docclass.
+    <punt_sel>-objectid         = <puntuacio>-objectid.
+    <punt_sel>-z_num_ofer       = <puntuacio>-z_num_ofer.
+    <punt_sel>-z_mod_crit_punt  = gs_dyn_0500-gv_mod_punt.
+    <punt_sel>-z_codi_crit_punt = <puntuacio>-z_codi_crit_punt.
+    <punt_sel>-z_punts          = <puntuacio>-z_punt_max_do.
+    <punt_sel>-z_sec            = <puntuacio>-z_sec.
+    <punt_sel>-z_punt_max       = wa_punt_rec-z_punt_max.
+    <punt_sel>-z_descripcio     = wa_punt_rec-z_descripcio.
+    IF <puntuacio>-z_mult_equip EQ 'X'.
+      <punt_sel>-z_comptador_recurs = <puntuacio>-z_comptador_equip.
+    ELSE.
+      <punt_sel>-z_comptador_recurs = wa_punt_rec-z_comptador_recurs.
+    ENDIF.
+    <punt_sel>-z_pes              = wa_punt_rec-z_pes.
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  PUNTUAR_0501
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM puntuar_0501  USING    pt_puntuacio_ori TYPE tty_puntuacio
+                   CHANGING pt_puntuacio_sel TYPE tty_puntuacio.
+
+  LOOP AT pt_puntuacio_ori ASSIGNING FIELD-SYMBOL(<fs_punt_sel>) WHERE seleccio = abap_on.
+    <fs_punt_sel>-z_compta_rec = <fs_punt_sel>-z_compta_rec.
+    APPEND <fs_punt_sel> TO pt_puntuacio_sel.
+  ENDLOOP.
+
+  DESCRIBE TABLE gt_punt_rec LINES DATA(l_num_recursos).
+
+  DATA(lt_punt_recursos) = gs_dyn_0500-gt_puntuacio.
+  SORT lt_punt_recursos BY z_codi_crit_punt z_compta_rec.
+  DELETE ADJACENT DUPLICATES FROM lt_punt_recursos COMPARING z_codi_crit_punt z_compta_rec.
+  DESCRIBE TABLE lt_punt_recursos LINES DATA(lv_count_recursos).
+
+  IF lv_count_recursos <> l_num_recursos AND lv_count_recursos > 0.
+    LOOP AT gt_punt_rec ASSIGNING FIELD-SYMBOL(<fs_punt_rec>).
+      READ TABLE gs_dyn_0500-gt_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_sel_2>) WITH KEY z_codi_crit_punt = <fs_punt_rec>-z_codi_crit_punt
+                                                                                           z_compta_rec     = <fs_punt_rec>-z_comptador_recurs
+                                                                                           z_sec            = <fs_punt_rec>-z_sec.
+      IF sy-subrc = 0.
+        IF <fs_punt_sel_2>-seleccio IS INITIAL.
+          <fs_punt_sel_2>-seleccio      = abap_on.
+          <fs_punt_sel_2>-z_punt_max_do = <fs_punt_rec>-z_punts.
+          <fs_punt_sel_2>-z_pes         = <fs_punt_rec>-z_pes.
+          <fs_punt_sel_2>-z_mult_rec    = abap_on.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SET_SCREEN_0501
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM set_screen_0501 .
+  DATA: wa_punt_ofer_actual TYPE zrm_dt_punt_ofer.
+
+  READ TABLE gs_dyn_0501-gt_punt_ofer_alv ASSIGNING FIELD-SYMBOL(<fs_actual_alv>) WITH KEY is_actual = abap_on.
+  IF sy-subrc = 0.
+    IF gs_dyn_0501-g_show_all EQ abap_on OR <fs_actual_alv>-z_mult_rec EQ abap_on.
+      gv_toolbar = 'X'.
+      IF <fs_actual_alv>-is_first = abap_on.
+        CLEAR: gv_back.
+        gv_next = 'X'.
+      ENDIF.
+      IF <fs_actual_alv>-is_last = abap_on.
+        CLEAR: gv_next.
+        gv_back = 'X'.
+      ENDIF.
+      IF <fs_actual_alv>-is_last <> abap_on AND <fs_actual_alv>-is_first <> abap_on.
+        gv_next = 'X'.
+        gv_back = 'X'.
+      ENDIF.
+    ENDIF.
+
+    CLEAR: wa_punt_ofer_actual.
+    MOVE-CORRESPONDING <fs_actual_alv> TO wa_punt_ofer_actual.
+
+    IF gs_dyn_0501-gv_alv_puntuacio IS INITIAL.
+      PERFORM set_puntuacio_actual USING    wa_punt_ofer_actual
+                                            gs_dyn_0501-gt_puntuacio
+                                            <fs_actual_alv>
+                                   CHANGING gs_dyn_0501-gt_puntuacio_ori.
+      PERFORM instanca_alv_0501 CHANGING gs_dyn_0501-gv_cont_puntuacio
+                                         gs_dyn_0501-gv_alv_puntuacio.
+
+      PERFORM crear_catalogo_0501      USING      gs_dyn_0501-gt_puntuacio_ori
+                                       CHANGING   gs_dyn_0501-gt_fcat.
+
+      PERFORM crear_layout_0501       CHANGING    gs_dyn_0501-gv_layout.
+
+      PERFORM mostrar_alv_0501       USING  gs_dyn_0501-gt_puntuacio_ori
+                                            gs_dyn_0501-gv_alv_puntuacio
+                                            gs_dyn_0501-gt_fcat
+                                            gs_dyn_0501-gv_layout.
+    ELSE.
+      IF gv_back EQ 'X' AND gv_next EQ 'X'.
+        SET HANDLER lcl_event_handler_new=>handle_toolbar_0501 FOR gs_dyn_0501-gv_alv_puntuacio.
+      ELSEIF gv_back EQ 'X' AND gv_next EQ ' '.
+        SET HANDLER lcl_event_handler_new=>handle_toolbar_back FOR gs_dyn_0501-gv_alv_puntuacio.
+      ELSEIF gv_next EQ 'X' AND gv_back EQ ' '.
+        SET HANDLER lcl_event_handler_new=>handle_toolbar_next FOR gs_dyn_0501-gv_alv_puntuacio.
+      ENDIF.
+      CLEAR: gv_next, gv_back.
+      gs_dyn_0501-gv_alv_puntuacio->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                                es_col_id = DATA(ls_col_id)
+                                                                es_row_no = DATA(ls_row_no) ).
+
+      gs_dyn_0501-gv_alv_puntuacio->refresh_table_display( ).
+      gs_dyn_0501-gv_alv_puntuacio->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                                       is_row_no    = ls_row_no ).
+    ENDIF.
+    <fs_actual_alv>-puntuacio = gs_dyn_0501-gt_puntuacio_ori.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  INSTANCA_ALV_0501
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM instanca_alv_0501  CHANGING pv_cont_puntuacio TYPE REF TO cl_gui_custom_container
+                                 pv_alv_puntuacio  TYPE REF TO cl_gui_alv_grid.
+
+  IF pv_cont_puntuacio IS INITIAL.
+    CREATE OBJECT pv_cont_puntuacio
+      EXPORTING
+        container_name              = 'CC_NOVA_PUNTUACIO'
+      EXCEPTIONS
+        cntl_error                  = 1
+        cntl_system_error           = 2
+        create_error                = 3
+        lifetime_error              = 4
+        lifetime_dynpro_dynpro_link = 5
+        OTHERS                      = 6.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                 WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+  ENDIF.
+
+  IF pv_alv_puntuacio IS INITIAL.
+
+    CREATE OBJECT pv_alv_puntuacio
+      EXPORTING
+        i_appl_events     = abap_true
+        i_parent          = pv_cont_puntuacio
+      EXCEPTIONS
+        error_cntl_create = 1
+        error_cntl_init   = 2
+        error_cntl_link   = 3
+        error_dp_create   = 4
+        OTHERS            = 5.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                 WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CREAR_CATALOGO_0501
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM crear_catalogo_0501  USING    pt_puntuacio TYPE tty_puntuacio
+                          CHANGING pt_fcat      TYPE lvc_t_fcat.
+
+  DATA: wa_fcat      TYPE lvc_s_fcat,
+        wa_puntuacio TYPE gty_puntuacio.
+
+  DATA: lwa_zrms_dm_punt_txt TYPE zrms_dm_punt_txt. " Insert SPEC-51885 ETXGL
+
+
+  CLEAR: pt_fcat[].
+
+
+  CLEAR wa_fcat.
+  wa_fcat-fieldname     = 'Z_CODI_SUBAPAR_PUNT_REL'.
+  wa_fcat-outputlen     = 10.
+  wa_fcat-just          = 'L'.
+  wa_fcat-scrtext_s     = 'Subap.'.
+  wa_fcat-scrtext_m     = 'Subapartat'.
+  wa_fcat-scrtext_l     = 'Subapartat'.
+  wa_fcat-no_out        = abap_true.
+
+  APPEND wa_fcat TO pt_fcat.
+
+  CLEAR wa_fcat.
+  wa_fcat-fieldname     = 'Z_DESCRIPCIO_DO'.
+  wa_fcat-outputlen     = 80.
+  wa_fcat-just          = 'L'.
+  wa_fcat-scrtext_s     = 'Descr.'.
+  wa_fcat-scrtext_m     = 'Descripció'.
+  wa_fcat-scrtext_l     = 'Descripció'.
+
+  APPEND wa_fcat TO pt_fcat.
+
+  CLEAR wa_fcat.
+  wa_fcat-fieldname     = 'Z_PUNT_MAX_DO'.
+  wa_fcat-outputlen     = 9.
+  wa_fcat-just          = 'C'.
+  wa_fcat-scrtext_s     = 'Punt.Max.'.
+  wa_fcat-scrtext_m     = 'Puntuació Màxima'.
+  wa_fcat-scrtext_l     = 'Puntuació Màxima'.
+
+  APPEND wa_fcat TO pt_fcat.
+
+  CLEAR wa_fcat.
+  wa_fcat-fieldname     = 'SELECCIO'.
+  wa_fcat-outputlen     = 8.
+  wa_fcat-just          = 'L'.
+  IF g_readonly IS INITIAL.
+    wa_fcat-edit          = abap_true.
+    wa_fcat-hotspot       = abap_true.
+    wa_fcat-checkbox      = abap_true.
+  ELSE.
+    wa_fcat-just          = 'C'.
+    wa_fcat-checkbox      = abap_true.
+  ENDIF.
+  wa_fcat-scrtext_s     = 'Selecció'.
+  wa_fcat-scrtext_m     = 'Selecció'.
+  wa_fcat-scrtext_l     = 'Selecció'.
+
+  APPEND wa_fcat TO pt_fcat.
+
+  CLEAR wa_fcat.
+  wa_fcat-fieldname     = 'MOTIVACIO'.
+  wa_fcat-outputlen     = 10.
+  wa_fcat-just          = 'C'.
+  wa_fcat-hotspot       = abap_true.
+  wa_fcat-scrtext_s     = 'Motivacio'.
+  wa_fcat-scrtext_m     = 'Motivacio'.
+  wa_fcat-scrtext_l     = 'Motivacio'.
+  wa_fcat-icon          = abap_on.
+
+  APPEND wa_fcat TO pt_fcat.
+
+  CLEAR wa_fcat.
+  wa_fcat-fieldname     = 'COMENTARIS'.
+  wa_fcat-outputlen     = 10.
+  wa_fcat-just          = 'C'.
+  wa_fcat-no_out        = abap_true.
+  wa_fcat-scrtext_s     = 'Comentaris'.
+  wa_fcat-scrtext_m     = 'Comentaris'.
+  wa_fcat-scrtext_l     = 'Comentaris'.
+  wa_fcat-icon          = abap_on.
+
+  CLEAR wa_fcat.
+  wa_fcat-fieldname     = 'Z_MOTIV_APL'.
+  wa_fcat-outputlen     = 2.
+  wa_fcat-just          = 'L'.
+  wa_fcat-scrtext_s     = 'Motiu?'.
+  wa_fcat-scrtext_m     = 'Motiu Obligat?'.
+  wa_fcat-scrtext_l     = 'Motiu Obligatori?'.
+
+  APPEND wa_fcat TO pt_fcat.
+
+  READ TABLE pt_puntuacio INTO DATA(wa_puntuacio_actual) INDEX 1.
+  IF sy-subrc = 0.
+    IF gs_dyn_0500-g_is_llei91017 = abap_on
+      AND gs_dyn_0500-g_is_obert_preu = abap_off.
+
+      IF wa_puntuacio_actual-z_experiencia = abap_on.
+***>>> INICI Modificació ETXGL SPEC-51885
+*        CLEAR: wa_fcat.
+*        wa_fcat-fieldname     = 'Z_NUM_OB_OFERTA'.
+*        wa_fcat-no_zero       = abap_on.
+*        wa_fcat-outputlen     = 10.
+*        wa_fcat-just          = 'L'.
+*        wa_fcat-scrtext_s     = 'Núm. ob.'.
+*        wa_fcat-scrtext_m     = 'Núm. obres oferta'.
+*        wa_fcat-scrtext_l     = 'Número d''obres presentades a l''oferta'.
+*        IF g_readonly IS INITIAL.
+*          wa_fcat-edit          = abap_true.
+*        ENDIF.
+*        APPEND wa_fcat TO pt_fcat.
+*
+*        CLEAR: wa_fcat.
+*        wa_fcat-fieldname     = 'Z_NUM_OB_TIP_OK'.
+*        wa_fcat-no_zero       = abap_on.
+*        wa_fcat-outputlen     = 10.
+*        wa_fcat-just          = 'L'.
+*        wa_fcat-scrtext_s     = 'Núm. ob.'.
+*        wa_fcat-scrtext_m     = 'Núm. obres tip. c.'.
+*        wa_fcat-scrtext_l     = 'Número d''obres de tipologia correcta'.
+*        IF g_readonly IS INITIAL.
+*          wa_fcat-edit          = abap_true.
+*        ENDIF.
+*        APPEND wa_fcat TO pt_fcat.
+
+        CLEAR lwa_zrms_dm_punt_txt.
+        SELECT SINGLE *
+         FROM zrms_dm_punt_txt
+          INTO CORRESPONDING FIELDS OF lwa_zrms_dm_punt_txt
+           WHERE z_mod_crit_punt = gs_dyn_0500-gv_mod_punt
+                      AND z_camp = 'Z_NUM_OB_OFERTA'.
+
+        CLEAR: wa_fcat.
+        wa_fcat-fieldname     = 'Z_NUM_OB_OFERTA'.
+        wa_fcat-no_zero       = abap_on.
+        wa_fcat-outputlen     = 13.
+        wa_fcat-just          = 'C'.
+        IF lwa_zrms_dm_punt_txt IS NOT INITIAL.
+          wa_fcat-scrtext_l   = lwa_zrms_dm_punt_txt-z_descripcio_l. "SPEC-58688 - ECJSA
+          wa_fcat-scrtext_m   = lwa_zrms_dm_punt_txt-z_descripcio_m. "SPEC-58688 - ECJSA
+          wa_fcat-scrtext_s   = lwa_zrms_dm_punt_txt-z_descripcio_s. "SPEC-58688 - ECJSA
+        ELSE.
+          wa_fcat-scrtext_l   = 'Número d''obres presentades a l''oferta'.
+          wa_fcat-scrtext_m   = 'Núm. obres oferta'.
+          wa_fcat-scrtext_s   = 'Núm. ob.'.
+        ENDIF.
+        IF g_readonly IS INITIAL.
+          wa_fcat-edit          = abap_true.
+        ENDIF.
+        APPEND wa_fcat TO pt_fcat.
+
+        CLEAR lwa_zrms_dm_punt_txt.
+        SELECT SINGLE *
+         FROM zrms_dm_punt_txt
+          INTO CORRESPONDING FIELDS OF lwa_zrms_dm_punt_txt
+           WHERE z_mod_crit_punt = gs_dyn_0500-gv_mod_punt
+                      AND z_camp = 'Z_NUM_OB_TIP_OK'.
+
+        CLEAR: wa_fcat.
+        wa_fcat-fieldname     = 'Z_NUM_OB_TIP_OK'.
+        wa_fcat-no_zero       = abap_on.
+        wa_fcat-outputlen     = 13.
+        wa_fcat-just          = 'LC'.
+        IF lwa_zrms_dm_punt_txt IS NOT INITIAL.
+          wa_fcat-scrtext_l   = lwa_zrms_dm_punt_txt-z_descripcio_l. "SPEC-58688 - ECJSA
+          wa_fcat-scrtext_m   = lwa_zrms_dm_punt_txt-z_descripcio_m. "SPEC-58688 - ECJSA
+          wa_fcat-scrtext_s   = lwa_zrms_dm_punt_txt-z_descripcio_s. "SPEC-58688 - ECJSA
+        ELSE.
+          wa_fcat-scrtext_l   = 'Obres similars de tipologia correcta'.
+          wa_fcat-scrtext_m   = 'Núm. obres tip. c.'.
+          wa_fcat-scrtext_s   = 'Núm. ob.'.
+        ENDIF.
+        IF g_readonly IS INITIAL.
+          wa_fcat-edit          = abap_true.
+        ENDIF.
+        APPEND wa_fcat TO pt_fcat.
+***<<< FI Modificació ETXGL SPEC-51885
+      ENDIF.
+
+      IF wa_puntuacio_actual-z_mult_rec = abap_on.
+        CLEAR: wa_fcat.
+        wa_fcat-fieldname     = 'Z_KM_VERIF'.
+        wa_fcat-no_zero       = abap_on.
+        wa_fcat-outputlen     = 10.
+        wa_fcat-just          = 'L'.
+        wa_fcat-scrtext_s     = 'Km verif.'.
+        wa_fcat-scrtext_m     = 'Distància verificada (km)'.
+        wa_fcat-scrtext_l     = 'Distància verificada (km)'.
+        IF g_readonly IS INITIAL.
+          wa_fcat-edit          = abap_true.
+        ENDIF.
+        APPEND wa_fcat TO pt_fcat.
+
+        CLEAR: wa_fcat.
+        wa_fcat-fieldname     = 'Z_KM_OFERTA'.
+        wa_fcat-no_zero       = abap_on.
+        wa_fcat-outputlen     = 10.
+        wa_fcat-just          = 'L'.
+        wa_fcat-scrtext_s     = 'Km oferta'.
+        wa_fcat-scrtext_m     = 'Distància indicada a l''oferta (km)'.
+        wa_fcat-scrtext_l     = 'Distància indicada a l''oferta (km)'.
+        IF g_readonly IS INITIAL.
+          wa_fcat-edit          = abap_true.
+        ENDIF.
+        APPEND wa_fcat TO pt_fcat.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CREAR_LAYOUT_0501
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM crear_layout_0501  CHANGING pv_layout TYPE lvc_s_layo.
+
+  pv_layout-smalltitle = abap_true.
+  pv_layout-no_totline = abap_false.
+  IF gv_toolbar EQ 'X'.
+    pv_layout-no_toolbar = abap_false.
+  ELSE.
+    pv_layout-no_toolbar = abap_true.
+  ENDIF.
+  CLEAR: gv_toolbar.
+  pv_layout-no_rowins  = abap_true.
+  pv_layout-no_rowmove = abap_true.
+  pv_layout-zebra      = abap_false.
+  IF g_readonly = abap_on.
+    pv_layout-edit_mode  = abap_true.
+  ELSE.
+    pv_layout-edit_mode  = abap_false.
+  ENDIF.
+  pv_layout-numc_total = abap_true.
+  pv_layout-sel_mode   = 'A'.
+  pv_layout-stylefname = 'STYLE'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  MOSTRAR_ALV_0501
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM mostrar_alv_0501  USING    pt_puntuacio     TYPE tty_puntuacio
+                                pv_alv_puntuacio TYPE REF TO cl_gui_alv_grid
+                                pt_fcat          TYPE lvc_t_fcat
+                                pv_layout        TYPE lvc_s_layo.
+
+  DATA: lt_exclude TYPE ui_functions.
+
+  PERFORM toolbar_excluding CHANGING lt_exclude.
+
+* Llamamos al manejo de eventos.
+  SET HANDLER lcl_event_handler_new=>handle_hotspot_click_0501 FOR pv_alv_puntuacio.
+  SET HANDLER lcl_event_handler_new=>handle_user_command_0501 FOR pv_alv_puntuacio.
+
+  IF gv_back EQ 'X' AND gv_next EQ 'X'.
+    SET HANDLER lcl_event_handler_new=>handle_toolbar_0501 FOR pv_alv_puntuacio.
+  ELSEIF gv_back EQ 'X' AND gv_next EQ ' '.
+    SET HANDLER lcl_event_handler_new=>handle_toolbar_back FOR pv_alv_puntuacio.
+  ELSEIF gv_next EQ 'X' AND gv_back EQ ' '.
+    SET HANDLER lcl_event_handler_new=>handle_toolbar_next FOR pv_alv_puntuacio.
+  ENDIF.
+  CLEAR: gv_next, gv_back.
+
+
+***FIN MOD ETJHG - SPEC-46407
+
+* Mostramos la ALV.
+  pv_alv_puntuacio->set_table_for_first_display(
+    EXPORTING
+      is_layout                     = pv_layout
+      it_toolbar_excluding          = lt_exclude
+    CHANGING
+      it_outtab                     = pt_puntuacio
+      it_fieldcatalog               = pt_fcat
+    EXCEPTIONS
+      invalid_parameter_combination = 1
+      program_error                 = 2
+      too_many_lines                = 3
+    OTHERS                        = 4 ).
+  CHECK sy-subrc = 0.
+
+  IF g_readonly IS INITIAL.
+    pv_alv_puntuacio->register_edit_event( EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+    pv_alv_puntuacio->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SET_PUNTUACIO_ACTUAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM set_puntuacio_actual  USING    ps_punt_ofer          TYPE zrm_dt_punt_ofer
+                                    pt_puntuacio          TYPE tty_puntuacio
+                                    ps_current_punt_alv   TYPE gty_punt_ofer_alv
+                           CHANGING ct_puntuacio_ori      TYPE tty_puntuacio.
+  DATA: wa_puntuacio TYPE gty_puntuacio,
+        lt_documents TYPE tty_puntuacio,
+        wa_documents TYPE gty_puntuacio,
+        lv_zsec      TYPE z_sec,
+        ls_style     TYPE lvc_s_styl.
+
+  FIELD-SYMBOLS: <sel_rec>     LIKE LINE OF gt_punt_rec,
+                 <punt_rec>    LIKE LINE OF gt_punt_rec,
+                 <fs_punt_rel> TYPE gty_puntuacio.
+
+  SELECT *
+    FROM zrm_dm_suapar_re
+    INTO TABLE gt_punt_do.
+
+  SELECT *
+    FROM   zrm_dm_suapar_pt
+    INTO TABLE @DATA(lt_suapar_pt)
+    WHERE z_codi_subapar_punt_rel EQ @ps_punt_ofer-z_codi_subapar_punt.
+
+  SELECT *
+    FROM   zrm_dm_suapar_pt
+    INTO TABLE @DATA(lt_suapar_pt2)
+    WHERE z_codi_subapar_punt_dep EQ @ps_punt_ofer-z_codi_subapar_punt.
+
+  SELECT *
+    FROM zrm_dm_crit_punt
+    INTO TABLE @DATA(lt_crit_punt)
+    WHERE z_codi_crit_punt EQ @ps_punt_ofer-z_codi_crit_punt
+      AND z_mod_crit_punt  EQ @ps_punt_ofer-z_mod_crit_punt.
+
+  CLEAR: ct_puntuacio_ori[].
+
+  SELECT z_codi_subapar_punt, z_sec,z_descripcio_do, z_punt_max_do, z_motiv_apl, z_opcional, z_pun_rel_sel
+    FROM zrm_dm_suapar_do
+    INTO CORRESPONDING FIELDS OF TABLE @lt_documents
+      WHERE z_codi_subapar_punt = @ps_punt_ofer-z_codi_subapar_punt.
+
+  SORT lt_documents BY z_punt_max_do DESCENDING.
+
+  IF gt_punt_sel IS INITIAL.
+    SELECT *
+      FROM zrm_dt_punt_sel
+      INTO TABLE @gt_punt_sel
+     WHERE docclass          EQ @g_docclass
+       AND objectid          EQ @g_objectid
+       AND z_mod_crit_punt   EQ @ps_punt_ofer-z_mod_crit_punt
+       AND z_codi_crit_punt  EQ @ps_punt_ofer-z_codi_crit_punt.
+  ENDIF.
+** RECURSOS **
+  IF ps_current_punt_alv-z_mult_rec = abap_on.
+    SELECT *
+      FROM zrm_dt_punt_rec
+      INTO TABLE @DATA(lt_sel_rec)
+        WHERE docclass          EQ @g_docclass
+          AND objectid          EQ @g_objectid
+          AND z_num_ofer        EQ @ps_punt_ofer-z_num_ofer
+          AND z_mod_crit_punt   EQ @ps_punt_ofer-z_mod_crit_punt
+          AND z_codi_crit_punt  EQ @ps_punt_ofer-z_codi_crit_punt.
+    IF sy-subrc EQ 0.
+      LOOP AT gt_punt_rec ASSIGNING <punt_rec> WHERE z_num_ofer EQ ps_punt_ofer-z_num_ofer.
+        READ TABLE lt_sel_rec ASSIGNING <sel_rec> WITH KEY z_num_ofer         = <punt_rec>-z_num_ofer
+                                                           z_mod_crit_punt    = <punt_rec>-z_mod_crit_punt
+                                                           z_codi_crit_punt   = <punt_rec>-z_codi_crit_punt
+                                                           z_comptador_recurs = <punt_rec>-z_comptador_recurs.
+        IF sy-subrc EQ 0.
+          <sel_rec>-z_punts = <punt_rec>-z_punts.
+          <sel_rec>-z_sec   = <punt_rec>-z_sec.
+        ENDIF.
+      ENDLOOP.
+    ELSEIF gt_punt_rec[] IS NOT INITIAL.
+      LOOP AT gt_punt_rec ASSIGNING <punt_rec> WHERE z_num_ofer EQ ps_punt_ofer-z_num_ofer.
+        APPEND INITIAL LINE TO lt_sel_rec ASSIGNING <sel_rec>.
+        MOVE-CORRESPONDING <punt_rec> TO <sel_rec>.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+**************
+
+** EQUIP **
+  IF gt_punt_equi[] IS INITIAL.
+    SELECT *
+      FROM zrm_dt_punt_equi
+      INTO TABLE @gt_punt_equi
+     WHERE docclass          EQ @g_docclass
+       AND objectid          EQ @g_objectid
+       AND z_mod_crit_punt   EQ @ps_punt_ofer-z_mod_crit_punt.
+  ENDIF.
+  IF ps_current_punt_alv-z_mult_equip = abap_on.
+    SELECT *
+      FROM zrm_dt_punt_equi
+      INTO TABLE @DATA(lt_sel_equi)
+        WHERE docclass          EQ @g_docclass
+          AND objectid          EQ @g_objectid
+          AND z_num_ofer        EQ @ps_punt_ofer-z_num_ofer
+          AND z_mod_crit_punt   EQ @ps_punt_ofer-z_mod_crit_punt
+          AND z_codi_crit_punt  EQ @ps_punt_ofer-z_codi_crit_punt.
+    IF sy-subrc EQ 0.
+      LOOP AT gt_punt_equi ASSIGNING FIELD-SYMBOL(<fs_punt_equi>) WHERE z_num_ofer EQ ps_punt_ofer-z_num_ofer.
+        READ TABLE lt_sel_equi ASSIGNING FIELD-SYMBOL(<fs_sel_equi>) WITH KEY z_num_ofer         = <fs_punt_equi>-z_num_ofer
+                                                                              z_mod_crit_punt    = <fs_punt_equi>-z_mod_crit_punt
+                                                                              z_codi_crit_punt   = <fs_punt_equi>-z_codi_crit_punt
+                                                                              z_comptador_equip  = <fs_punt_equi>-z_comptador_equip.
+        IF sy-subrc EQ 0.
+          <fs_sel_equi>-z_punts = <fs_punt_equi>-z_punts.
+          <fs_sel_equi>-z_sec   = <fs_punt_equi>-z_sec.
+        ENDIF.
+      ENDLOOP.
+    ELSEIF gt_punt_equi[] IS NOT INITIAL.
+      LOOP AT gt_punt_equi ASSIGNING <fs_punt_equi> WHERE z_num_ofer EQ ps_punt_ofer-z_num_ofer.
+        APPEND INITIAL LINE TO lt_sel_equi ASSIGNING <fs_sel_equi>.
+        MOVE-CORRESPONDING <fs_punt_equi> TO <fs_sel_equi>.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+**************
+
+** Recorrer documents subapartat per marcar els que s'hagin guardat i poder marcar i introduir motivació de nou **
+  LOOP AT lt_documents INTO wa_documents.
+    CLEAR: wa_puntuacio.
+    READ TABLE lt_suapar_pt ASSIGNING FIELD-SYMBOL(<fs_pt>)
+          WITH KEY z_codi_subapar_punt = wa_documents-z_codi_subapar_punt.
+    IF sy-subrc EQ 0.
+      wa_puntuacio-z_codi_subapar_punt_dep = <fs_pt>-z_codi_subapar_punt_dep.
+      wa_puntuacio-z_punts_no_val_dep      = <fs_pt>-z_punts_no_val_dep.
+    ENDIF.
+    READ TABLE lt_suapar_pt2 ASSIGNING <fs_pt>
+      WITH KEY z_codi_subapar_punt_dep = wa_documents-z_codi_subapar_punt.
+    IF sy-subrc EQ 0.
+      wa_puntuacio-z_codi_subapar_punt_dep2 = <fs_pt>-z_codi_subapar_punt.
+      wa_puntuacio-z_punts_no_val_dep      = <fs_pt>-z_punts_no_val_dep.
+    ENDIF.
+    wa_puntuacio-z_codi_subapar_punt        = wa_documents-z_codi_subapar_punt.
+    wa_puntuacio-z_codi_subapar_punt_rel    = wa_documents-z_codi_subapar_punt_rel.
+    wa_puntuacio-z_descripcio_do            = wa_documents-z_descripcio_do.
+    wa_puntuacio-z_punt_max_do              = wa_documents-z_punt_max_do.
+    wa_puntuacio-z_sec                      = wa_documents-z_sec.
+    wa_puntuacio-docclass                   = ps_punt_ofer-docclass.
+    wa_puntuacio-objectid                   = ps_punt_ofer-objectid.
+    wa_puntuacio-z_num_ofer                 = ps_punt_ofer-z_num_ofer.
+    wa_puntuacio-z_codi_crit_punt           = ps_punt_ofer-z_codi_crit_punt.
+    wa_puntuacio-z_motiv_apl                = wa_documents-z_motiv_apl.
+    wa_puntuacio-z_experiencia              = ps_current_punt_alv-z_experiencia.
+    wa_puntuacio-z_compta_rec               = ps_current_punt_alv-z_compta_rec.
+    wa_puntuacio-z_comptador_equip          = ps_current_punt_alv-z_comptador_equip.
+    wa_puntuacio-z_opcional                 = wa_documents-z_opcional.
+    wa_puntuacio-z_pun_rel_sel              = wa_documents-z_pun_rel_sel.
+
+    READ TABLE lt_sel_rec ASSIGNING FIELD-SYMBOL(<fs_sel_rec_pes>) WITH KEY z_codi_crit_punt    = ps_punt_ofer-z_codi_crit_punt
+                                                                            z_comptador_recurs  = wa_puntuacio-z_compta_rec.
+    IF sy-subrc = 0.
+      wa_puntuacio-z_pes = <fs_sel_rec_pes>-z_pes.
+    ENDIF.
+    READ TABLE lt_sel_equi ASSIGNING FIELD-SYMBOL(<fs_sel_equi_pes>) WITH KEY z_codi_crit_punt   = ps_punt_ofer-z_codi_crit_punt
+                                                                              z_comptador_equip  = wa_puntuacio-z_comptador_equip.
+    IF sy-subrc = 0.
+      wa_puntuacio-z_pes = <fs_sel_equi_pes>-z_pes.
+    ENDIF.
+    "Marquem aquells que ja han estat seleccionats en execucions anteriors
+    IF ps_current_punt_alv-z_mult_equip = abap_on.
+      wa_puntuacio-z_mult_rec     = abap_on.
+      IF <fs_punt_rel> IS ASSIGNED. UNASSIGN <fs_punt_rel>. ENDIF.
+      READ TABLE gs_dyn_0501-gt_puntuacio_rel
+       ASSIGNING <fs_punt_rel>
+            WITH KEY z_codi_subapar_punt = wa_documents-z_codi_subapar_punt
+                     z_num_ofer          = ps_punt_ofer-z_num_ofer
+                     z_sec               = wa_documents-z_sec
+                     z_comptador_equip   = wa_puntuacio-z_comptador_equip.
+
+      READ TABLE gt_punt_sel TRANSPORTING NO FIELDS
+       WITH KEY docclass           = wa_puntuacio-docclass
+                objectid           = wa_puntuacio-objectid
+                z_num_ofer         = wa_puntuacio-z_num_ofer
+                z_mod_crit_punt    = gs_dyn_0500-gv_mod_punt
+                z_sec              = wa_puntuacio-z_sec
+                z_codi_crit_punt   = wa_puntuacio-z_codi_crit_punt
+                z_comptador_recurs = wa_puntuacio-z_comptador_equip.
+    ELSEIF ps_current_punt_alv-z_mult_rec = abap_on.
+      wa_puntuacio-z_mult_equip     = abap_on.
+      IF <fs_punt_rel> IS ASSIGNED. UNASSIGN <fs_punt_rel>. ENDIF.
+      READ TABLE gs_dyn_0501-gt_puntuacio_rel
+       ASSIGNING <fs_punt_rel>
+                  WITH KEY z_codi_subapar_punt = wa_documents-z_codi_subapar_punt
+                     z_num_ofer     = ps_punt_ofer-z_num_ofer
+                     z_sec          = wa_documents-z_sec
+                     z_compta_rec   = wa_puntuacio-z_compta_rec.
+
+      READ TABLE gt_punt_sel TRANSPORTING NO FIELDS
+       WITH KEY docclass           = wa_puntuacio-docclass
+                objectid           = wa_puntuacio-objectid
+                z_num_ofer         = wa_puntuacio-z_num_ofer
+                z_mod_crit_punt    = gs_dyn_0500-gv_mod_punt
+                z_sec              = wa_puntuacio-z_sec
+                z_codi_crit_punt   = wa_puntuacio-z_codi_crit_punt
+                z_comptador_recurs = wa_puntuacio-z_compta_rec.
+    ELSE.
+      IF <fs_punt_rel> IS ASSIGNED. UNASSIGN <fs_punt_rel>. ENDIF.
+      READ TABLE gs_dyn_0501-gt_puntuacio_rel
+       ASSIGNING <fs_punt_rel>
+            WITH KEY z_codi_subapar_punt = wa_documents-z_codi_subapar_punt
+                     z_num_ofer          = ps_punt_ofer-z_num_ofer
+                     z_sec               = wa_documents-z_sec..
+
+      READ TABLE gt_punt_sel TRANSPORTING NO FIELDS
+       WITH KEY docclass           = wa_puntuacio-docclass
+                objectid           = wa_puntuacio-objectid
+                z_num_ofer         = wa_puntuacio-z_num_ofer
+                z_mod_crit_punt    = gs_dyn_0500-gv_mod_punt
+                z_sec              = wa_puntuacio-z_sec
+                z_codi_crit_punt   = wa_puntuacio-z_codi_crit_punt.
+    ENDIF.
+    IF sy-subrc EQ 0. "Si troba entrada a GT_PUNT_SEL
+      wa_puntuacio-seleccio = abap_true.
+    ELSE.
+      CLEAR wa_puntuacio-seleccio.
+    ENDIF.
+
+    IF <fs_punt_rel> IS ASSIGNED.
+      wa_puntuacio-seleccio     = abap_true.
+      wa_puntuacio-z_motivacio  = <fs_punt_rel>-z_motivacio.
+      wa_puntuacio-z_comentaris = <fs_punt_rel>-z_comentaris.
+    ELSE.
+
+    ENDIF.
+
+
+    IF pt_puntuacio[] IS NOT INITIAL.
+*      IF wa_puntuacio-z_opcional IS INITIAL.
+*        READ TABLE pt_puntuacio ASSIGNING FIELD-SYMBOL(<fs>) WITH KEY z_codi_crit_punt  = wa_puntuacio-z_codi_crit_punt
+*                                                                      z_sec             = wa_puntuacio-z_sec
+*                                                                      z_compta_rec      = wa_puntuacio-z_compta_rec.
+*
+*      ELSE.
+*        LOOP AT pt_puntuacio ASSIGNING <fs> WHERE z_codi_crit_punt  = wa_puntuacio-z_codi_crit_punt
+*                                              AND z_sec             = wa_puntuacio-z_sec
+*                                              AND z_compta_rec      = wa_puntuacio-z_compta_rec.
+*          EXIT.
+*        ENDLOOP.
+*      ENDIF.
+*      IF sy-subrc EQ 0.
+*        wa_puntuacio-z_motivacio       = <fs>-z_motivacio.
+*        wa_puntuacio-z_comentaris      = <fs>-z_comentaris.
+*        wa_puntuacio-z_km_oferta       = <fs>-z_km_oferta.
+*        wa_puntuacio-z_km_verif        = <fs>-z_km_verif.
+*        wa_puntuacio-z_num_ob_oferta   = <fs>-z_num_ob_oferta.
+*        wa_puntuacio-z_num_ob_tip_ok   = <fs>-z_num_ob_tip_ok.
+*      ENDIF.
+    ENDIF.
+
+**  Textos de motivació i comentaris(aquest últim ocult)
+    IF wa_puntuacio-z_motivacio IS NOT BOUND.
+      PERFORM get_text_sapscript  USING    ps_punt_ofer
+                                           wa_documents-z_sec
+                                           'ZMOT'
+                                           'Z_PUNT_DYN'
+                                           wa_puntuacio-z_compta_rec "MOD ETJHG - SPEC-46407
+                                  CHANGING wa_puntuacio-z_motivacio.
+    ENDIF.
+    wa_puntuacio-comentaris = icon_display_note.
+    IF wa_puntuacio-z_comentaris IS NOT BOUND.
+      PERFORM get_text_sapscript  USING    ps_punt_ofer
+                                           wa_documents-z_sec
+                                           'ZCOM'
+                                           'Z_PUNT_DYN'
+                                           wa_puntuacio-z_compta_rec "MOD ETJHG - SPEC-46407
+                                  CHANGING wa_puntuacio-z_comentaris.
+    ENDIF.
+    wa_puntuacio-motivacio = icon_display_note.
+    CLEAR: ls_style.
+    ls_style-fieldname = 'Z_MOTIVACIO'.
+    ls_style-style     = cl_gui_alv_grid=>mc_style_button.
+    INSERT ls_style INTO TABLE wa_puntuacio-style.
+    CLEAR: ls_style.
+    ls_style-fieldname = 'Z_COMENTARIS'.
+    ls_style-style     = cl_gui_alv_grid=>mc_style_button.
+    INSERT ls_style INTO TABLE wa_puntuacio-style.
+    CLEAR: ls_style.
+    ls_style-fieldname = 'Z_DESCRIPCIO_DO'.
+    ls_style-style     = cl_gui_alv_grid=>mc_style_hotspot.
+    INSERT ls_style INTO TABLE wa_puntuacio-style.
+
+** Pel cas que la puntuació es determina a partir del nombre de seleccionats..
+    IF wa_documents-z_pun_rel_sel EQ abap_true.
+      IF wa_documents-z_opcional EQ abap_true.
+        "ocultem la puntuació per aquells que poden clicar-se simultàniament
+        CLEAR: ls_style.
+        ls_style-fieldname = 'Z_PUNT_MAX_DO'.
+        ls_style-style     = '00000051'.
+        INSERT ls_style INTO TABLE wa_puntuacio-style.
+        CLEAR: ls_style.
+      ENDIF.
+    ENDIF.
+    APPEND wa_puntuacio TO ct_puntuacio_ori.
+  ENDLOOP.
+**************
+  IF ct_puntuacio_ori[] IS INITIAL.
+    MESSAGE 'No hi ha documents associats a cap de les subapartats' TYPE 'I'.
+    LEAVE TO SCREEN 0.
+  ENDIF.
+
+  SORT ct_puntuacio_ori BY z_sec.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_0501  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE exit_0501 INPUT.
+
+ENDMODULE.

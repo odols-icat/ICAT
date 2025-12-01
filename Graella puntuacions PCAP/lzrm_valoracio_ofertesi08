@@ -1,0 +1,99 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESI08.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_COMMAND_1000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE exit_command_1000 INPUT.
+*  DATA: l_answer1 TYPE c.
+*"Es comprova si s'han relitzat canvis a la simulació abans de sortir
+  IF gr_mult_equip_incr_alv->get_flag_changes( ) = abap_on.
+    CLEAR:l_answer1.
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar              = text-i01
+        text_question         = text-i02
+        display_cancel_button = abap_off
+      IMPORTING
+        answer                = l_answer1.
+    CHECK l_answer1 = 1.
+  ENDIF.
+
+  CALL METHOD cl_gui_cfw=>flush.
+  LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_1000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_1000 INPUT.
+  IF gr_mult_equip_incr_alv IS BOUND.
+    gr_mult_equip_incr_alv->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_1001  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_1001 INPUT.
+  IF gr_mult_equip_incr_alv IS BOUND.
+    gr_mult_equip_incr_alv->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_COMMAND_1002  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE exit_command_1002 INPUT.
+*  DATA: l_answer_0902 TYPE c.
+  IF gr_mult_equip_incr_alv IS BOUND.
+*"Es comprova si s'han relitzat canvis a la simulació abans de sortir
+    IF gr_mult_equip_incr_alv->get_flag_changes( ) = abap_on.
+      CLEAR:l_answer_0902.
+      CALL FUNCTION 'POPUP_TO_CONFIRM'
+        EXPORTING
+          titlebar              = text-i01
+          text_question         = text-i02
+          display_cancel_button = abap_off
+        IMPORTING
+          answer                = l_answer_0902.
+      CHECK l_answer_0902 = 1.
+    ENDIF.
+  ENDIF.
+
+  CALL METHOD cl_gui_cfw=>flush.
+  LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_1002  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_1002 INPUT.
+  IF gr_mult_equip_incr_alv IS BOUND.
+    gr_mult_equip_incr_alv->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_COMMAND_1003  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE exit_command_1003 INPUT.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_1003  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_1003 INPUT.
+  IF gr_util_incr_equip IS BOUND.
+    gr_util_incr_equip->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.

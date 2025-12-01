@@ -1,0 +1,93 @@
+*&---------------------------------------------------------------------*
+*& CLASSE PER GESTIONAR LÒGICA PUNTUACIÓ APORTACIONS
+*&---------------------------------------------------------------------*
+*&  Include           ZRM_VALORACIO_OFERTESCL13
+*&---------------------------------------------------------------------*
+CLASS lcl_alv_1008_apor DEFINITION FINAL.
+  PUBLIC SECTION.
+    CONSTANTS: gc_cell_style TYPE string  VALUE 'STYLE',
+               gc_cell_color TYPE string  VALUE 'CELL_COLOR',
+               gc_docclass   TYPE string  VALUE 'DOCCLASS',
+               gc_objectid   TYPE string  VALUE 'OBJECTID',
+               gc_mandt      TYPE string  VALUE 'MANDT'.
+    TYPES: BEGIN OF ty_s_columns,
+             fieldname              TYPE char250,
+             z_comptador_equip      TYPE zrm_dt_punt_apor-z_compta_aportacio,
+             z_descripcio           TYPE zrm_dt_punt_apor-z_descripcio,
+             z_punts_total          TYPE zrm_dt_punt_apor-z_punts,
+             z_actual_in_bottom_alv TYPE xfeld,
+           END OF ty_s_columns.
+    TYPES: ty_t_columns TYPE STANDARD TABLE OF ty_s_columns.
+
+    DATA: gr_alv_top              TYPE REF TO cl_salv_table,
+          gr_docking              TYPE REF TO cl_gui_custom_container,
+          gs_exp_cont             TYPE zrm_dt_exp_cont,
+          gv_company_name         TYPE string,
+          gt_graella_crit         TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt,
+*          gt_graella_aport        TYPE zrm_tt_punt_apor,
+          gt_my_aport             TYPE zrm_tt_punt_apor,
+          gv_num_oferta           TYPE z_num_ofer,
+          gt_puntuacions_inicials TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats,
+          gv_objectid             TYPE bapiguid,
+          gv_doclass              TYPE bapidclass.
+
+    METHODS constructor IMPORTING it_graella_criteris TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt
+                                  it_aportacions      TYPE zrm_tt_punt_apor
+                                  it_puntuacio        TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats
+                                  iv_readonly         TYPE xfeld
+                                  iv_objectid         TYPE bapiguid
+                                  iv_docclass         TYPE bapidclass
+                                  iv_num_oferta       TYPE z_num_ofer..
+    METHODS create_alv.
+    METHODS show_alv.
+  PROTECTED SECTION.
+    DATA: gv_readonly TYPE xfeld.
+ENDCLASS.
+
+CLASS lcl_alv_1008_apor IMPLEMENTATION.
+  METHOD constructor.
+*-- Nom sencer del proveidor ------------------------------------
+    SELECT SINGLE proveidor
+      FROM zrm_dt_ofertes
+      INTO @DATA(lv_lifnr)
+      WHERE objectid    = @iv_objectid
+        AND docclass    = @iv_docclass
+        AND z_num_ofer  = @iv_num_oferta.
+    IF sy-subrc = 0 AND lv_lifnr IS NOT INITIAL.
+      SELECT SINGLE name1,name2,name3,name4
+        FROM lfa1
+        INTO (@DATA(lv_name1),@DATA(lv_name2),@DATA(lv_name3),@DATA(lv_name4))
+        WHERE lifnr EQ @lv_lifnr .
+*
+*      CONCATENATE lv_name1 lv_name2 lv_name3 lv_name4 INTO gv_company_name  SEPARATED BY space.
+*      CONDENSE gv_company_name.
+      gv_company_name = |{ lv_name1 } { lv_name2 } { lv_name3 } { lv_name4 }|.
+    ENDIF.
+
+*-- Paràmetres cap a globals
+    gt_graella_crit[]       = it_graella_criteris[].
+    gt_my_aport             = it_aportacions.
+    gt_puntuacions_inicials = it_puntuacio.
+    gv_num_oferta           = iv_num_oferta.
+    gt_puntuacions_inicials = it_puntuacio.
+    gv_doclass              = iv_docclass.
+    gv_objectid             = iv_objectid.
+  ENDMETHOD.
+  METHOD create_alv.
+    CALL SCREEN '1008'.
+  ENDMETHOD.
+  METHOD show_alv.
+*    IF gr_docking IS INITIAL.
+*      me->splitter_alv( ).
+*    ELSE.
+*      fill_layout( EXPORTING i_top     = abap_on
+*                   IMPORTING es_layout = DATA(ls_layout_top) ).
+*      fill_catalog( EXPORTING is_alv      = <gs_dyntable>
+*                              i_top       = abap_on
+*                    IMPORTING et_fieldcat = DATA(lt_fieldcat_top) ).
+*      gr_alv_top->set_frontend_layout( is_layout = ls_layout_top ).
+*      gr_alv_top->set_frontend_fieldcatalog( it_fieldcatalog = lt_fieldcat_top ).
+*      gr_alv_top->refresh_table_display( EXPORTING i_soft_refresh = abap_on ).
+*    ENDIF.
+  ENDMETHOD.
+ENDCLASS.

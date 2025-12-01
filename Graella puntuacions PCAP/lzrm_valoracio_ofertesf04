@@ -1,0 +1,35 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESF04.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  CRIDA_PUNTS_PDM
+*&---------------------------------------------------------------------*
+FORM crida_punts_pdm  USING    pt_graella_equip TYPE zrm_tt_dt_punt_equi
+                               p_readonly       TYPE xfeld
+                               p_objectid       TYPE bapiguid
+                               p_docclass       TYPE bapidclass
+                               p_num_ofer       TYPE z_num_ofer
+                      CHANGING c_no_changes     TYPE xfeld
+                               ct_punts_offer   TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen.
+  CREATE OBJECT gr_pdm_alv
+    EXPORTING
+      it_equip     = pt_graella_equip
+      it_puntuacio = ct_punts_offer
+      i_readonly   = p_readonly
+      i_objectid   = p_objectid
+      i_docclass   = p_docclass
+      i_num_oferta = p_num_ofer.
+
+  CHECK gr_pdm_alv IS BOUND.
+
+  gr_pdm_alv->create_alv( ).
+
+  IF gr_pdm_alv->get_flag_changes( ) = abap_on.
+    c_no_changes = abap_off.
+    gr_pdm_alv->get_pdm_puntuacions( CHANGING ct_punts_offer = ct_punts_offer ).
+  ELSE.
+    c_no_changes = abap_on.
+  ENDIF.
+  gr_pdm_alv->free_variables( ).
+  FREE gr_pdm_alv.
+ENDFORM.

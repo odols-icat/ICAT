@@ -1,0 +1,36 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESI09.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_COMMAND_1005  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE exit_command_1005 INPUT.
+  DATA: lv_answer1 TYPE c.
+*"Es comprova si s'han relitzat canvis a la simulació abans de sortir
+  IF gr_util_co2->get_flag_changes( ) = abap_on.
+    CLEAR: lv_answer1.
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar              = text-i01
+        text_question         = text-i02
+        display_cancel_button = abap_off
+      IMPORTING
+        answer                = lv_answer1.
+    CHECK lv_answer1 = 1.
+  ENDIF.
+
+  CALL METHOD cl_gui_cfw=>flush.
+  LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_1005  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_1005 INPUT.
+  IF gr_util_co2 IS BOUND.
+    gr_util_co2->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.

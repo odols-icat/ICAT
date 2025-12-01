@@ -1,0 +1,2411 @@
+class ZRM_CL_EXPEDIENTS_CONTRACTACIO definition
+  public
+  inheriting from ZRM_CL_EXPEDIENTS
+  abstract
+  create public .
+
+*"* public components of class ZRM_CL_EXPEDIENTS_CONTRACTACIO
+*"* do not include other source files here!!!
+public section.
+
+  data EXP_CONT type ZRM_DT_EXP_CONT .
+  data CLASS_EMPR type ref to ZRM_CL_CLAS_EMPR .
+  data REDUCCIONS_LT type ref to ZRM_CL_REDUC_LT .
+  data TREB_EXPC type ref to ZRM_CL_TREB_EXPC .
+  data IMPULS_CAP type ZMM_DT_IMP_CAP read-only .
+  data IMPULS_POS type ZMM_TT_DT_IMP_PO read-only .
+  data PROVEIDORS type ZMM_TT_DT_PROV_SOL read-only .
+  data QDC_CAP_LIC type ZVRM_QDC_CAP_LIC .
+  data QDC_BIM_LIC type ZVRM_QDC_BIM_LIC .
+  data QDC_CAR_LIC type ZVRM_QDC_CAR_LIC .
+  data QDC_CLO_LIC type ZVRM_QDC_CLO_LIC .
+  data QDC_CPU_LIC type ZVRM_QDC_CPU_LIC .
+  data QDC_LLS_LIC type ZVRM_QDC_LLS_LIC .
+  data QDC_MAT_LIC type ZVRM_QDC_MAT_LIC .
+  data QDC_PO_LIC type ZVRM_QDC_PO_LIC .
+  data QDC_TDE_LIC type ZVRM_QDC_TDE_LIC .
+
+  methods SET_EXP_REL
+    importing
+      !IM_EXP_REL type ZRM_DT_EXP_CONT-Z_CODI_EXP_ORIG .
+  methods OBTENIR_DADES_IMPULS .
+  class-methods CREARA_COMANDA
+    importing
+      !IM_DADES type ZRM_DT_EXP_CONT
+    returning
+      value(RE_COMANDA) type XFELD .
+  methods SET_ES_NOU_CONVENI
+    importing
+      !IV_ES_NOU_CONVENI type Z_ES_NOU_CONVENI .
+  methods SET_DATA_CONVENI
+    importing
+      !IV_DATA_CALCUL_CONVENI type Z_DATA_CALCUL_CONVENI .
+  methods ACT_DADES_IMPULS
+  abstract
+    importing
+      !IM_CODI_EXP type Z_CODI_EXP
+      !IM_DOCCLASS type BAPIDCLASS
+      !IM_OBJECTID type BAPIGUID
+      !IM_DOCCLASS_IMPULS type BAPIDCLASS
+      !IM_OBJECTID_IMPULS type BAPIGUID
+    exceptions
+      LOCK_RECORD .
+  methods SET_FLAG_TIPOLO_ECO
+    importing
+      !I_PROC_ADJ type Z_PROC_ADJ
+    raising
+      ZCX_RM_EXPEDIENT_LICITACIO .
+  methods SET_FLAG_LL34_2010
+    importing
+      !IM_LL34_2010 type ZRM_DT_EXP_CONT-Z_LL34_2010
+    raising
+      ZCX_RM_EXPEDIENT_LICITACIO .
+  methods SET_FLAG_REIAL_DECRET
+    importing
+      !IM_RD type ZRM_DT_EXP_CONT-Z_RD817_2009
+    raising
+      ZCX_RM_EXPEDIENT_LICITACIO .
+  methods SET_HARMONITZAT
+    importing
+      !IM_HARMONITZAT type ZRM_DT_EXP_CONT-Z_HARMONITZAT
+    raising
+      ZCX_RM_EXPEDIENT_LICITACIO .
+  methods ACT_DADES_IMPULS_NOU
+  abstract
+    importing
+      !IM_CODI_EXP type Z_CODI_EXP
+      !IM_DOCCLASS type BAPIDCLASS
+      !IM_OBJECTID type BAPIGUID
+      !IM_DOCCLASS_IMPULS type BAPIDCLASS
+      !IM_OBJECTID_IMPULS type BAPIGUID
+    exceptions
+      LOCK_RECORD .
+  methods SET_FLAG_OBRES_2M5M
+    importing
+      !IM_OBRES_2M5M type ZRM_DT_EXP_CONT-Z_OBRES_2M5M
+    raising
+      ZCX_RM_EXPEDIENT_LICITACIO .
+  methods SET_EXP_LOT
+    importing
+      !IT_IMP_PO type ZMM_TT_DT_IMP_PO
+      !I_EXP_HDR_CODE type Z_CODI_EXP
+    exporting
+      !E_SUBRC type SYST_SUBRC .
+  methods IS_EXP_LOT
+    importing
+      !IT_IMP_PO type ZMM_TT_DT_IMP_PO optional
+    returning
+      value(R_IS_LOT) type ABAP_BOOL .
+  methods SET_FLAG_OBERT_PREU
+    importing
+      !IM_OBERT_PREU type ZRM_DT_EXP_CONT-Z_OBERT_PREU .
+  methods SET_FLAG_LLEI92017
+    importing
+      !IM_LLEI92017 type ZRM_DT_EXP_CONT-Z_LLEI92017 .
+  methods SET_FLAG_OBERT_SIMPL
+    importing
+      !IM_OBERT_SIMPL type ZRM_DT_EXP_CONT-Z_OBERT_SIMPL .
+  methods SET_TIPUS_CONT
+    importing
+      !IM_TIPUS_CONT type ZRM_DT_EXP_CONT-Z_TIPUS_CONT .
+  methods OBTENIR_NOM_MODEL
+    importing
+      !IM_RECORD_SP_ID type STRING optional
+    returning
+      value(RE_DOCID_MODEL) type STRING .
+  methods SET_DERIVAT_ACORDMARC
+    importing
+      !IM_DACORD_MARC type Z_DACCORD_MARC
+    raising
+      ZCX_RM_EXPEDIENT_LICITACIO .
+  methods CREA_DOC_PR
+    importing
+      !IV_CLAS_DOC type Z_CLAS_DOC
+      !IS_IMP_CAP type ZMM_DT_IMP_CAP .
+  methods SET_ACORD_MARC
+    importing
+      !IM_ACORD_MARC type ZRM_DT_EXP_CONT-Z_ACORD_MARC .
+  methods SET_FLAG_APLICA_TAR
+    importing
+      !IM_APLICA_TAR type ZRM_DT_EXP_CONT-Z_APLICA_TAR .
+  methods SET_DADES_QDC
+    importing
+      !IV_DOCLASS_IMP type BAPIDCLASS
+      !IV_OBJID_IMP type BAPIGUID
+      !IV_DOCCLASS type BAPIDCLASS optional
+      !IV_OBJECTID type BAPIGUID optional
+      !IV_EXP_HDR type AD_XGROUP optional
+      !IV_COD_LIC type Z_CODI_EXP optional .
+  class-methods SET_DADES_QDC_LOTS
+    importing
+      !IV_DOCLASS_IMP type BAPIDCLASS
+      !IV_OBJID_IMP type BAPIGUID
+      !IV_EXP_HDR_CODE type Z_CODI_EXP
+      !IV_CODI_EXP_IMP type Z_CODI_EXP
+      !IV_Z_NUM_PLEC type Z_NUM_PLEC .
+
+  methods OBTENIR_DADES
+    redefinition .
+  methods OBTENIR_TREBALLS
+    redefinition .
+  methods ZIF_RM_EXPEDIENT_TECNIC~APPLY_PS_CHANGES
+    redefinition .
+  methods ZIF_RM_EXPEDIENT_TECNIC~NEEDS_SYNCHRONIZATION_FROM_PS
+    redefinition .
+  methods ZIF_RM_EXPEDIENT~DELETE_DATA
+    redefinition .
+protected section.
+*"* protected components of class ZRM_CL_EXPEDIENTS_CONTRACTACIO
+*"* do not include other source files here!!!
+
+  types:
+    TY_T_ACTUACIONS TYPE TABLE OF PS_PSPID .
+
+  constants C_CONTRACTE type STRING value 'CONTRACTE' ##NO_TEXT.
+  constants C_CONTRACTE2 type STRING value 'CONTRACTE2' ##NO_TEXT.
+  data T_TREB_EXPC type ZRM_TT_DT_TREB_EXPC .
+  data OFERTES type ZRM_TT_DT_OFERTES .
+  data ACTUACIONS type TY_T_ACTUACIONS .
+  data GOB_NIVELLS_PEP type ref to ZRM_CL_NIVELLS_PEP .
+  data CLAU_PEP type PRPS-PSPNR .
+  data CLAU_TREBALL type PRPS-POSID .
+
+  methods DADES_RESUM_PS
+    importing
+      !IM_NIVELLS_PEP type ref to ZRM_CL_NIVELLS_PEP optional
+    changing
+      !CH_DADES type ANY
+    exceptions
+      PEP_NOT_FOUND .
+  methods LLEGIR_NIVELLS_PEP
+  final
+    exporting
+      !EX_PRPS type PRPS
+    exceptions
+      PEP_NOT_FOUND .
+  methods ATRIBUTS_PS
+    importing
+      !IM_NIVELLS_PEP type ref to ZRM_CL_NIVELLS_PEP optional
+    exporting
+      !EX_ATTRIBUTE_TAB type SRMGS_PROPERTY_TAB .
+  methods ACT_ATRIBUTS
+    importing
+      !IM_STATUS type BAPIPROPVA optional .
+  methods COPIAR_DESCRIPCIO .
+
+  methods OBTENIR_DOCID_MODEL
+    redefinition .
+private section.
+*"* private components of class ZRM_CL_EXPEDIENTS_CONTRACTACIO
+*"* do not include other source files here!!!
+
+  data GT_IMP_PO_LOT type ZMM_TT_DT_IMP_PO .
+  data G_Z_EXP_HDR_CODE type Z_CODI_EXP .
+
+  methods MODIFICAR_EXP_LOT .
+ENDCLASS.
+
+
+
+CLASS ZRM_CL_EXPEDIENTS_CONTRACTACIO IMPLEMENTATION.
+
+
+METHOD act_atributs.
+  DATA: lv_record_docid TYPE string,
+        ls_actuacio     TYPE PS_PSPID,
+        ls_properties   TYPE bapiproptb,
+        lt_properties   TYPE TABLE OF bapiproptb.
+
+  CONCATENATE exp_cont-docclass
+              exp_cont-objectid INTO lv_record_docid
+                                RESPECTING BLANKS.
+
+  MOVE: 'Z_SOCIETAT'      TO ls_properties-name,
+        exp_cont-societat TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_CLIENT'        TO ls_properties-name,
+        exp_cont-z_client TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_CLIENT_NIV2'        TO ls_properties-name,
+        exp_cont-z_client_niv2 TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_CLIENT_NIV3'        TO ls_properties-name,
+        exp_cont-z_client_niv3 TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_RESP_EXP'        TO ls_properties-name,
+        exp_cont-z_resp_exp TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_DIRECC_IMP'        TO ls_properties-name,
+        exp_cont-z_direcc_imp TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_DEPART_IMP'        TO ls_properties-name,
+        exp_cont-z_depart_imp TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_USUARI_IMPULSOR'      TO ls_properties-name,
+        exp_cont-usuari_impulsor TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_TIPUS_TRAM'        TO ls_properties-name,
+        exp_cont-z_tipus_tram TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_PROC_ADJ'        TO ls_properties-name,
+        exp_cont-z_proc_adj TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_TIPUS_CONT'        TO ls_properties-name,
+        exp_cont-z_tipus_cont TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+  MOVE: 'Z_SUBTIPUS_CONT'        TO ls_properties-name,
+        exp_cont-z_subtipus_cont TO ls_properties-value.
+  APPEND ls_properties TO lt_properties.
+
+  LOOP AT actuacions INTO ls_actuacio.
+    MOVE: 'Z_ACTUACIO'       TO ls_properties-name,
+          ls_actuacio        TO ls_properties-value.
+    APPEND ls_properties TO lt_properties.
+  ENDLOOP.
+
+  IF nou_exp IS INITIAL.
+    CREATE OBJECT nou_exp.
+  ENDIF.
+
+  CALL METHOD nou_exp->cambiar_atribut_exp
+    EXPORTING
+      im_record_docid   = lv_record_docid
+      im_prop           = lt_properties
+      im_whole_document = 'X'.
+
+  CLEAR lt_properties.
+  MOVE 'SRM_STATE' TO ls_properties-name.
+  IF im_status IS SUPPLIED AND
+     NOT im_status IS INITIAL.
+    MOVE im_status TO ls_properties-value.
+  ELSE.
+    MOVE 'ZNI' TO ls_properties-value.
+  ENDIF.
+  APPEND ls_properties TO lt_properties.
+
+  CALL METHOD nou_exp->cambiar_atribut_exp
+    EXPORTING
+      im_record_docid   = lv_record_docid
+      im_prop           = lt_properties
+      im_whole_document = space.
+
+ENDMETHOD.
+
+
+method ATRIBUTS_PS.
+
+  DATA:  ls_properties   LIKE LINE OF ex_attribute_tab,
+           ls_element_pep  TYPE prps .
+
+  IF     im_nivells_pep IS SUPPLIED
+     AND im_nivells_pep IS BOUND .
+    ls_element_pep = im_nivells_pep->llegir_prps( ) .
+  ELSE .
+    CALL METHOD llegir_nivells_pep
+      IMPORTING
+        ex_prps = ls_element_pep
+      EXCEPTIONS
+        OTHERS  = 1.
+    CHECK sy-subrc EQ 0 .
+  ENDIF .
+
+  DEFINE _attribute .
+    ls_properties-name  = &1 .
+    ls_properties-value = &2 .
+    append ls_properties to ex_attribute_tab .
+  END-OF-DEFINITION .
+
+  _attribute:  'Z_CLIENT'            ls_element_pep-zzclie01,
+               'Z_CLIENT_NIV2'       ls_element_pep-zzclie02,
+               'Z_CLIENT_NIV3'       ls_element_pep-zzclie03.
+
+endmethod.
+
+
+METHOD copiar_descripcio.
+  DATA: ls_texts TYPE itctc,
+        ls_sdok  TYPE sdokobject,
+        lt_texts TYPE TABLE OF itctc,
+        r_texts  TYPE REF TO zrm_cl_sapscript_texts.
+
+  CREATE OBJECT r_texts
+    EXPORTING
+      i_tdid = r_texts->co_id_descripcio.
+
+  MOVE: docclass                  TO ls_sdok-class,
+        objectid                  TO ls_sdok-objid,
+        r_texts->co_object        TO ls_texts-destobject,
+        ls_sdok                   TO ls_texts-destname,
+        r_texts->co_id_descripcio TO ls_texts-destid,
+        sy-langu                  TO ls_texts-destlang,
+        'ZEBANH'                  TO ls_texts-srcobject,
+        'ZIMP'                    TO ls_texts-srcid,
+        sy-langu                  TO ls_texts-srclang.
+
+  CONCATENATE impuls_cap-z_tipus_imp
+              impuls_cap-z_codi_exp INTO ls_texts-srcname.
+
+  APPEND ls_texts TO lt_texts.
+
+  CALL FUNCTION 'COPY_TEXTS'
+    TABLES
+      texts = lt_texts.
+
+ENDMETHOD.
+
+
+METHOD creara_comanda.
+  DATA: l_data_impuls TYPE d,
+        l_llindar     TYPE z_pressup_licit.
+
+  CONSTANTS: co_proc_adj_nsp   TYPE z_proc_adj      VALUE 'NS',
+             co_proc_adj_nspnf TYPE z_proc_adj      VALUE 'NF',
+             co_proc_adj_men   TYPE z_proc_adj      VALUE 'ME',
+             co_tip_exp_cor    TYPE z_tipus_exp     VALUE 'COM',
+             co_subtipus_conv  TYPE z_subtipus_cont VALUE 'CV',
+             c_ob              TYPE z_tipus_cont    VALUE 'OB',
+             c_cp              TYPE z_tipus_cont    VALUE 'CP',
+             c_press_licit     TYPE z_pressup_licit VALUE '30050.61',
+             c_press_licit_nl  TYPE z_pres_licit_b VALUE '60000'.
+
+  DATA:        l_it_spopli TYPE TABLE OF spopli,
+               l_wa_spopli TYPE spopli,
+               l_answer,
+               l_question  TYPE string.
+
+  autoritzacio_crear_comanda im_dades-z_tipus_exp.
+
+  SELECT SINGLE z_dat_creacio INTO l_data_impuls
+           FROM zmm_dt_imp_cap
+          WHERE z_codi_exp EQ im_dades-sol_ped .
+  IF l_data_impuls GE '20080501' .
+    l_llindar = c_press_licit_nl  .
+  ELSE .
+    l_llindar = c_press_licit  .
+  ENDIF .
+
+  IF im_dades-z_tipus_exp    EQ co_tip_exp_cor.
+    re_comanda = 'X'.
+  ELSEIF im_dades-z_proc_adj EQ  co_proc_adj_men.
+    IF im_dades-z_subtipus_cont EQ co_subtipus_conv
+       OR im_dades-z_subtipus_cont EQ c_ob. "SPEC-28238 control crear contracte si Menor i obra
+      re_comanda = ''.
+    ELSE.
+      re_comanda = 'X'.
+    ENDIF.
+  ELSEIF im_dades-z_proc_adj EQ  co_proc_adj_nsp OR im_dades-z_proc_adj EQ  co_proc_adj_nspnf
+    OR im_dades-z_proc_adj EQ 'PS' OR im_dades-z_proc_adj EQ 'NP'. "SPEC-42492
+
+    IF     im_dades-z_tipus_cont    NE c_ob
+       AND im_dades-z_tipus_cont    NE c_cp
+       AND im_dades-z_pres_licit_b LE l_llindar .
+      re_comanda = 'X'.
+    ENDIF.
+    IF im_dades-z_data_invit GT '20170126'.  "SPEC-42492 control crear contracte si obra
+      IF ( im_dades-z_proc_adj = 'NS' AND im_dades-z_ns_critpreu EQ abap_true  )
+        OR im_dades-z_proc_adj = 'NF' OR im_dades-z_proc_adj = 'NP'.
+
+        re_comanda = ''.
+      ELSEIF ( im_dades-z_proc_adj = 'NS' AND im_dades-z_ns_simplificat EQ abap_true )
+            OR im_dades-z_proc_adj = 'PS'.
+
+        IF im_dades-z_tipus_cont EQ c_ob.
+          re_comanda = ''.
+        ELSE.
+          re_comanda = 'X'.
+        ENDIF.
+
+      ENDIF.
+
+    ENDIF.
+  ENDIF .
+
+  IF im_dades-z_proc_adj EQ  co_proc_adj_men.
+
+** >> INI SPEC-52302 ETJMD 04.02.2019
+*    AUTHORITY-CHECK OBJECT 'ZRMMENORCM'
+*    ID 'ACTVT' FIELD '03'. " read access
+** << FIN SPEC-52302 ETJMD 04.02.2019
+
+*    IF sy-subrc = 0.
+** << FIN SPEC-52302 ETJMD 04.02.2019
+
+      l_wa_spopli-varoption = 'Contracte'.
+      APPEND l_wa_spopli TO l_it_spopli.
+
+      l_wa_spopli-varoption = 'Comanda'.
+      APPEND l_wa_spopli TO l_it_spopli.
+
+      IF re_comanda = 'X'.
+        l_question = 'Quin tipus d''expedient vol crear? Per defecte Comanda'.
+      ELSE.
+        l_question = 'Quin tipus d''expedient vol crear? Per defecte Contracte'.
+      ENDIF.
+
+      CALL FUNCTION 'POPUP_TO_DECIDE_LIST'
+        EXPORTING
+          cursorline         = 1
+*         MARK_FLAG          = ' '
+*         MARK_MAX           = 1
+*         START_COL          = 0
+*         START_ROW          = 0
+          textline1          = l_question
+*         TEXTLINE2          = ' '
+*         TEXTLINE3          = ' '
+          titel              = 'Crear comanda/contracte'
+*         DISPLAY_ONLY       = ' '
+        IMPORTING
+          answer             = l_answer
+        TABLES
+          t_spopli           = l_it_spopli
+        EXCEPTIONS
+          not_enough_answers = 1
+          too_much_answers   = 2
+          too_much_marks     = 3
+          OTHERS             = 4.
+
+      IF l_answer = '1'.
+        CLEAR: re_comanda.
+      ELSEIF l_answer = '2'.
+        re_comanda = 'X'.
+      ELSEIF l_answer = 'A'. " FUSIO - Considerem quan l'usuari cancel·la l'acció [EDANH - 23.05.2012]
+        MESSAGE 'No s''ha creat cap expedient.' TYPE 'E' DISPLAY LIKE 'I'.
+      ENDIF.
+*    ENDIF.    "SPEC-52302 ETJMD 04.02.2019
+  ENDIF.
+
+ENDMETHOD.
+
+
+  METHOD crea_doc_pr.
+    DATA: lt_de_no   TYPE zfi_dt_cege,
+          lv_num_pos TYPE i,
+          ls_doc_pr  TYPE zfi_dt_doc_pr,
+          ls_pr_cap  TYPE zfi_dt_pr_cap.
+
+*    No se trata de un expediente de acuerdo marco
+***INI ETOVB
+*    CHECK is_imp_cap-z_cont_bossa NE abap_true. "En l'impuls no sabem si és un Acord Marc, es defineix a la licitació
+***FIN ETOVB
+
+***    El cliente nivel 2 es susceptible al nuevo convenio
+**    SELECT SINGLE a~*
+**      FROM zfi_dt_cege AS a
+**       INNER JOIN kna1 AS b
+**       ON a~znif_nouconveni = b~stcd1
+**      INTO @lt_de_no
+**     WHERE kunnr = @is_imp_cap-client_niv_2.
+**
+**    CHECK sy-subrc EQ 0.
+
+*        EL impulso tiene posiciones
+    SELECT COUNT(*)
+      FROM zmm_dt_imp_po
+      INTO lv_num_pos
+     WHERE z_codi_exp = is_imp_cap-z_codi_exp
+***INI ETOVB
+      AND z_elem_imp NE ''. "Nomes posicions amb treballs
+***FIN ETOVB
+
+    CHECK sy-subrc EQ 0.
+
+    CONCATENATE 'CT' is_imp_cap-z_codi_exp+2 INTO ls_doc_pr-z_codi_exp.
+
+    ls_doc_pr-docclass   = ls_pr_cap-docclass = docclass.
+    ls_doc_pr-objectid   = ls_pr_cap-objectid = objectid.
+    ls_pr_cap-z_codi_exp = ls_doc_pr-z_codi_exp.
+
+**    CALL FUNCTION 'NUMBER_GET_NEXT'
+**      EXPORTING
+**        nr_range_nr             = 'RC'
+**        object                  = 'ZFI_RAD'
+**      IMPORTING
+**        number                  = ls_doc_pr-belnr
+**      EXCEPTIONS
+**        interval_not_found      = 1
+**        number_range_not_intern = 2
+**        object_not_found        = 3
+**        quantity_is_0           = 4
+**        quantity_is_not_1       = 5
+**        interval_overflow       = 6
+**        buffer_overflow         = 7
+**        OTHERS                  = 8.
+
+    ls_pr_cap-z_clas_doc = ls_doc_pr-z_clas_doc = iv_clas_doc.
+    ls_pr_cap-z_estat    = ls_doc_pr-z_estat    = 01. "Pendent
+    ls_doc_pr-z_data     = sy-datum.
+    ls_doc_pr-z_hora     = sy-uzeit.
+*    ls_pr_cap-belnr      = ls_doc_pr-belnr.
+    ls_doc_pr-z_pluri    = ls_pr_cap-z_pluri    = 'S'. "Siempre es plurianual
+    ls_doc_pr-z_webid    = ls_pr_cap-z_webid    = zcl_utils_doc_pres=>get_unique_webid( ).
+
+**>> Inici Modificació ECBAC SPEC-65692 12/01/2022
+*CLEAR ls_pr_cap-res_imp_0.
+*IF is_imp_cap-z_data_calcul_conveni(4) GT sy-datum(4).
+*ls_pr_cap-res_imp_0 = abap_true.
+*ENDIF.
+**>> FI Modificació ECJBAC SPEC-65692 12/01/2022
+
+    MODIFY zfi_dt_doc_pr FROM ls_doc_pr.
+    MODIFY zfi_dt_pr_cap FROM ls_pr_cap.
+
+    UPDATE zrm_dt_exp_cont
+       SET z_env_doc_pr = abap_false
+     WHERE z_codi_exp = ls_doc_pr-z_codi_exp.
+
+  ENDMETHOD.
+
+
+METHOD dades_resum_ps.
+
+  FIELD-SYMBOLS: <ls_dades> TYPE zrm_dt_exp_cont.
+  DATA: ls_nivells_pep TYPE prps ,
+        lv_clau_pep TYPE ps_posnr,
+        lv_clau_treball TYPE ps_posid.
+
+  ASSIGN ch_dades TO <ls_dades> CASTING .
+* Aquest mètode s'utilitza també per a resincrontizar PS amb RMS. Si tenim informat
+* el camp CLAU_PEP tirarem d'ell perquè el POSID pot haver canviat
+
+  IF     im_nivells_pep IS SUPPLIED
+     AND im_nivells_pep IS BOUND .
+    ls_nivells_pep = im_nivells_pep->llegir_prps( ) .
+  ELSE .
+
+*   Les dades dels clients s'obtenen del PEP de la primera posicio
+    SELECT SINGLE z_elem_imp FROM zmm_dt_imp_po
+      INTO (lv_clau_treball)
+      WHERE z_codi_exp = <ls_dades>-sol_ped AND
+            pos = '00010'.
+
+    SELECT SINGLE psphi FROM prps
+      INTO (lv_clau_pep)
+      WHERE pspnr = lv_clau_treball.
+
+
+    me->clau_pep     = lv_clau_pep .
+    me->clau_treball = lv_clau_treball .
+
+    CALL METHOD llegir_nivells_pep
+      IMPORTING
+        ex_prps       = ls_nivells_pep
+      EXCEPTIONS
+        pep_not_found = 1.
+    IF sy-subrc NE 0 .
+      RAISE pep_not_found .
+    ENDIF .
+  ENDIF .
+
+  <ls_dades>-z_client       = ls_nivells_pep-zzclie01 .
+  <ls_dades>-z_client_niv2  = ls_nivells_pep-zzclie02 .
+  <ls_dades>-z_client_niv3  = ls_nivells_pep-zzclie03 .
+
+ENDMETHOD.
+
+
+  METHOD is_exp_lot.
+    DATA: lt_imp_po TYPE zmm_tt_dt_imp_po,
+          wa_imp_po TYPE zmm_dt_imp_po.
+    CLEAR: wa_imp_po.
+    IF it_imp_po IS INITIAL.
+      lt_imp_po = gt_imp_po_lot.
+    ELSE.
+      lt_imp_po = it_imp_po.
+    ENDIF.
+    r_is_lot = abap_off.
+    LOOP AT lt_imp_po INTO wa_imp_po.
+      IF wa_imp_po-z_exp_lot_num IS NOT INITIAL.
+        r_is_lot = abap_on.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+method LLEGIR_NIVELLS_PEP.
+
+  IF NOT gob_nivells_pep IS BOUND .
+    IF NOT me->clau_pep IS INITIAL .
+      CREATE OBJECT gob_nivells_pep
+        EXPORTING
+          im_codi_pep = me->clau_pep .
+    ELSEIF NOT me->clau_treball IS INITIAL .
+      CREATE OBJECT gob_nivells_pep
+        EXPORTING
+          im_codi_treball = me->clau_treball .
+    ELSE .
+      RAISE pep_not_found .
+    ENDIF .
+  ENDIF .
+  if gob_nivells_pep->es_consistent( ) eq space .
+    CLEAR gob_nivells_pep .
+    raise pep_not_found .
+  endif .
+  ex_prps = gob_nivells_pep->llegir_prps( ).
+
+endmethod.
+
+
+  METHOD modificar_exp_lot.
+    DATA: wa_imp_po      TYPE zmm_dt_imp_po,
+          l_import_imp   TYPE zmm_dt_imp_po-z_import_imp,
+          l_import_imp_b TYPE zmm_dt_imp_po-z_import_imp_b,
+          l_exp_lot_num  TYPE zmm_dt_imp_po-z_exp_lot_num.
+    CLEAR: l_import_imp, l_import_imp_b, l_exp_lot_num.
+    LOOP AT gt_imp_po_lot INTO wa_imp_po.
+      l_import_imp    = wa_imp_po-z_import_imp    + l_import_imp.
+      l_import_imp_b  = wa_imp_po-z_import_imp_b  + l_import_imp_b.
+      l_exp_lot_num   = wa_imp_po-z_exp_lot_num.
+    ENDLOOP.
+*   · Afegir Z_EXP_NUM_LOT
+    exp_cont-z_exp_lot_num  = l_exp_lot_num.
+*   · Pressupost, valors i imports s'extreuen de les posicions de l'impuls
+    exp_cont-z_pressup_licit   = l_import_imp.
+*   · Descripció Abreujada contindrà el número del lot en questió (DesAbr (Lot 1)...)
+    exp_cont-z_pres_licit_b = l_import_imp_b.
+*   · Es defineix l'expedient pare del lot en qüestió
+    exp_cont-z_exp_hdr_code  = g_z_exp_hdr_code.
+
+  ENDMETHOD.
+
+
+METHOD obtenir_dades.
+
+  INCLUDE zrm_inc_macros.
+  CONSTANTS: lc_text_formula TYPE string VALUE 'Fòrmula de revisió de preus a aplicar:',
+             lc_lot_initial  TYPE string VALUE '000'.
+
+  DATA: wa_cont      TYPE swcont,
+        ls_texts     TYPE zerm_dt_exp_cont_text,
+        lr_texts     TYPE REF TO zrm_cl_text_identifier,
+        lt_treb_expc TYPE TABLE OF zrm_dt_treb_expc.
+  DATA: l_data          TYPE d .
+  DATA: lt_interv       TYPE STANDARD TABLE OF zrm_dt_interv .
+  DATA: l_data_sol_real TYPE zmm_dt_imp_cap-z_sol_real. " >> INI ETODR SPEC-40674
+**>> INI MODIF ETODR 12.04.2016 SPEC-38156
+  DATA: l_president  TYPE string,
+        l_vocal      TYPE string,
+        l_direcc_imp TYPE zmm_dt_imp_cap-z_codi_direc,
+        l_depart_imp TYPE zmm_dt_imp_cap-z_codi_depar,
+** >> INI ETETM unitat de termini d'execució - SPEC-45475
+        l_unit_term  TYPE c LENGTH 10, "zmm_dt_imp_cap-z_unit_term_exec,
+        l_term_exec  TYPE zvrm_dt_pl_l_adj-z_termini_exec,
+** << FI ETETM SPEC-45475
+        lt_l_adj     TYPE TABLE OF zvrm_dt_pl_l_adj.
+
+**<< FI MODIF ETODR 12.04.2016 SPEC-38156
+
+  DATA: lv_posid               TYPE ps_posid,
+        lv_pspnr               TYPE ps_posnr,
+        lv_pspnr3              TYPE ps_posnr,
+        lv_flag_obra_publica   TYPE flag,
+        lv_prog_treb_mem_const TYPE flag.             " Insert SPEC-47308 ETXGL
+
+  DATA: lt_motiu_s2            TYPE ztt_string.
+
+
+  ">>>SPEC:69504, Inici modificació  - ECIAC
+  DATA: lv_fons_fin  TYPE xfeld,
+        lv_logo_esp  TYPE zrm_fons_eu_tip-z_logo_especific,
+        lv_logo_esp2 TYPE zrm_fons_eu_tip-z_logo_especific, "PRL :: PSPEC-2853
+        lv_fon_fin   TYPE zrm_fons_eu_tip-z_tipus_financament,
+        lt_codi_fin  TYPE zstt_codi_fin_sap,
+        lv_dummy     TYPE c.
+  "<<<SPEC:69504, Final modificació - ECIAC
+
+  ">> SPEC-70464, Inici Modificació - ETODR
+  DATA: lv_nprima       TYPE char3,
+        lv_nprima_homog TYPE char3.
+  "<< SPEC-70464, Final Modificació - ETODR
+
+  CHECK objectid IS NOT INITIAL
+    AND docclass IS NOT INITIAL.
+
+  SELECT *
+    FROM zvrm_dt_pl_l_adj
+    INTO TABLE lt_l_adj
+   WHERE docclass EQ docclass
+     AND objectid EQ objectid.
+
+  swc_set_element container 'ZVRM_DT_PL_L_ADJ' lt_l_adj.
+
+
+  SELECT SINGLE *
+     FROM zrm_dt_exp_cont
+     INTO exp_cont
+     WHERE docclass EQ docclass
+       AND objectid EQ objectid.
+  IF sy-subrc NE 0.
+    MESSAGE e001(zrm) WITH objectid docclass.
+  ENDIF.
+  DATA(lo_descr) = cl_abap_typedescr=>describe_by_data( exp_cont ).
+  swc_set_element container           'ZRM_DT_EXP_CONT' exp_cont.
+  swc_set_element container_plantilla 'ZRM_DT_EXP_CONT' exp_cont.
+
+  ">> SPEC-PSPEC-1482, Inici Modificació - EVODR
+  DATA: lt_qdc_clo_lic     TYPE STANDARD TABLE OF zvrm_qdc_clo_lic,
+*        lt_qdc_clo_lic_lot TYPE STANDARD TABLE OF zvrm_qdc_clo_lic,
+        lt_qdc_rap_lic     TYPE STANDARD TABLE OF zvrm_qdc_rap_lic,
+        lt_qdc_tde_lic     TYPE STANDARD TABLE OF zvrm_qdc_tde_lic,
+        lt_qdc_bim_lic     TYPE STANDARD TABLE OF zvrm_qdc_bim_lic,
+        lt_qdc_cpu_lic     TYPE STANDARD TABLE OF zvrm_qdc_cpu_lic,
+        lt_qdc_lls_lic     TYPE STANDARD TABLE OF zvrm_qdc_lls_lic,
+        lt_qdc_mat_lic     TYPE STANDARD TABLE OF zvrm_qdc_mat_lic,
+        lt_qdc_po_lic      TYPE STANDARD TABLE OF zvrm_qdc_po_lic,
+        lt_qdc_car_lic     TYPE STANDARD TABLE OF zvrm_qdc_car_lic.
+
+  SELECT SINGLE *
+    FROM zvrm_qdc_cap_lic
+    INTO qdc_cap_lic
+    WHERE docclass EQ docclass
+      AND objectid EQ objectid.
+  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_CAP_LIC' qdc_cap_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_CAP_LIC' qdc_cap_lic.
+  ENDIF.
+  SELECT SINGLE *
+     FROM zvrm_qdc_bim_lic
+     INTO qdc_bim_lic
+     WHERE docclass EQ docclass
+       AND objectid EQ objectid.
+*  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_BIM_LIC' qdc_bim_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_BIM_LIC' qdc_bim_lic.
+*  ENDIF.
+  SELECT *
+     FROM zvrm_qdc_car_lic
+     INTO TABLE lt_qdc_car_lic
+     WHERE docclass EQ docclass
+       AND objectid EQ objectid.
+  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_CAR_LIC' lt_qdc_car_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_CAR_LIC' qdc_car_lic.
+  ENDIF.
+
+*  SELECT *
+*     FROM zvrm_qdc_clo_lic
+*     INTO TABLE lt_qdc_clo_lic_lot
+*     WHERE docclass   EQ docclass
+*       AND objectid   EQ objectid
+*       AND zz_num_lot NE lc_lot_initial.
+*  IF sy-subrc = 0.
+*  swc_set_element container           'ZVRM_QDC_CLO_LIC_LOTS' lt_qdc_clo_lic_lot.
+*  ENDIF.
+
+  SELECT *
+     FROM zvrm_qdc_clo_lic
+     INTO TABLE lt_qdc_clo_lic
+     WHERE docclass EQ docclass
+       AND objectid EQ objectid.
+  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_CLO_LIC' lt_qdc_clo_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_CLO_LIC' lt_qdc_clo_lic.
+    READ TABLE lt_qdc_clo_lic INTO DATA(ls_qdc_clo_lic) WITH KEY z_rev_preus = 'S'.
+    IF sy-subrc = 0.
+      "Retornem text literal
+      swc_set_element container           'QDC_CLO_LIC_REV_PREUS' 'Si'.
+      swc_set_element container_plantilla 'QDC_CLO_LIC_REV_PREUS' 'Si'.
+      "Retornem la primera formula del primer lot trobat
+      SELECT SINGLE z_formula
+        FROM zrm_dm_formules
+        INTO @DATA(lv_formula)
+        WHERE z_codi_form = @ls_qdc_clo_lic-z_form_rev.
+      DATA(lv_formula_concat) = lc_text_formula && lv_formula.
+      swc_set_element container           'QDC_CLO_LIC_FREV_PREUS' lv_formula_concat.
+      swc_set_element container_plantilla 'QDC_CLO_LIC_FREV_PREUS' lv_formula_concat.
+    ELSE.
+      swc_set_element container           'QDC_CLO_LIC_REV_PREUS' 'No'.
+      swc_set_element container_plantilla 'QDC_CLO_LIC_REV_PREUS' 'No'.
+    ENDIF.
+  ENDIF.
+  SELECT *
+     FROM zvrm_qdc_cpu_lic
+     INTO TABLE lt_qdc_cpu_lic
+     WHERE docclass EQ docclass
+       AND objectid EQ objectid.
+  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_CPU_LIC' lt_qdc_cpu_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_CPU_LIC' qdc_cpu_lic.
+  ENDIF.
+  SELECT *
+     FROM zvrm_qdc_lls_lic
+     INTO TABLE lt_qdc_lls_lic
+     WHERE docclass EQ docclass
+       AND objectid EQ objectid.
+  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_LLS_LIC' lt_qdc_lls_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_LLS_LIC' qdc_lls_lic.
+  ENDIF.
+  SELECT *
+     FROM zvrm_qdc_mat_lic
+     INTO TABLE lt_qdc_mat_lic
+     WHERE docclass EQ docclass
+       AND objectid EQ objectid.
+  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_MAT_LIC' lt_qdc_mat_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_MAT_LIC' qdc_mat_lic.
+  ENDIF.
+  SELECT *
+     FROM zvrm_qdc_po_lic
+     INTO TABLE lt_qdc_po_lic
+     WHERE docclass EQ docclass
+       AND objectid EQ objectid.
+  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_PO_LIC' lt_qdc_po_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_PO_LIC' qdc_po_lic.
+  ENDIF.
+
+  SELECT *
+     FROM zvrm_qdc_rap_lic
+     INTO TABLE @lt_qdc_rap_lic
+     WHERE docclass EQ @docclass
+       AND objectid EQ @objectid.
+  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_RAP_LIC' lt_qdc_rap_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_CLO_LIC' lt_qdc_clo_lic.
+  ENDIF.
+
+  SELECT *
+     FROM zvrm_qdc_tde_lic
+     INTO TABLE lt_qdc_tde_lic
+     WHERE docclass EQ docclass
+       AND objectid EQ objectid.
+  IF sy-subrc = 0.
+    swc_set_element container           'ZVRM_QDC_TDE_LIC' lt_qdc_tde_lic.
+*    swc_set_element container_plantilla 'ZVRM_QDC_TDE_LIC' lt_qdc_tde_lic.
+  ENDIF.
+*
+  "<< SPEC-PSPEC-1482, Final Modificació - EVODR
+
+  ">>>SPEC:69504, Inici modificació  - ECIAC
+
+  ">> SPEC-68484, Inici Modificació - ETODR
+*  IF sy-subrc = 0.
+*    IF exp_cont-societat = 'GISA'.
+*      swc_set_element container           'LOGO_SOCIETAT_CAP' 'LOGO/Infraestructures.cat'.
+*      swc_set_element container           'LOGO_SOCIETAT_PEU' 'LOGO/AdreçaInfraestructures'.
+*    ELSE.
+*      swc_set_element container           'LOGO_SOCIETAT_CAP' 'LOGO/IFERCAT'.
+*      swc_set_element container           'LOGO_SOCIETAT_PEU' 'LOGO/AdreçaIfercat'.
+*    ENDIF.
+*  ENDIF.
+  "<< SPEC-68484, Final Modificació - ETODR
+  " Se busca si tiene logo especifico para el codigo de expediente
+
+
+  ">>>SPEC:69504, Inici modificació  - <ECJSA>
+  " Es modifica el condicional afegint "or sy-ucomm = 'OPT2'"
+  "perque d'altra manera no psaba per aquí el codi de generació
+  "massiva de documents
+*  IF sy-ucomm = 'OK' OR sy-ucomm = 'OPT2'
+*    OR sy-tcode = 'ZRM_UTIL_PLANT'.
+  "<<<SPEC:69504, Final modificació - <ECJSA>
+
+  "IF sy-ucomm = 'OK'.
+  IF exp_cont IS NOT INITIAL.
+    CLEAR: lv_fons_fin, lv_logo_esp, lv_fon_fin, lt_codi_fin.
+    CALL FUNCTION 'ZFM_RMS_LOGO_ESPECIFIC'
+      EXPORTING
+        i_z_codi_exp_lic = exp_cont-z_codi_exp
+        i_societat       = exp_cont-societat
+      IMPORTING
+        e_fons_fin       = lv_fons_fin
+        e_logo_esp       = lv_logo_esp
+        e_fon_fin        = lv_fon_fin
+        et_codi_fin_sap  = lt_codi_fin
+        e_logo_esp2      = lv_logo_esp2 "PRL :: PSPEC-2853
+      EXCEPTIONS
+        error_logos      = 1
+        plan_no_param    = 2
+        soc_not_found    = 3
+        OTHERS           = 4.
+    IF sy-subrc <> 0.
+      CASE sy-subrc.
+        WHEN 1.
+          EXPORT lv_text FROM text-001 TO MEMORY ID 'ZID_LOGOS_ERROR'.
+*             No es pot determinar el Logo específic hi ha més d'un finançament.
+        WHEN 2.
+          EXPORT lv_text FROM text-002 TO MEMORY ID 'ZID_LOGOS_ERROR'.
+          " No hi ha logos específics carregat a SAP.
+        WHEN 3.
+          EXPORT lv_text FROM text-003 TO MEMORY ID 'ZID_LOGOS_ERROR'.
+          " Societat no existent.
+      ENDCASE.
+    ELSE.
+      " Si ha encontrado logo, busca los nombres del logo para
+      " añadirlo al container
+
+      "** INI ETOVB SPEC-69504 2022/05/23
+      IF lv_logo_esp IS INITIAL.
+        lv_fon_fin = space.
+      ENDIF.
+*INI PRL :: PSPEC-2853
+      IF lv_logo_esp2 IS NOT INITIAL.
+        SELECT z_logo_tag, z_logo_nom
+          INTO TABLE @DATA(lt_zrm_logos_especific)
+          FROM zrm_logos_espec2
+          WHERE z_societat          = @exp_cont-societat
+          AND   z_logo_especific    = @lv_logo_esp
+          AND   z_correu            = @space
+          AND   z_tipus_financament = @lv_fon_fin.
+      ELSE.
+        SELECT z_logo_tag z_logo_nom
+          INTO TABLE lt_zrm_logos_especific
+          FROM zrm_logos_espec
+          WHERE z_societat          = exp_cont-societat
+          AND   z_logo_especific    = lv_logo_esp
+          AND   z_correu            = space
+          AND   z_tipus_financament = lv_fon_fin.
+      ENDIF.
+*      SELECT z_logo_tag z_logo_nom
+*          INTO TABLE lt_zrm_logos_especific
+*          FROM zrm_logos_espec
+*          WHERE z_societat          = exp_cont-societat
+*          AND   z_logo_especific    = lv_logo_esp
+*          AND   z_correu            = space
+*          AND   z_tipus_financament = lv_fon_fin.
+*FIN PRL :: PSPEC-2853
+      IF sy-subrc = 0.
+        LOOP AT lt_zrm_logos_especific INTO DATA(ls_zrm_logos_especific).
+          swc_set_element container  ls_zrm_logos_especific-z_logo_tag ls_zrm_logos_especific-z_logo_nom .
+        ENDLOOP.
+      ENDIF.
+
+      "** FIN ETOVB SPEC-69504
+    ENDIF.
+
+  ENDIF.
+
+  "<<<SPEC:69504, Final modificació - ECIAC
+
+  CREATE OBJECT lr_texts
+    EXPORTING
+      i_tabname = 'ZRM_DT_EXP_CONT'.
+  lr_texts->obtenir_descripcions( EXPORTING is_dades        = exp_cont
+                                 IMPORTING es_descripcions = ls_texts ).
+  SELECT SINGLE z_dat_creacio
+*  SELECT SINGLE z_dat_creacio z_codi_direc z_codi_depar "INI MODIF ETODR SPEC-38156 11.04.2016
+                FROM zmm_dt_imp_cap
+                INTO l_data
+*                INTO (l_data,l_direcc_imp,l_depart_imp) "INI MODIF ETODR SPEC-38156 11.04.2016
+                WHERE z_codi_exp EQ exp_cont-sol_ped .
+  IF l_data GE '20080501' .
+    swc_set_element container 'NOVA_LLEI' 'X' .
+  ELSE .
+    swc_set_element container 'NOVA_LLEI' ' ' .
+  ENDIF .
+  swc_set_element container           'Z_DATA_CREACIO'        l_data .
+  swc_set_element container_plantilla 'ZERM_DT_EXP_CONT_TEXT' ls_texts.
+
+  CREATE OBJECT class_empr
+    EXPORTING
+      im_objectid = objectid
+      im_docclass = docclass.
+  swc_set_table container 'CLAS_EMPR' class_empr->clas_empr.
+
+
+  CREATE OBJECT reduccions_lt
+    EXPORTING
+      im_objectid = objectid
+      im_docclass = docclass.
+  swc_set_table container 'REDUC_LT' reduccions_lt->reduc_lt.
+
+
+  CREATE OBJECT treb_expc
+    EXPORTING
+      im_objectid = objectid
+      im_docclass = docclass.
+  lt_treb_expc = treb_expc->get_data( ).
+  swc_set_table container 'TREB_EXPC' lt_treb_expc.
+
+
+  SELECT *
+         FROM zrm_dt_interv
+         INTO CORRESPONDING FIELDS OF TABLE lt_interv
+         WHERE docclass EQ me->docclass
+           AND objectid EQ me->objectid .
+  swc_set_table container 'INTERVENTORS' lt_interv .
+
+
+** >> INI ETODR SPEC-40674
+  SELECT SINGLE z_sol_real
+    FROM zmm_dt_imp_cap
+    INTO l_data_sol_real
+    WHERE z_codi_exp EQ exp_cont-sol_ped.
+  swc_set_element container           'Z_SOL_REAL'        l_data_sol_real.
+
+** >> INI ETETM unitat de termini d'execució - SPEC-45475
+  SELECT SINGLE z_unit_term_exec
+    FROM zmm_dt_imp_cap
+    INTO l_unit_term
+    WHERE z_codi_exp EQ exp_cont-sol_ped.
+
+  SELECT SINGLE z_termini_exec
+    FROM zmm_dt_imp_cap
+    INTO l_term_exec
+    WHERE z_codi_exp EQ exp_cont-sol_ped.
+
+  IF l_term_exec GT 1 OR ( l_term_exec GE 0 AND l_term_exec LT 1 ). " Aplica plurals per el cas que correspon.
+    CASE l_unit_term.
+      WHEN 'HO'.
+        l_unit_term = 'hores'.
+      WHEN 'DI'.
+        l_unit_term = 'dies'.
+      WHEN 'SE'.
+        l_unit_term = 'setmanes'.
+      WHEN 'ME'.
+        l_unit_term = 'mesos'.
+      WHEN 'AN'.
+        l_unit_term = 'anys'.
+    ENDCASE.
+  ELSE.
+    CASE l_unit_term.
+      WHEN 'HO'.
+        l_unit_term = 'hora'.
+      WHEN 'DI'.
+        l_unit_term = 'dia'.
+      WHEN 'SE'.
+        l_unit_term = 'setmana'.
+      WHEN 'ME'.
+        l_unit_term = 'mes'.
+      WHEN 'AN'.
+        l_unit_term = 'any'.
+    ENDCASE.
+  ENDIF.
+
+  swc_set_element container 'Z_UNIT_TERM_EXEC' l_unit_term.
+** << FI ETETM SPEC-45475
+** << FI ETODR SPEC-40674
+
+** >> INI MODIF ETODR SPEC-42518
+  zrm_cl_calcul_temer=>get_calc_temeritat_from_data( EXPORTING i_exp_cont             = exp_cont
+  IMPORTING e_new_calc_temeritats  = DATA(lv_new_calc_tem)
+  e_data_validesa        = DATA(lv_data_validesa) ).
+  IF lv_new_calc_tem = abap_off AND lv_data_validesa IS NOT INITIAL.
+    swc_set_element container           'Z_DATA_VALIDESA'        lv_data_validesa.
+  ENDIF.
+** << FI MODIF ETODR SPEC-42518
+
+** >> INI MODIF ETODR SPEC-43232
+  swc_set_element container           'Z_NEW_CALC_TEM'        lv_new_calc_tem.
+  swc_set_element container           'Z_NUMERO_N'            exp_cont-z_n_ofer.
+  DATA(l_compleix)  = abap_off.
+  DATA(l_forcqb)    = abap_off.
+  DATA(l_forse)     = abap_off.
+  IF lv_new_calc_tem = abap_on.
+
+    IF exp_cont-z_tipus_cont  = 'SE'.
+      l_forcqb = abap_off.
+      l_forse  = abap_on.
+    ENDIF.
+
+    IF ( exp_cont-z_subtipus_cont = 'CQ' OR exp_cont-z_subtipus_cont = 'OB' ).
+      l_forcqb = abap_on.
+      l_forse  = abap_off.
+    ENDIF.
+
+    swc_set_element container           'FOR_CQOB'          l_forcqb.
+    swc_set_element container           'FOR_SE'            l_forse.
+    IF  ( exp_cont-z_n_ofer > 2 AND exp_cont-z_n_ofer <= 10 ).
+      l_compleix = abap_on.
+    ENDIF.
+  ENDIF.
+  swc_set_element container           'Z_COMPLEIX_COND'            l_compleix.
+** << FI MODIF ETODR SPEC-43232
+
+** >> INI MODIF ETODR SPEC-43444
+  DATA: l_mostrar_literal TYPE xfeld.
+  IF lv_new_calc_tem = abap_on.
+    l_mostrar_literal = abap_off.
+  ELSE.
+    l_mostrar_literal = abap_on.
+  ENDIF.
+  swc_set_element container           'Z_MOSTRAR_LITERAL'            l_mostrar_literal.
+** << FI MODIF ETODR SPEC-43444
+
+
+**>> INI MODIF ETLJS SPEC-42384
+  DATA: lt_data_consell TYPE TABLE OF datum,
+        ls_data_consell TYPE datum.
+
+  SELECT z_data_celebra
+    FROM zrm_dt_cons_rel
+    INTO TABLE lt_data_consell
+   WHERE docclass_lici EQ exp_cont-docclass
+     AND objectid_lici EQ exp_cont-objectid.
+
+  SORT lt_data_consell ASCENDING.
+  READ TABLE lt_data_consell INTO ls_data_consell INDEX 1.
+  swc_set_element container 'Z_DATA_CONSELL' ls_data_consell.
+
+
+* Tag LOP (Z_LOP).
+  CLEAR lv_flag_obra_publica.
+
+  swc_set_element container 'Z_TIPUS_CONT' exp_cont-z_tipus_cont.
+
+  IF exp_cont-z_tipus_cont = 'OB'.
+
+    SELECT SINGLE z_elem_imp FROM zmm_dt_imp_po
+      INTO lv_posid
+      WHERE z_codi_exp = exp_cont-sol_ped.
+    IF sy-subrc = 0. "PSPEC-1482 "No poden haver-hi CHECK en aquest mètode sinó no retorna CONTAINER
+*    CHECK sy-subrc = 0.
+      lv_pspnr = lv_posid(8).
+
+      CALL FUNCTION 'Z_PS_GET_X_LEVEL'
+        EXPORTING
+          i_pspnr     = lv_pspnr
+          i_stufe     = 3
+        IMPORTING
+          pspnr       = lv_pspnr3
+        EXCEPTIONS
+          pepmenstufe = 1
+          errorpep    = 2
+          OTHERS      = 3.
+      IF sy-subrc = 0.
+        SELECT SINGLE zz_ambit_lop FROM prps
+          INTO lv_flag_obra_publica
+          WHERE pspnr = lv_pspnr3.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  swc_set_element container 'Z_LOP' lv_flag_obra_publica.
+
+
+
+
+  DATA:
+*    lt_exp       TYPE ztt_ofertes_exclos,
+    wa_ofer_noex TYPE zerm_ofer_noex,
+    it_ofer_noex LIKE TABLE OF wa_ofer_noex,
+    wa_ofertes   TYPE zrm_dt_ofertes,
+    it_ofertes   LIKE TABLE OF wa_ofertes,
+    wa_lfa1      TYPE lfa1,
+    wa_dades     TYPE zerm_ofer_ex.
+
+  SELECT * FROM zrm_dt_ofertes
+  INTO TABLE it_ofertes
+  WHERE docclass = exp_cont-docclass
+  AND objectid = exp_cont-objectid
+  AND  ( z_exclos_s1  = 'X'
+         OR z_exclos_s2  = 'X'
+         OR z_exclos_s3  = 'X'
+         OR z_excl_homog = 'X').
+
+  SORT it_ofertes BY proveidor ASCENDING.
+  DELETE ADJACENT DUPLICATES FROM it_ofertes COMPARING proveidor.
+
+
+  DATA: text_car    TYPE REF TO zrm_cl_text_car,
+        lt_text_car TYPE ztt_dt_simq_text,
+        wa_text_car TYPE zty_dt_simq_text.
+
+
+  CREATE OBJECT text_car
+    EXPORTING
+      im_objectid = objectid
+      im_docclass = docclass.
+  lt_text_car = text_car->get_data( ).
+
+  IF lt_text_car IS INITIAL.
+    APPEND wa_text_car TO lt_text_car.
+  ENDIF.
+
+  swc_set_table container 'TEXTCAR' lt_text_car.
+
+
+  DATA: ls_dades_exped TYPE REF TO zrm_cl_lic_badi_dades_exped_rt,
+        lt_exclusio    TYPE        ztt_ofertes_exclos,
+        wa_exclusio    TYPE        zty_ofertes_exclos,
+        ls_exclusio    TYPE        flag.
+
+  CREATE OBJECT ls_dades_exped.
+
+  CALL METHOD ls_dades_exped->get_exclusio_s12pt
+    EXPORTING
+      im_docclass = exp_cont-docclass
+      im_objectid = exp_cont-objectid
+    IMPORTING
+      ex_data     = lt_exclusio.
+
+  IF lt_exclusio IS NOT INITIAL.
+    ls_exclusio = abap_true.
+  ELSE.
+    wa_exclusio-guion = '.'.
+    APPEND wa_exclusio TO lt_exclusio.
+  ENDIF.
+
+  swc_set_table container 'ZT_EXCLUSIO' lt_exclusio.
+  swc_set_element container 'ZS_EXCLUSIO' ls_exclusio.
+
+  DATA: lt_emp_tem TYPE ztt_empreses_tem,
+        wa_emp_tem TYPE zty_empreses_tem,
+        ls_emp_tem TYPE bool.
+
+  CALL METHOD ls_dades_exped->get_empreses_tem
+    EXPORTING
+      im_docclass = exp_cont-docclass
+      im_objectid = exp_cont-objectid
+    IMPORTING
+      ex_data     = lt_emp_tem.
+
+  IF lt_emp_tem IS NOT INITIAL.
+    ls_emp_tem = abap_true.
+  ELSE.
+    APPEND wa_emp_tem TO lt_emp_tem.
+  ENDIF.
+
+  swc_set_table container 'ZT_EMP_TEM' lt_emp_tem.
+  swc_set_element container 'ZS_EMP_TEM' ls_emp_tem.
+**<< FI MODIF ETLJS SPEC-42384
+
+*>> INI ETLJS SPEC-48090
+  DATA: l_unit_term_s2 TYPE text6.
+  IF exp_cont-z_proc_adj = 'CP' OR exp_cont-z_proc_adj = 'CD'. "només aplica per expedients Oberts i Oberts Doble Volta
+    IF exp_cont-z_term_subss2 GT 1 OR ( exp_cont-z_term_subss2 GE 0 AND exp_cont-z_term_subss2 LT 1 ). " Aplica plurals per el cas que correspon.
+      CASE exp_cont-z_un_term_subss2.
+        WHEN 'HO'.
+          l_unit_term_s2 = 'hores'.
+        WHEN 'DI'.
+          l_unit_term_s2 = 'dies'.
+        WHEN 'SE'.
+          l_unit_term_s2 = 'setmanes'.
+        WHEN 'ME'.
+          l_unit_term_s2 = 'mesos'.
+        WHEN 'AN'.
+          l_unit_term_s2 = 'anys'.
+      ENDCASE.
+    ELSE.
+      CASE exp_cont-z_un_term_subss2.
+        WHEN 'HO'.
+          l_unit_term_s2 = 'hora'.
+        WHEN 'DI'.
+          l_unit_term_s2 = 'dia'.
+        WHEN 'SE'.
+          l_unit_term_s2 = 'setmana'.
+        WHEN 'ME'.
+          l_unit_term_s2 = 'mes'.
+        WHEN 'AN'.
+          l_unit_term_s2 = 'any'.
+      ENDCASE.
+    ENDIF.
+    swc_set_element container 'Z_UN_TERM_SUBSS2' l_unit_term_s2. "ETODR
+
+    DATA: lr_time_utils_e2         TYPE REF TO zrm_cl_time_utils,
+          l_data_fi_termini_esm_s2 TYPE dats.
+    CREATE OBJECT lr_time_utils_e2
+      EXPORTING
+        im_company = exp_cont-societat.
+    IF lr_time_utils_e2 IS BOUND AND exp_cont-z_un_term_subss2 IS NOT INITIAL.  "ETODR
+      lr_time_utils_e2->end_date_determine( EXPORTING  im_date     = exp_cont-z_data_notis2
+      im_time     = exp_cont-z_hora_notis2
+      im_duration = exp_cont-z_term_subss2
+      im_unit     = exp_cont-z_un_term_subss2
+      RECEIVING  re_end_date = l_data_fi_termini_esm_s2
+      EXCEPTIONS error       = 0 ).
+    ENDIF.
+    swc_set_element container 'Z_DATA_FI_TERMINI_ESM_S2' l_data_fi_termini_esm_s2.
+  ENDIF.
+*<< FIN ETLJS SPEC-48090
+
+  ">> SPEC-70464, Inici Modificació - ETODR
+  lv_nprima       = exp_cont-z_nprima.
+  lv_nprima_homog = exp_cont-z_nprima_homog.
+
+  SHIFT lv_nprima       LEFT DELETING LEADING '0'.
+  SHIFT lv_nprima_homog LEFT DELETING LEADING '0'.
+
+  swc_set_element container 'NPRIMA'       lv_nprima.
+  swc_set_element container 'NPRIMA_HOMOG' lv_nprima_homog.
+  "<< SPEC-70464, Final Modificació - ETODR
+
+** >> INI MODIF ETODR SPEC-42518
+*** >> INI MODIF ETODR SPEC-41123
+*  SELECT SINGLE *
+*    FROM zsap_dt_param_hc
+*    INTO @DATA(wa_param_validesa)
+*    WHERE repid = 'DATA_VALID_TEM'.
+*  IF sy-subrc = 0.
+*    ASSIGN COMPONENT wa_param_validesa-value2 OF STRUCTURE exp_cont TO FIELD-SYMBOL(<fs_validesa_2>).
+*    IF sy-subrc = 0.
+*      IF <fs_validesa_2> = wa_param_validesa-value3.
+*        swc_set_element container           'Z_DATA_VALIDESA'        wa_param_validesa-value.
+*      ENDIF.
+*    ENDIF.
+*  ENDIF.
+*** << FI MODIF ETODR SPEC-41123
+** << FI MODIF ETODR SPEC-42518
+  IF ex_container IS SUPPLIED .
+    ex_container = container .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD obtenir_dades_impuls.
+  DATA: lv_bloqueig   TYPE flag,
+        lv_docid      TYPE string,
+        lv_clau_uni   TYPE srmpv_docid,
+        ls_impuls_pos TYPE zmm_dt_imp_po,
+        ls_treb_expc  LIKE LINE OF t_treb_expc,
+        ls_proveidor  LIKE LINE OF proveidors,
+        ls_ofertes    LIKE LINE OF ofertes,
+        lr_util       TYPE REF TO zrm_cl_util,
+        lv_actuacio8  TYPE ps_psphi,
+        lv_actuacio24 TYPE ps_pspid,
+        ls_clas_empr  TYPE zrm_dt_clas_empr,
+        lt_clas_empr  TYPE TABLE OF zrm_dt_clas_empr.
+
+* Dades de capcelera
+  SELECT SINGLE * FROM zmm_dt_imp_cap
+                  INTO impuls_cap
+                  WHERE z_codi_exp = impuls_cap-z_codi_exp.
+  CHECK sy-subrc = 0.
+
+  MOVE-CORRESPONDING impuls_cap TO exp_cont.
+
+  IF impuls_cap-z_es_nou_conveni = 'SI'.
+    exp_cont-z_es_nou_conveni = abap_true.
+  ELSE.
+    exp_cont-z_es_nou_conveni = abap_false.
+  ENDIF.
+
+  MOVE: 'CON'    TO exp_cont-z_tipus_exp,
+        objectid TO exp_cont-objectid,
+        docclass TO exp_cont-docclass.
+
+  MOVE: impuls_cap-client       TO exp_cont-z_client,
+        impuls_cap-client_niv_2 TO exp_cont-z_client_niv2,
+        impuls_cap-client_niv_3 TO exp_cont-z_client_niv3,
+        impuls_cap-z_usuari_sol TO exp_cont-usuari_impulsor.
+
+
+* Xequeig si s'ha bloquejat l'enviament del Webservice NSP
+  CALL FUNCTION 'ZPSIGNA_NEG_CHECK_BLOQUEIG_ENV'
+    IMPORTING
+      e_bloqueig = lv_bloqueig.
+
+*>>> EDASB 23/07/2007: Els negociats Plec Bases ténen tipis de negociat Paper
+  IF     exp_cont-z_proc_adj   EQ 'NF'.
+    exp_cont-z_tipus_negociat = 'P' .
+  ELSEIF exp_cont-z_proc_adj   EQ 'NS' OR exp_cont-z_proc_adj   EQ 'PS'. "ADD P100031 PS
+    IF lv_bloqueig IS INITIAL AND exp_cont-societat <> 'IFER'.
+      exp_cont-z_tipus_negociat = 'W' .
+    ELSE.
+      exp_cont-z_tipus_negociat = 'P' .
+    ENDIF.
+*  ELSE .
+*    exp_cont-z_tipus_negociat = 'W' .
+  ENDIF .
+
+* [ SPEC-25462 - EDECG - 17/11/2011 - Modificació organ adjudicatari ]
+*INS SPEC-14375
+*  exp_cont-z_organ_adj = 'CA' . "AST SPEC-14375
+*IF impuls_cap-societat = 'GISA'.
+*    IF impuls_cap-z_tipus_cont = 'OB' or impuls_cap-z_tipus_cont = 'CP'. "obres..
+*        IF impuls_cap-Z_VALOR_EST_CONT > '2000000'.
+*          exp_cont-z_organ_adj = 'CA' .
+*        ELSEIF impuls_cap-Z_VALOR_EST_CONT <= '2000000'.
+*          exp_cont-z_organ_adj = 'PR' .
+*        ENDIF.
+*    ELSE. "no obra
+*        IF impuls_cap-Z_VAL_EST_CONT_B > '193000'.
+*          exp_cont-z_organ_adj = 'CA' .
+*        ELSEIF impuls_cap-Z_VAL_EST_CONT_B <= '193000'.
+*          exp_cont-z_organ_adj = 'DG'.
+*        ENDIF.
+*    ENDIF.
+*ELSEIF impuls_cap-societat = 'REGS'.
+*    IF impuls_cap-z_tipus_cont = 'OB' or impuls_cap-z_tipus_cont = 'CP'.
+*        exp_cont-z_organ_adj = 'CA' .
+*    ELSE. "no obra
+*      IF impuls_cap-Z_VAL_EST_CONT_B > '193000'.
+*        exp_cont-z_organ_adj = 'CA' .
+*      ELSEIF impuls_cap-Z_VAL_EST_CONT_B <= '193000'.
+*        exp_cont-z_organ_adj = 'DG' .
+*      ENDIF.
+*    ENDIF.
+*ENDIF.
+*ENDINS
+
+*** INI ETOVB SPEC-49075
+  exp_cont-z_organ_adj = 'PR' .
+*  exp_cont-z_organ_adj = 'CA' .
+*** FIN ETOVB SPEC-49075
+
+* [ SPEC-25462 - EDECG - 17/11/2011 - Modificació organ adjudicatari FI]
+
+* Dades de posició
+  SELECT z_elem_imp
+         z_import_imp
+***> Begin AC 18/01/07
+         z_rma
+***> End AC 18/01/07
+         z_material "EDASB 28/01/2008
+         ind_iva  "EDASB 18/06/2008
+         FROM zmm_dt_imp_po
+         INTO CORRESPONDING FIELDS OF TABLE impuls_pos
+         WHERE z_codi_exp = impuls_cap-z_codi_exp.
+
+*>>> EDASB 28/01/2008: Evolutiu PC+DB+OP
+*  DATA: lt_mat_treb TYPE HASHED TABLE OF zrm_dm_mat_treb
+*                                  WITH UNIQUE KEY z_material,
+*        ls_mat_treb TYPE zrm_dm_mat_treb .
+*  CLEAR: exp_cont-z_cost_obra,
+*         exp_cont-z_cost_direccio,
+*         exp_cont-z_cost_projecte .
+*  SELECT * INTO CORRESPONDING FIELDS OF TABLE lt_mat_treb
+*         FROM zrm_dm_mat_treb .
+*<<< EDASB 28/01/2008: Evolutiu PC+DB+OP
+
+  LOOP AT impuls_pos INTO ls_impuls_pos . "WHERE z_elem_imp IS NOT INITIAL.
+*>>> EDASB 28/01/2008: Evolutiu PC+DB+OP
+*    CLEAR ls_mat_treb .
+*    READ TABLE lt_mat_treb INTO ls_mat_treb WITH TABLE KEY z_material = ls_impuls_pos-z_material .
+*    CASE ls_mat_treb-z_tipus_treb .
+*      WHEN 'D' . ADD ls_impuls_pos-z_import_imp TO exp_cont-z_cost_direccio .
+*      WHEN 'P' . ADD ls_impuls_pos-z_import_imp TO exp_cont-z_cost_projecte .
+*      WHEN 'O' . ADD ls_impuls_pos-z_import_imp TO exp_cont-z_cost_obra .
+*    ENDCASE .
+*<<< EDASB 28/01/2008: Evolutiu PC+DB+OP
+    MOVE: ls_impuls_pos-z_elem_imp   TO ls_treb_expc-clau_pep,
+          ls_impuls_pos-z_import_imp TO ls_treb_expc-z_import_pec,
+          exp_cont-docclass          TO ls_treb_expc-docclass,
+          exp_cont-objectid          TO ls_treb_expc-objectid.
+    IF     NOT ls_impuls_pos-ind_iva IS INITIAL
+       AND exp_cont-z_ind_iva IS INITIAL .
+      exp_cont-z_ind_iva  = ls_impuls_pos-ind_iva .
+    ENDIF .
+
+    IF ls_impuls_pos-z_elem_imp IS NOT INITIAL .
+      CLEAR lv_actuacio8.
+      CLEAR lv_actuacio24.
+
+*   Obtenir Actuacio
+      SELECT SINGLE psphi
+            FROM prps
+            INTO lv_actuacio8
+            WHERE pspnr = ls_impuls_pos-z_elem_imp.
+
+      SELECT SINGLE pspid FROM proj
+        INTO lv_actuacio24
+        WHERE pspnr = lv_actuacio8.
+
+
+      APPEND lv_actuacio24 TO actuacions.
+    ENDIF .
+    APPEND ls_treb_expc TO t_treb_expc.
+  ENDLOOP.
+
+  SORT actuacions.
+  DELETE ADJACENT DUPLICATES FROM actuacions.
+
+*>>> EDASB 26/06/2008: Evitar DUMPs al afegir registres a ZRM_DT_TREB_EXP quan hi
+*ha més d'una imputació que no és PEP
+  DELETE t_treb_expc WHERE clau_pep CO '0 ' .
+  SORT t_treb_expc BY clau_pep.
+  DELETE ADJACENT DUPLICATES FROM t_treb_expc COMPARING clau_pep .
+*<<< EDASB 26/06/2008:
+
+* Proveïdors
+  SELECT * FROM zmm_dt_prov_sol
+           INTO TABLE proveidors
+           WHERE z_codi_exp = impuls_cap-z_codi_exp.
+
+  LOOP AT proveidors INTO ls_proveidor.
+    MOVE-CORRESPONDING: exp_cont     TO ls_ofertes,
+                        ls_proveidor TO ls_ofertes.
+    MOVE sy-tabix TO ls_ofertes-z_num_ofer.
+    ls_ofertes-z_tipus_oferta = 'B' . "EDASB 15/01/2008
+    APPEND ls_ofertes TO ofertes.
+  ENDLOOP.
+
+  CREATE OBJECT lr_util.
+  CONCATENATE docclass
+              objectid INTO lv_docid
+                       RESPECTING BLANKS.
+  CALL METHOD lr_util->obtindre_codi_univoc_exp
+    EXPORTING
+      im_docid     = lv_docid
+    IMPORTING
+      ex_clau_univ = lv_clau_uni.
+
+  MOVE lv_clau_uni TO exp_cont-z_codi_exp.
+  MOVE 'ZNI' TO exp_cont-z_estat.
+
+*  " EVEEM 27.08.2025 - PR11.2 Automatització
+  " Moure les dades del QDC a la lictació
+  set_dades_qdc(
+  EXPORTING
+    iv_doclass_imp = impuls_cap-z_doc_impuls
+    iv_objid_imp   = impuls_cap-z_obj_impuls
+    iv_docclass    = exp_cont-docclass
+    iv_objectid    = exp_cont-objectid
+    iv_exp_hdr     = exp_cont-z_exp_hdr
+    iv_cod_lic     = exp_cont-z_codi_exp ).
+*  " EVEEM 27.08.2025 - PR11.2 Automatització
+
+  IF is_exp_lot( ) IS NOT INITIAL.
+    modificar_exp_lot( ).
+  ENDIF.
+ENDMETHOD.
+
+
+METHOD obtenir_docid_model.
+  DATA: l_docclass TYPE zrm_dm_sp_modexp-docclass,
+        l_objectid TYPE zrm_dm_sp_modexp-objectid.
+
+  DATA: l_ans TYPE c. " >> ADD ETKAN 21/01/2016 P100031
+
+">> SPEC-79706, Inici Modificació - EVCHA
+
+  IF exp_cont-z_tipus_cont = 'OB' OR exp_cont-z_tipus_cont = 'SE'.
+
+    SELECT SINGLE docclass objectid
+             INTO (l_docclass, l_objectid)
+             FROM zrm_dm_sp_modexp
+            WHERE     srmspsid      EQ record_sp_id
+                  AND z_harmonitzat EQ exp_cont-z_harmonitzat
+                  AND z_rd817_2009  EQ exp_cont-z_rd817_2009
+                  AND z_ll34_2010   EQ exp_cont-z_ll34_2010
+                  AND z_obres_2m5m  EQ exp_cont-z_obres_2m5m
+                  AND z_obert_preu  EQ exp_cont-z_obert_preu
+                  AND z_llei92017   EQ exp_cont-z_llei92017
+                  AND z_obert_simpl EQ exp_cont-z_obert_simpl
+                  AND z_tipus_cont  EQ exp_cont-z_tipus_cont.
+
+  ELSE.
+"<< SPEC-79706, Final Modificació - EVCHA
+
+* Per a gairebé tots els expedients de licitació tenim ara diferents models. El model a escollir s'agafa
+* en funció dels flag que indiquen si es tracta d'un concurs subjecte a harmonització, el que indica
+* si està subjecte a Reial Decret i el que indica si ho està a la llei 34/2010.
+* Si no trobem cap model a la taula de parametrització assumirem que només n'hi un i l'agafem
+* dels paràmetres de l'Element Type
+    SELECT SINGLE docclass objectid
+             INTO (l_docclass, l_objectid)
+             FROM zrm_dm_sp_modexp
+            WHERE     srmspsid      EQ record_sp_id
+                  AND z_harmonitzat EQ exp_cont-z_harmonitzat
+                  AND z_rd817_2009  EQ exp_cont-z_rd817_2009
+                  AND z_ll34_2010   EQ exp_cont-z_ll34_2010   "EDLSM 10.09.10
+                  AND z_obres_2m5m  EQ exp_cont-z_obres_2m5m  "SPEC-27608 Canvis Consell
+                  AND z_obert_preu  EQ exp_cont-z_obert_preu "ETOVB SPEC-49285
+                  AND z_llei92017   EQ exp_cont-z_llei92017   "ETOVB SPEC-49285
+                  AND z_obert_simpl EQ exp_cont-z_obert_simpl. "SPEC-51062
+
+  ENDIF.
+  IF sy-subrc NE 0 .
+    CALL METHOD super->obtenir_docid_model
+      RECEIVING
+        re_docid_model = re_docid_model.
+  ELSE.
+    " >> INI ETKAN 21/01/2016 P100031
+    "Missatge provisional per seleccionar el model NF que es desitja executar
+    IF sy-sysid NE 'GIP'. "AND sy-sysid NE  'GIS' AND sy-sysid NE  'GIQ'.
+      IF l_docclass EQ 'SRM_MOD02' AND
+       ( l_objectid EQ '005056861B1B1ED581A23C44A9AC33F7' OR
+         l_objectid EQ '005056861B1B1ED582A01A35D5D893F7' ).
+
+        CALL FUNCTION 'POPUP_TO_CONFIRM'
+          EXPORTING
+            titlebar              = 'Selecció de models NF'
+            text_question         = 'Desitja executar el model antic o el nou model'
+            text_button_1         = 'Nou'
+            text_button_2         = 'Antic'
+            display_cancel_button = abap_false
+          IMPORTING
+            answer                = l_ans.
+        IF l_ans EQ 2.
+
+          IF l_objectid EQ '005056861B1B1ED581A23C44A9AC33F7'." No Harmonizat
+
+            CLEAR l_objectid.
+            MOVE '4586201D56745635E10000000A5A0A64' TO l_objectid.
+
+          ELSEIF l_objectid EQ '005056861B1B1ED582A01A35D5D893F7'. "Harmonizat
+
+            CLEAR l_objectid.
+            MOVE '4C8DBFF1B0282F14E10000000A5A0A64' TO l_objectid.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    " >> FIN ETKAN 21/01/2016 P100031
+
+    CONCATENATE l_docclass l_objectid INTO re_docid_model RESPECTING BLANKS .
+  ENDIF .
+ENDMETHOD.
+
+
+  METHOD obtenir_nom_model.
+    DATA: lr_descr TYPE REF TO cl_abap_classdescr,
+          lv_class TYPE string.
+
+    IF im_record_sp_id IS SUPPLIED AND
+       NOT im_record_sp_id IS INITIAL.
+      SELECT SINGLE rmsid FROM zrm_dm_sp_exp
+                          INTO rms_id
+                          WHERE srmspsid = im_record_sp_id.
+      MOVE im_record_sp_id TO record_sp_id.
+    ELSE.
+      lr_descr ?= cl_abap_typedescr=>describe_by_object_ref( me ).
+
+      CALL METHOD lr_descr->get_relative_name
+        RECEIVING
+          p_relative_name = lv_class.
+      SELECT SINGLE srmspsid
+                    rmsid FROM zrm_dm_sp_exp
+                          INTO (record_sp_id, rms_id)
+                          WHERE clsname = lv_class
+                            AND obsolet = space.
+    ENDIF.
+
+    re_docid_model = obtenir_docid_model( ).
+  ENDMETHOD.
+
+
+  METHOD obtenir_treballs.
+    obtenir_dades( ).
+    CHECK treb_expc IS NOT INITIAL.
+
+    DATA(lt_treb_expc) = treb_expc->get_data( ).
+
+    CHECK lt_treb_expc IS NOT INITIAL.
+
+    SELECT *
+      FROM prps
+      INTO TABLE et_treballs
+      FOR ALL ENTRIES IN lt_treb_expc
+      WHERE pspnr = lt_treb_expc-clau_pep.
+  ENDMETHOD.
+
+
+  method SET_ACORD_MARC.
+
+  IF docclass IS NOT INITIAL
+     AND objectid IS NOT INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+       EXPORTING textid = zcx_rm_expedient_licitacio=>readonly_field .
+  ENDIF .
+
+  exp_cont-z_acord_marc = im_acord_marc.
+
+  endmethod.
+
+
+  METHOD set_dades_qdc.
+
+    DATA: ls_clas_empr TYPE zrm_dt_clas_empr,
+          ls_punt_form TYPE zrm_dt_punt_form,
+          ls_mat_co2   TYPE zrm_dm_mat_co2,
+          lt_clas_empr TYPE TABLE OF zrm_dt_clas_empr,
+          lt_punt_form TYPE TABLE OF zrm_dt_punt_form,
+          lt_mat_co2   TYPE TABLE OF zrm_dm_mat_co2,
+          lr_root      TYPE REF TO cx_root,
+          lv_err_msg   TYPE char200.
+
+    "Mapejat camps des del quadre de dades complementàries a les estructures de la licitació
+    IF iv_doclass_imp IS NOT INITIAL AND iv_objid_imp IS NOT INITIAL.
+
+      SELECT SINGLE z_codi_exp
+      FROM zmm_dt_imp_cap
+      INTO @DATA(lv_codi_exp_imp)
+      WHERE z_doc_impuls EQ @iv_doclass_imp
+      AND   z_obj_impuls EQ @iv_objid_imp.
+
+      IF sy-subrc EQ 0.
+        SELECT SINGLE *
+        FROM zrm_dt_qdc_cap
+        INTO @DATA(ls_qdc_cap)
+        WHERE z_codi_imp EQ @lv_codi_exp_imp.
+
+        IF sy-subrc EQ 0.
+          " Actualitzar codi de licitació a la taula mestre qdc
+          ls_qdc_cap-z_licitacio = iv_cod_lic.
+          TRY.
+              MODIFY zrm_dt_qdc_cap FROM ls_qdc_cap.
+            CATCH cx_root INTO lr_root.
+              lv_err_msg = lr_root->get_text( ).
+          ENDTRY.
+
+          IF ls_qdc_cap-z_gar_prov = 'N'.
+            exp_cont-z_garan_prov = 'No'.
+          ELSEIF ls_qdc_cap-z_gar_prov = 'S'.
+            exp_cont-z_garan_prov = 'Si'.
+          ENDIF.
+
+
+          " 2. Garanties i varis
+          exp_cont-z_term_garant    = ls_qdc_cap-z_term_garant.
+          exp_cont-z_admet_ofer_var = ls_qdc_cap-z_variant.
+          exp_cont-z_perc_aval_prov = ls_qdc_cap-z_perc_aval_prov.
+          exp_cont-z_perc_aval_def  = ls_qdc_cap-z_perc_aval_def.
+          exp_cont-z_num_plec       = ls_qdc_cap-z_num_plec.
+
+          IF iv_docclass IS NOT INITIAL AND iv_objectid IS NOT INITIAL.
+            SELECT *
+            FROM zrm_dt_qdc_rapli
+            INTO TABLE @DATA(lt_qdc_rapli)
+            WHERE z_codi_qdc EQ @ls_qdc_cap-z_codi_qdc.
+
+            SELECT *
+            FROM zrm_dt_qdc_cpunt
+            INTO TABLE @DATA(lt_qdc_cpunt)
+            WHERE z_codi_qdc EQ @ls_qdc_cap-z_codi_qdc.
+
+            SELECT SINGLE *
+            FROM zrm_dt_qdc_clot
+            INTO @DATA(ls_qdc_clot)
+            WHERE z_codi_qdc EQ @ls_qdc_cap-z_codi_qdc
+            AND   zz_num_lot EQ 000.
+
+            SELECT *
+            FROM zrm_dt_qdc_mat
+            INTO TABLE @DATA(lt_qdc_mat)
+            WHERE z_codi_qdc      EQ @ls_qdc_cap-z_codi_qdc
+            AND   z_mod_crit_punt EQ @ls_qdc_cap-z_mod_crit_punt
+            AND   zz_num_lot      EQ 000.
+
+
+            " 1. Classificació de l'empresa
+            LOOP AT lt_qdc_rapli INTO DATA(ls_qdc_rapli).
+              MOVE-CORRESPONDING ls_qdc_rapli TO ls_clas_empr.
+              ls_clas_empr-docclass = iv_docclass.
+              ls_clas_empr-objectid = iv_objectid.
+              APPEND ls_clas_empr TO lt_clas_empr.
+            ENDLOOP.
+
+            TRY.
+                MODIFY zrm_dt_clas_empr FROM TABLE lt_clas_empr.
+              CATCH cx_root INTO lr_root.
+                lv_err_msg = lr_root->get_text( ).
+            ENDTRY.
+
+
+            " 3. Criteris de puntuació
+            IF iv_exp_hdr IS INITIAL.
+              ls_punt_form-docclass        = iv_docclass.
+              ls_punt_form-objectid        = iv_objectid.
+              ls_punt_form-z_mod_crit_punt = ls_qdc_cap-z_mod_crit_punt.
+
+              LOOP AT lt_qdc_cpunt INTO DATA(ls_qdc_cpunt).
+                ls_punt_form-z_codi_crit_punt    = ls_qdc_cpunt-z_codi_crit_punt.
+                ls_punt_form-z_codi_subapar_punt = ls_qdc_cpunt-z_codi_subapar_punt.
+                ls_punt_form-z_no_aplica         = ls_qdc_cpunt-z_no_aplica.
+                APPEND ls_punt_form TO lt_punt_form.
+              ENDLOOP.
+
+              TRY.
+                  MODIFY zrm_dt_punt_form FROM TABLE lt_punt_form.
+                CATCH cx_root INTO lr_root.
+                  lv_err_msg = lr_root->get_text( ).
+              ENDTRY.
+
+              " 4. Materials CO2
+              ls_mat_co2-docclass        = iv_docclass.
+              ls_mat_co2-objectid        = iv_objectid.
+              ls_mat_co2-z_mod_crit_punt = ls_qdc_cap-z_mod_crit_punt.
+
+              LOOP AT lt_qdc_mat INTO DATA(ls_qdc_mat).
+                ls_mat_co2-z_codi_mat   = ls_qdc_mat-z_codi_mat.
+                ls_mat_co2-z_descripcio = ls_qdc_mat-z_descripcio.
+                ls_mat_co2-z_tonelada   = ls_qdc_mat-z_tonelada.
+                ls_mat_co2-z_distancia  = ls_qdc_mat-z_distancia.
+                APPEND ls_mat_co2 TO lt_mat_co2.
+              ENDLOOP.
+
+              TRY.
+                  MODIFY zrm_dm_mat_co2 FROM TABLE lt_mat_co2.
+                CATCH cx_root INTO lr_root.
+                  lv_err_msg = lr_root->get_text( ).
+              ENDTRY.
+
+
+              " 4. Transport de l'IMIN
+              exp_cont-z_imin = ls_qdc_clot-z_imin.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD set_dades_qdc_lots.
+
+    DATA: lr_root      TYPE REF TO cx_root,
+          lv_err_msg   TYPE char200,
+          ls_punt_form TYPE zrm_dt_punt_form,
+          ls_mat_co2   TYPE zrm_dm_mat_co2,
+          lt_punt_form TYPE TABLE OF zrm_dt_punt_form,
+          lt_mat_co2   TYPE TABLE OF zrm_dm_mat_co2.
+
+    SELECT SINGLE *
+    FROM zrm_dt_qdc_cap
+    INTO @DATA(ls_qdc_cap)
+    WHERE z_codi_imp EQ @iv_codi_exp_imp.
+
+    IF sy-subrc EQ 0.
+      SELECT *
+      FROM zrm_dt_qdc_cpunt
+      INTO TABLE @DATA(lt_qdc_cpunt)
+      WHERE z_codi_qdc EQ @ls_qdc_cap-z_codi_qdc.
+
+      SORT lt_qdc_cpunt BY zz_num_lot.
+
+      SELECT *
+      FROM zrm_dt_qdc_mat
+      INTO TABLE @DATA(lt_qdc_mat)
+      WHERE z_codi_qdc      EQ @ls_qdc_cap-z_codi_qdc
+      AND   z_mod_crit_punt EQ @ls_qdc_cap-z_mod_crit_punt.
+
+      SORT lt_qdc_mat BY zz_num_lot.
+
+      SELECT zz_num_lot, z_imin
+      FROM zrm_dt_qdc_clot
+      INTO TABLE @DATA(lt_qdc_clot)
+      WHERE z_codi_qdc EQ @ls_qdc_cap-z_codi_qdc.
+
+      SORT lt_qdc_clot BY zz_num_lot.
+
+      SELECT docclass, objectid, z_codi_exp, z_exp_lot_num
+      FROM zrm_dt_exp_cont
+      INTO TABLE @DATA(lt_exp_cont_hijos)
+      WHERE z_exp_hdr_code = @iv_exp_hdr_code.
+
+
+      LOOP AT lt_exp_cont_hijos INTO DATA(ls_exp_cont).
+        " 3. Criteris de puntuació
+        ls_punt_form-docclass        = ls_exp_cont-docclass.
+        ls_punt_form-objectid        = ls_exp_cont-objectid.
+        ls_punt_form-z_mod_crit_punt = ls_qdc_cap-z_mod_crit_punt.
+
+
+        LOOP AT lt_qdc_cpunt INTO DATA(ls_qdc_cpunt) WHERE zz_num_lot = ls_exp_cont-z_exp_lot_num.
+          ls_punt_form-z_codi_crit_punt    = ls_qdc_cpunt-z_codi_crit_punt.
+          ls_punt_form-z_codi_subapar_punt = ls_qdc_cpunt-z_codi_subapar_punt.
+          ls_punt_form-z_no_aplica         = ls_qdc_cpunt-z_no_aplica.
+          APPEND ls_punt_form TO lt_punt_form.
+        ENDLOOP.
+
+
+        " 4. Materials CO2
+        ls_mat_co2-docclass        = ls_exp_cont-docclass.
+        ls_mat_co2-objectid        = ls_exp_cont-objectid.
+        ls_mat_co2-z_mod_crit_punt = ls_qdc_cap-z_mod_crit_punt.
+
+        LOOP AT lt_qdc_mat INTO DATA(ls_qdc_mat) WHERE zz_num_lot = ls_exp_cont-z_exp_lot_num.
+          ls_mat_co2-znlot        = ls_qdc_mat-zz_num_lot.
+          ls_mat_co2-z_codi_mat   = ls_qdc_mat-z_codi_mat.
+          ls_mat_co2-z_descripcio = ls_qdc_mat-z_descripcio.
+          ls_mat_co2-z_tonelada   = ls_qdc_mat-z_tonelada.
+          ls_mat_co2-z_distancia  = ls_qdc_mat-z_distancia.
+          APPEND ls_mat_co2 TO lt_mat_co2.
+        ENDLOOP.
+
+
+
+        " 4. Transport de l'IMIN
+        READ TABLE lt_qdc_clot INTO DATA(ls_qdc_clot) WITH KEY zz_num_lot = ls_exp_cont-z_exp_lot_num BINARY SEARCH.
+        IF sy-subrc EQ 0.
+
+          TRY.
+              UPDATE zrm_dt_exp_cont
+              SET    z_imin     = ls_qdc_clot-z_imin
+                     z_num_plec = iv_z_num_plec
+              WHERE  docclass   = ls_exp_cont-docclass
+              AND    objectid   = ls_exp_cont-objectid.
+            CATCH cx_root INTO lr_root.
+              lv_err_msg = lr_root->get_text( ).
+          ENDTRY.
+        ENDIF.
+      ENDLOOP.
+
+      TRY.
+          MODIFY zrm_dt_punt_form FROM TABLE lt_punt_form.
+        CATCH cx_root INTO lr_root.
+          lv_err_msg = lr_root->get_text( ).
+      ENDTRY.
+
+      TRY.
+          MODIFY zrm_dm_mat_co2 FROM TABLE lt_mat_co2.
+        CATCH cx_root INTO lr_root.
+          lv_err_msg = lr_root->get_text( ).
+      ENDTRY.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  method SET_DATA_CONVENI.
+    exp_cont-z_data_calcul_conveni = iv_data_calcul_conveni.
+  endmethod.
+
+
+  METHOD set_derivat_acordmarc.
+    IF docclass IS NOT INITIAL
+       AND objectid IS NOT INITIAL .
+      RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+        EXPORTING
+          textid = zcx_rm_expedient_licitacio=>readonly_field.
+    ENDIF .
+
+    exp_cont-z_daccord_marc = im_dacord_marc .
+  ENDMETHOD.
+
+
+  METHOD set_es_nou_conveni.
+
+    IF iv_es_nou_conveni = 'SI'.
+      exp_cont-z_es_nou_conveni = abap_true.
+    else.
+      exp_cont-z_es_nou_conveni = abap_false.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD set_exp_lot.
+    CLEAR e_subrc.
+    IF is_exp_lot( it_imp_po ) IS NOT INITIAL.
+      gt_imp_po_lot    = it_imp_po.
+      g_z_exp_hdr_code = i_exp_hdr_code.
+    ELSE.
+      e_subrc = 4.
+    ENDIF.
+  ENDMETHOD.
+
+
+  method SET_EXP_REL.
+    IF docclass IS NOT INITIAL
+      AND objectid IS NOT INITIAL .
+      RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+        EXPORTING textid = zcx_rm_expedient_licitacio=>readonly_field .
+      ENDIF .
+
+    exp_cont-z_codi_exp_orig = im_exp_rel.
+  endmethod.
+
+
+  METHOD set_flag_aplica_tar.
+
+    IF docclass IS NOT INITIAL
+       AND objectid IS NOT INITIAL .
+      RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+        EXPORTING
+          textid = zcx_rm_expedient_licitacio=>readonly_field.
+    ENDIF .
+
+    exp_cont-z_aplica_tar = im_aplica_tar.
+
+  ENDMETHOD.
+
+
+METHOD set_flag_ll34_2010.
+  IF docclass IS NOT INITIAL
+     AND objectid IS NOT INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+       EXPORTING textid = zcx_rm_expedient_licitacio=>readonly_field .
+  ENDIF .
+
+  exp_cont-z_ll34_2010 = im_ll34_2010 .
+ENDMETHOD.
+
+
+  METHOD set_flag_llei92017.
+    IF docclass IS NOT INITIAL
+       AND objectid IS NOT INITIAL .
+      RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+        EXPORTING
+          textid = zcx_rm_expedient_licitacio=>readonly_field.
+    ENDIF .
+
+    exp_cont-z_llei92017 = im_llei92017.
+  ENDMETHOD.
+
+
+  method SET_FLAG_OBERT_PREU.
+  IF docclass IS NOT INITIAL
+     AND objectid IS NOT INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+       EXPORTING textid = zcx_rm_expedient_licitacio=>readonly_field .
+  ENDIF .
+
+  exp_cont-z_obert_preu = im_obert_preu.
+  endmethod.
+
+
+  method SET_FLAG_OBERT_SIMPL.
+  IF docclass IS NOT INITIAL
+     AND objectid IS NOT INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+       EXPORTING textid = zcx_rm_expedient_licitacio=>readonly_field .
+  ENDIF .
+
+  exp_cont-z_obert_simpl = im_obert_simpl.
+  endmethod.
+
+
+METHOD set_flag_obres_2m5m.
+  IF docclass IS NOT INITIAL
+     AND objectid IS NOT INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+       EXPORTING textid = zcx_rm_expedient_licitacio=>readonly_field .
+  ENDIF .
+
+  exp_cont-z_obres_2m5m = im_obres_2m5m .
+ENDMETHOD.
+
+
+METHOD set_flag_reial_decret.
+  IF docclass IS NOT INITIAL
+     AND objectid IS NOT INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+       EXPORTING textid = zcx_rm_expedient_licitacio=>readonly_field .
+  ENDIF .
+
+  exp_cont-z_rd817_2009 = im_rd .
+ENDMETHOD.
+
+
+METHOD set_flag_tipolo_eco.
+
+  DATA: lt_rang_proc_adj TYPE  zrang_t_zproc_adj,
+        ls_rang_proc_adj TYPE  zrang_zproc_adj.
+
+  IF docclass IS NOT INITIAL
+     AND objectid IS NOT INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+      EXPORTING
+        textid = zcx_rm_expedient_licitacio=>readonly_field.
+  ENDIF .
+
+  SELECT *
+  FROM zsap_dt_param_hc
+  INTO TABLE @DATA(lt_params)
+        WHERE repid      = 'ZCL_EXP_CONT' AND
+        field_info = 'Z_PROC_ADJ'.
+
+  LOOP AT lt_params ASSIGNING FIELD-SYMBOL(<fs_params>).
+    ls_rang_proc_adj-sign = 'I'.
+    ls_rang_proc_adj-option = 'EQ'.
+    ls_rang_proc_adj-low = <fs_params>-value.
+    APPEND ls_rang_proc_adj TO lt_rang_proc_adj.
+  ENDLOOP.
+
+  IF i_proc_adj  IN lt_rang_proc_adj.
+    exp_cont-z_tipolo_econ = abap_true .
+  ELSE .
+    exp_cont-z_tipolo_econ = abap_false.
+  ENDIF .
+
+
+
+ENDMETHOD.
+
+
+METHOD set_harmonitzat.
+  IF docclass IS NOT INITIAL
+     AND objectid IS NOT INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+       EXPORTING textid = zcx_rm_expedient_licitacio=>readonly_field .
+  ENDIF .
+
+  exp_cont-z_harmonitzat = im_harmonitzat .
+ENDMETHOD.
+
+
+  method SET_TIPUS_CONT.
+  IF docclass IS NOT INITIAL
+     AND objectid IS NOT INITIAL .
+    RAISE EXCEPTION TYPE zcx_rm_expedient_licitacio
+       EXPORTING textid = zcx_rm_expedient_licitacio=>readonly_field .
+  ENDIF .
+
+  exp_cont-Z_TIPUS_CONT = im_tipus_cont.
+  endmethod.
+
+
+method ZIF_RM_EXPEDIENT_TECNIC~APPLY_PS_CHANGES.
+  DATA: l_ref_header  TYPE REF TO data,
+          l_lock_user   TYPE string,
+          l_success     TYPE xfeld,
+          lt_attributes TYPE srmgs_property_tab,
+          ls_attribute  TYPE LINE OF srmgs_property_tab,
+          lif_document  TYPE REF TO if_srm_document,
+          lob_document  TYPE REF TO cl_srm_document2,
+          l_string      TYPE string,
+          lx_srm        TYPE REF TO cx_srm .
+
+  FIELD-SYMBOLS: <ls_data> TYPE ANY .
+
+  CALL METHOD zif_rm_expedient_tecnic~needs_synchronization_from_ps
+    EXPORTING
+      im_nivells_pep      = im_nivells_pep
+      im_check_header     = if_srm=>true
+      im_check_attributes = if_srm=>true
+    IMPORTING
+      ex_needed           = re_needed
+      ex_new_header       = l_ref_header
+      ex_new_attributes   = lt_attributes.
+
+  CHECK re_needed EQ if_srm=>true .
+
+  IF l_ref_header IS BOUND . "Només si canvia la capçalera
+    ASSIGN l_ref_header->* TO <ls_data> .
+    zif_rm_expedient~lock_header_data( ) .
+    zif_rm_expedient~set_header_data( <ls_data> ) .
+    zif_rm_expedient~save_header_data( ) .
+    zif_rm_expedient~unlock_header_data( ) .
+  ENDIF .
+
+*ATENCIÓ: Aquí hi ha codi que estaria millor a ZIF_RM_EXPEDIENT però de moment no volem
+* fer la sincronització PS amb tots els expedients, només amb Seguiment d'Obres. Quan es
+* continui amb l'evolutiu s'haurà de refer/moure el codi
+  IF lt_attributes IS NOT INITIAL .
+    TRY .
+        READ TABLE lt_attributes INTO ls_attribute WITH KEY name = 'DESCRIPTION' .
+        IF sy-subrc EQ 0 . "Cal obrir l'expedient per tal de canviar el node arrel
+          l_string = ls_attribute-value .
+          IF NOT me->record IS BOUND .
+            CALL METHOD zrm_cl_gmd=>get_content_connection_record
+              EXPORTING
+                im_objectid = me->objectid
+                im_docclass = me->docclass
+              IMPORTING
+                ex_record   = me->record.
+          ENDIF .
+          record->if_srm_sp_record~open( for_update   = if_srm=>true
+                                         do_not_parse = if_srm=>false ) .
+          record_locked = if_srm=>true .
+          me->record->if_srm_sp_record_expert~description_update( l_string ) .
+          lif_document  = me->record->if_srm_sp_record_expert~get_document( ).
+          me->record->if_srm_sp_record~save( new_version = if_srm=>false ) .
+        ELSE . "Només cal modificar els atributs
+          CONCATENATE docclass objectid INTO l_string RESPECTING BLANKS .
+          CREATE OBJECT lob_document
+            EXPORTING
+              doc_id     = l_string.
+          lif_document ?= lob_document .
+          lif_document->apply_lock( IMPORTING success = l_success lock_user = l_lock_user ) .
+          IF l_success EQ space .
+            RAISE EXCEPTION TYPE cx_srm_gsp_back
+              EXPORTING
+                textid = cx_srm_gsp_back=>et_already_locked
+                lock_user = l_lock_user.
+          ENDIF .
+        ENDIF .
+
+        set_properties( im_document = lif_document
+                        im_properties = lt_attributes ) .
+        lif_document->remove_lock( ) .
+        IF  me->record IS BOUND .
+          me->record->if_srm_sp_record~close( ) .
+          record_locked = if_srm=>false .
+        ENDIF .
+      CATCH cx_srm INTO lx_srm .
+        RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING previous = lx_srm .
+    ENDTRY .
+  ENDIF .
+endmethod.
+
+
+METHOD zif_rm_expedient_tecnic~needs_synchronization_from_ps.
+  DATA: lob_document   TYPE REF TO cl_srm_document2,
+          lif_variant    TYPE REF TO if_srm_variant,
+          lif_prop       TYPE REF TO if_srm_gsp_properties,
+          l_doc_id       TYPE string,
+          lx_srm         TYPE REF TO cx_srm,
+          lt_prop        TYPE srmgs_property_tab,
+          ls_prop        TYPE LINE OF srmgs_property_tab,
+          lt_prop_new    TYPE srmgs_property_tab,
+          ls_prop_new    TYPE LINE OF srmgs_property_tab,
+          l_success      TYPE srmgs_boolean.
+  FIELD-SYMBOLS: <l_header_before> TYPE ANY,
+                 <l_header_now>    TYPE ANY .
+
+  ex_needed = if_srm=>false .
+
+  CHECK:   ex_new_header     IS REQUESTED
+        OR ex_new_attributes IS REQUESTED
+        OR ex_needed         IS REQUESTED .
+
+  IF  im_check_attributes EQ abap_true .
+*----- Atributs -----------------------------------------------------------------------
+* Obtenim els atributs actuals de l'expedient (només els físics) sense obrir-lo per tal
+* que sigui un accés ràpid
+    CONCATENATE me->docclass me->objectid INTO l_doc_id RESPECTING BLANKS .
+    TRY .
+        CREATE OBJECT lob_document
+          EXPORTING
+            doc_id = l_doc_id .
+
+        lob_document->if_srm_gsp_properties~get_properties( CHANGING properties = lt_prop ) .
+        lif_variant = lob_document->if_srm_document~get_variant( ) .
+        lif_prop    = lif_variant->get_property_interface( ) .
+* Si l'expedient està bloquejat o tancat o cancel·lat assumim que no s'ha de modificar
+        IF    lif_prop->get_property( if_srm_document=>prop_doc_state ) EQ cl_srm_sp_record=>c_docstate_frozen
+           OR lif_prop->get_property( if_srm_document=>prop_state )     EQ 'ZTA'
+           OR lif_prop->get_property( if_srm_document=>prop_state )     EQ 'ZCA' .
+          CLEAR: ex_needed,
+                 ex_new_header .
+          RETURN .
+        ENDIF .
+
+        " Mirem si està bloquejat
+        CALL METHOD lob_document->if_srm_document~apply_lock
+          IMPORTING
+            success = l_success.
+
+        IF l_success IS INITIAL.
+          CLEAR: ex_needed,
+                 ex_new_header .
+          RETURN .
+        ELSE.
+          CALL METHOD lob_document->if_srm_document~remove_lock .
+        ENDIF.
+
+
+      CATCH cx_srm INTO lx_srm .
+        RAISE EXCEPTION TYPE zcx_rm_expedient EXPORTING previous = lx_srm .
+    ENDTRY .
+
+* Obtenim els atributs que tindriem ara si es tornés a fer l'expedient
+* El paràmetre IM_NIVELLS_PEP és opcional. Si ens el donen mirarem les dades d'aquí, si
+* no s'instanciarà una nova referència amb les dades actuals a la BD.
+    CALL METHOD atributs_ps
+      EXPORTING
+        im_nivells_pep   = im_nivells_pep
+      IMPORTING
+        ex_attribute_tab = lt_prop_new.
+
+* Atenció: el LOOP assumeix que no hi ha atributs que puguin tenir més d'un valor.
+* No ens preocupen els atributs que haurien de desaparèixer, no sembla que s'hagi de donar
+* el cas.
+    LOOP AT lt_prop_new INTO ls_prop_new .
+      READ TABLE lt_prop INTO ls_prop WITH KEY name = ls_prop_new-name .
+      IF    sy-subrc          NE 0
+         OR ls_prop_new-value NE ls_prop-value .
+        ex_needed = if_srm=>true .
+        IF ex_new_attributes IS REQUESTED .
+          INSERT ls_prop_new INTO TABLE ex_new_attributes .
+        ELSE .
+          EXIT.
+        ENDIF .
+      ENDIF .
+    ENDLOOP .
+  ENDIF .
+
+*----- Dades de capçalera -------------------------------------------------------------
+* Obtenim les dades actuals de capçalera
+  IF  im_check_header EQ if_srm=>true .
+    me->zif_rm_expedient~get_header_data( im_reread = if_srm=>true ) .
+    ASSIGN header_data->* TO <l_header_before> .
+
+    CREATE DATA ex_new_header LIKE <l_header_before> .
+    ASSIGN ex_new_header->* TO <l_header_now> .
+    <l_header_now> = <l_header_before> .
+
+* Mirem quins canvis hi hauria
+* El paràmetre IM_NIVELLS_PEP és opcional. Si ens el donen mirarem les dades d'aquí, si
+* no s'instanciarà una nova referència amb les dades actuals a la BD.
+    CALL METHOD dades_resum_ps
+      EXPORTING
+        im_nivells_pep = im_nivells_pep
+      CHANGING
+        ch_dades       = <l_header_now>.
+
+    IF <l_header_now> NE <l_header_before> .
+      ex_needed = if_srm=>true .
+    ELSE .
+      CLEAR ex_new_header . "Indiquem així que la capçalera no canvia
+    ENDIF .
+  ENDIF .
+
+ENDMETHOD.
+
+
+METHOD zif_rm_expedient~delete_data.
+
+  TRY.
+
+      DELETE FROM zrm_dt_exp_cont
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_clas_empr
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_gmd_activ
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_multicamp
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_cont_tip
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_reduc_lt
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_treb_expc
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_ofertes
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_apoderats
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_carrecs
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_emp_vinc
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_entitats
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+
+      DELETE FROM zrm_dt_lemes
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_reduc_of
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_val_crit
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_punt_ofer
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+      DELETE FROM zrm_dt_punt_lema
+                    WHERE     docclass EQ me->docclass
+                          AND objectid EQ me->objectid .
+
+    CATCH cx_root .
+      RAISE EXCEPTION TYPE zcx_rm_expedient .
+
+  ENDTRY.
+
+
+ENDMETHOD.
+ENDCLASS.

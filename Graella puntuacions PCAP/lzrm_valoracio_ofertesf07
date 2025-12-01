@@ -1,0 +1,135 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESF07.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  CRIDA_PUNTUA_EQUIP_COAUTORS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM crida_puntua_equip_coautors USING      pt_graella_criteris TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt
+                                            pt_graella_equip    TYPE zrm_tt_dt_punt_equi
+                                            p_readonly          TYPE xfeld
+                                            p_objectid          TYPE bapiguid
+                                            p_docclass          TYPE bapidclass
+                                            p_num_ofer          TYPE z_num_ofer
+                                  CHANGING  c_no_changes        TYPE xfeld
+                                            ct_equip_act        TYPE zrm_tt_dt_punt_equi
+                                            ct_punt_offers      TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                                            ct_puntuacio        TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats.
+
+  CREATE OBJECT gr_coautors_alv
+    EXPORTING
+      it_graella_criteris = pt_graella_criteris
+      it_equip            = pt_graella_equip
+      it_puntuacio        = ct_puntuacio
+      i_readonly          = p_readonly
+      i_objectid          = p_objectid
+      i_docclass          = p_docclass
+      i_num_oferta        = p_num_ofer.
+
+  CHECK gr_coautors_alv IS BOUND.
+
+  gr_coautors_alv->create_alv( ).
+  IF gr_coautors_alv->get_flag_changes( ) = abap_on.
+    c_no_changes = abap_off.
+    gr_coautors_alv->get_puntuacions( EXPORTING it_graella_criteris = pt_graella_criteris
+                                      IMPORTING et_punt_offers      = ct_punt_offers
+                                                et_puntuacio        = ct_puntuacio
+                                                et_equi_act         = ct_equip_act ).
+  ELSE.
+    c_no_changes = abap_on.
+  ENDIF.
+  gr_coautors_alv->free_variables( ).
+  FREE gr_util_alv.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  COMPROVAR_APLICA_FORMULARI
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GS_DYN_0200_GV_MOD_PUNTUACIO  text
+*      <--P_LV_APLICA_FORMULARI  text
+*----------------------------------------------------------------------*
+FORM comprovar_aplica_formulari  USING    pv_mod_puntuacio
+                                 CHANGING pv_aplica_formulari.
+
+  SELECT SINGLE z_form_punt_obj FROM zrm_dm_mod_crit INTO pv_aplica_formulari
+    WHERE z_mod_crit_punt =  pv_mod_puntuacio.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  MOSTRAR_POPUP_DECISIO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_LV_DECISIO_PCAP  text
+*----------------------------------------------------------------------*
+FORM mostrar_popup_decisio  CHANGING p_lv_decisio_pcap.
+  DATA: lv_answer.
+
+  CALL FUNCTION 'POPUP_TO_CONFIRM'
+    EXPORTING
+      text_question  = text-017
+      default_button = '2'
+    IMPORTING
+      answer         = lv_answer.
+
+  IF lv_answer EQ '1'. "Sí
+    p_lv_decisio_pcap = abap_true.
+  ELSE.
+    p_lv_decisio_pcap = abap_false.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CRIDA_PUNTUA_MULT_EQUIP_INCR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_IT_GRAELLA_CRITERIS  text
+*      -->P_IT_GRAELLA_EQUIP  text
+*      -->P_I_READONLY  text
+*      -->P_IM_OBJECTID  text
+*      -->P_IM_DOCCLASS  text
+*      -->P_IM_NUM_OFER  text
+*      <--P_LV_NO_CHANGES  text
+*      <--P_ET_EQUIP_ACT  text
+*      <--P_ET_PUNTS_OFFER  text
+*      <--P_CT_PUNTUACIO_MULTIPLE  text
+*----------------------------------------------------------------------*
+FORM crida_puntua_mult_equip_incr  USING pt_graella_criteris TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt
+                                            pt_graella_equip    TYPE zrm_tt_dt_punt_equi
+                                            p_readonly          TYPE xfeld
+                                            p_objectid          TYPE bapiguid
+                                            p_docclass          TYPE bapidclass
+                                            p_num_ofer          TYPE z_num_ofer
+                                  CHANGING  c_no_changes        TYPE xfeld
+                                            ct_equip_act        TYPE zrm_tt_dt_punt_equi
+                                            ct_punt_offers      TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                                            ct_puntuacio        TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats.
+
+  CREATE OBJECT gr_mult_equip_incr_alv
+    EXPORTING
+      it_graella_criteris = pt_graella_criteris
+      it_equip            = pt_graella_equip
+      it_puntuacio        = ct_puntuacio
+      i_readonly          = p_readonly
+      i_objectid          = p_objectid
+      i_docclass          = p_docclass
+      i_num_oferta        = p_num_ofer.
+
+  CHECK gr_mult_equip_incr_alv IS BOUND.
+
+  gr_mult_equip_incr_alv->create_alv( ).
+  IF gr_mult_equip_incr_alv->get_flag_changes( ) = abap_on.
+    c_no_changes = abap_off.
+    gr_mult_equip_incr_alv->get_puntuacions( EXPORTING it_graella_criteris = pt_graella_criteris
+                                      IMPORTING et_punt_offers      = ct_punt_offers
+                                                et_puntuacio        = ct_puntuacio
+                                                et_equi_act         = ct_equip_act ).
+  ELSE.
+    c_no_changes = abap_on.
+  ENDIF.
+  gr_mult_equip_incr_alv->free_variables( ).
+  FREE gr_mult_equip_incr_alv.
+
+ENDFORM.

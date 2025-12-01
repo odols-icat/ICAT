@@ -1,0 +1,191 @@
+class ZRM_CL_LOGOS_UTIL definition
+  public
+  final
+  create public .
+
+public section.
+
+  class-methods GET_LOGO_DYNAMIC
+    importing
+      !IV_Z_CODI_EXP_LIC type Z_CODI_EXP optional
+      !IV_Z_CODI_EXP_CON type Z_CODI_EXP optional
+      !IV_Z_CODI_EXP_OBR type Z_CODI_EXP optional
+      !IV_SOCIETAT type T001-BUKRS default 'GISA'
+      !IV_Z_PUBL_CE type Z_PUBL_CE optional
+      !IV_CESSIO type CHAR1 optional
+    exporting
+      !ET_LOGO_FINAN_RESULT type ZTT_LOGO_RESULT
+      !EV_LOGO_CAP type ZED_LOGO_NOM
+      !EV_LOGO_PEU type ZED_LOGO_NOM
+    changing
+      !IT_PS_POSNR type ZTT_PS_POSNR optional
+    exceptions
+      ERROR_LOGOS
+      PLAN_NO_PARAM
+      SOC_NOT_FOUND
+      TOOMANYARGS
+      TOOMANYFONSFINAN .
+protected section.
+private section.
+ENDCLASS.
+
+
+
+CLASS ZRM_CL_LOGOS_UTIL IMPLEMENTATION.
+
+
+  METHOD get_logo_dynamic.
+    DATA: ls_result            TYPE zstr_logo_result,
+          lt_logos_relacionats TYPE ztt_logos_relacionats,
+          lv_logo_esp          TYPE zrm_fons_eu_tip-z_logo_especific,
+          lv_logo_esp2         TYPE zrm_fons_eu_tip-z_logo_especific,
+          ls_ps_posnr_tmp      TYPE zst_ps_posnr,
+          lt_ps_posnr_tmp      TYPE ztt_ps_posnr.
+
+    DATA(lv_count) = COND i( WHEN iv_z_codi_exp_lic IS NOT INITIAL THEN 1 ELSE 0 ) +
+                     COND i( WHEN iv_z_codi_exp_con IS NOT INITIAL THEN 1 ELSE 0 ) +
+                     COND i( WHEN iv_z_codi_exp_obr IS NOT INITIAL THEN 1 ELSE 0 ) +
+                     COND i( WHEN it_ps_posnr IS NOT INITIAL THEN 1 ELSE 0 ).
+
+    IF lv_count <> 1.
+      RAISE toomanyargs. "'Només un dels 4 paràmetres pot estar informat alhora'
+    ENDIF.
+
+    IF it_ps_posnr IS NOT INITIAL.
+      LOOP AT it_ps_posnr ASSIGNING FIELD-SYMBOL(<fs_ps_posnr>).
+        CLEAR: ls_ps_posnr_tmp, lt_ps_posnr_tmp, ls_result, lv_logo_esp, lv_logo_esp2.
+        ls_ps_posnr_tmp-pspnr = <fs_ps_posnr>-pspnr.
+        APPEND ls_ps_posnr_tmp TO lt_ps_posnr_tmp.
+
+        CALL FUNCTION 'ZFM_RMS_LOGO_ESPECIFIC'
+          EXPORTING
+            i_societat      = iv_societat
+            i_z_publ_ce     = iv_z_publ_ce
+            i_cessio        = iv_cessio
+          IMPORTING
+            e_fons_fin      = ls_result-fons_fin
+            e_logo_esp      = lv_logo_esp
+            e_fon_fin       = ls_result-fon_fin
+            et_codi_fin_sap = ls_result-codi_fin_sap
+            e_logo_esp2     = lv_logo_esp2
+          TABLES
+            it_ps_posnr     = lt_ps_posnr_tmp
+          EXCEPTIONS
+            error_logos     = 1
+            plan_no_param   = 2
+            soc_not_found   = 3
+            OTHERS          = 4.
+
+        CASE sy-subrc.
+          WHEN 1.
+            RAISE error_logos.
+          WHEN 2.
+            RAISE plan_no_param.
+          WHEN 3.
+            RAISE soc_not_found.
+          WHEN 4.
+            RAISE error_logos.
+        ENDCASE.
+
+        ls_result-logo_esp = COND #( WHEN lv_logo_esp  IS NOT INITIAL THEN lv_logo_esp
+                                     WHEN lv_logo_esp2 IS NOT INITIAL THEN lv_logo_esp2
+                                     ELSE space ).
+        ls_result-treball = ls_ps_posnr_tmp.
+
+        SELECT z_tipus_financament, z_logo_tag, z_logo_nom, z_id_logo, z_tipus_plantilla, z_tipus_logo
+          FROM zrm_logos_espec
+          INTO TABLE @ls_result-logos_relacionats
+          WHERE z_societat          = @iv_societat
+          AND   z_logo_especific    = @ls_result-logo_esp
+          AND   z_correu            = @space
+          AND   z_tipus_financament = @ls_result-fon_fin.
+
+        APPEND ls_result TO et_logo_finan_result.
+      ENDLOOP.
+
+
+    ELSE.
+
+      ls_result-codi_exp = COND #( WHEN iv_z_codi_exp_lic IS NOT INITIAL THEN iv_z_codi_exp_lic
+                                   WHEN iv_z_codi_exp_con IS NOT INITIAL THEN iv_z_codi_exp_con
+                                   WHEN iv_z_codi_exp_obr IS NOT INITIAL THEN iv_z_codi_exp_obr
+                                   ELSE space ).
+      CALL FUNCTION 'ZFM_RMS_LOGO_ESPECIFIC'
+        EXPORTING
+          i_z_codi_exp_lic = iv_z_codi_exp_lic
+          i_z_codi_exp_con = iv_z_codi_exp_con
+          i_z_codi_exp_obr = iv_z_codi_exp_obr
+          i_societat       = iv_societat
+          i_z_publ_ce      = iv_z_publ_ce
+          i_cessio         = iv_cessio
+        IMPORTING
+          e_fons_fin       = ls_result-fons_fin
+          e_logo_esp       = lv_logo_esp
+          e_fon_fin        = ls_result-fon_fin
+          et_codi_fin_sap  = ls_result-codi_fin_sap
+          e_logo_esp2      = lv_logo_esp2
+        TABLES
+          it_ps_posnr      = it_ps_posnr
+        EXCEPTIONS
+          error_logos      = 1
+          plan_no_param    = 2
+          soc_not_found    = 3
+          OTHERS           = 4.
+
+      CASE sy-subrc.
+        WHEN 1.
+          RAISE error_logos.
+        WHEN 2.
+          RAISE plan_no_param.
+        WHEN 3.
+          RAISE soc_not_found.
+        WHEN 4.
+          RAISE error_logos.
+      ENDCASE.
+      ls_result-logo_esp = COND #( WHEN lv_logo_esp  IS NOT INITIAL THEN lv_logo_esp
+                                   WHEN lv_logo_esp2 IS NOT INITIAL THEN lv_logo_esp2
+                                   ELSE space ).
+      APPEND ls_result TO et_logo_finan_result.
+
+      SORT et_logo_finan_result BY fon_fin DESCENDING.
+      DATA(lt_logo_aux) = et_logo_finan_result.
+      DELETE ADJACENT DUPLICATES FROM lt_logo_aux COMPARING fon_fin.
+      DELETE lt_logo_aux WHERE fon_fin IS INITIAL.
+      DESCRIBE TABLE lt_logo_aux LINES DATA(lv_lines).
+
+      IF lv_lines > 1.
+        RAISE toomanyfonsfinan.
+      ENDIF.
+
+      CHECK et_logo_finan_result IS NOT INITIAL.
+      SELECT z_tipus_financament, z_logo_tag, z_logo_nom, z_id_logo, z_tipus_plantilla, z_tipus_logo
+        FROM zrm_logos_espec
+        INTO TABLE @lt_logos_relacionats
+        FOR ALL ENTRIES IN @et_logo_finan_result
+        WHERE z_societat          = @iv_societat
+        AND   z_logo_especific    = @et_logo_finan_result-logo_esp
+        AND   z_correu            = @space
+        AND   z_tipus_financament = @et_logo_finan_result-fon_fin.
+
+      READ TABLE et_logo_finan_result ASSIGNING FIELD-SYMBOL(<fs_logo_finan_result>) INDEX 1.
+      IF sy-subrc = 0.
+        <fs_logo_finan_result>-logos_relacionats = lt_logos_relacionats.
+      ENDIF.
+    ENDIF.
+
+
+    LOOP AT et_logo_finan_result ASSIGNING <fs_logo_finan_result>.
+      "Només podem tenir, per lògica, 1 logo específic per expedient/treball + societat. Així que ens quedem amb el primer que trobem, si n'hi ha més d'un és problema de custo
+      READ TABLE <fs_logo_finan_result>-logos_relacionats ASSIGNING FIELD-SYMBOL(<fs_logos_especific_cap>) WITH KEY z_tipus_logo = zrms_cl_utilitats=>co_logo_header.
+      IF sy-subrc = 0.
+        SPLIT <fs_logos_especific_cap>-z_logo_nom AT '/' INTO DATA(lv_dummy) ev_logo_cap.
+      ENDIF.
+      READ TABLE <fs_logo_finan_result>-logos_relacionats ASSIGNING FIELD-SYMBOL(<fs_logos_especific_peu>) WITH KEY z_tipus_logo = zrms_cl_utilitats=>co_logo_peu.
+      IF sy-subrc = 0.
+        SPLIT <fs_logos_especific_peu>-z_logo_nom AT '/' INTO lv_dummy ev_logo_peu.
+      ENDIF.
+      EXIT.
+    ENDLOOP.
+
+  ENDMETHOD.
+ENDCLASS.

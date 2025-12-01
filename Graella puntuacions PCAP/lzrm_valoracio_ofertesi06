@@ -1,0 +1,46 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESI06.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_COMMAND  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE exit_command INPUT.
+  DATA: l_answer TYPE c.
+*"Es comprova si s'han relitzat canvis a la simulació abans de sortir
+  IF gr_util_alv->get_flag_changes( ) = abap_on.
+    CLEAR:l_answer.
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar              = text-i01
+        text_question         = text-i02
+        display_cancel_button = abap_off
+      IMPORTING
+        answer                = l_answer.
+    CHECK l_answer = 1.
+  ENDIF.
+*  gr_util_alv->free_variables( ).
+*  FREE: gr_util_alv.
+
+  CALL METHOD cl_gui_cfw=>flush.
+  LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0700  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_0700 INPUT.
+  IF gr_util_alv IS BOUND.
+    gr_util_alv->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_0701  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_0701 INPUT.
+  IF gr_util_alv IS BOUND.
+    gr_util_alv->user_command( sy-ucomm ).
+  ENDIF.
+ENDMODULE.

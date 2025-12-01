@@ -1,0 +1,1504 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESCLS.
+*----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+*       CLASS lcl_event_handler DEFINITION
+*----------------------------------------------------------------------*
+* Clase local para manejar eventos en las ALV's.
+
+CLASS lcl_event_receiver DEFINITION FINAL.
+
+  PUBLIC SECTION.
+    CLASS-METHODS:
+      handle_link_click FOR EVENT link_click OF cl_gui_alv_tree
+        IMPORTING node_key fieldname ,
+      handle_node_double_click FOR EVENT node_double_click OF cl_gui_alv_tree
+        IMPORTING node_key,
+      handle_item_double_click FOR EVENT item_double_click OF cl_gui_alv_tree
+        IMPORTING fieldname
+                  node_key,
+      handle_checkbox_change  FOR EVENT checkbox_change   OF cl_gui_alv_tree
+        IMPORTING checked fieldname node_key sender,
+***INI MOD ETJHG - SPEC-46407
+      handle_toolbar
+                  FOR EVENT toolbar OF cl_gui_alv_grid
+        IMPORTING e_object e_interactive,
+      handle_user_command
+                  FOR EVENT user_command OF cl_gui_alv_grid
+        IMPORTING e_ucomm,
+***FIN MOD ETJHG - SPEC-46407
+      "INI ECDRB SPEC-64892
+      "Event doble click alv normal (dreta)
+      handle_double_click  FOR EVENT double_click OF cl_gui_alv_grid
+        IMPORTING e_row e_column es_row_no .
+    "FI ECDRB SPEC-64892
+
+  PRIVATE SECTION.
+
+
+ENDCLASS.                    "lcl_event_receiver DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_event_receiver IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_event_receiver IMPLEMENTATION.
+
+  METHOD handle_link_click.
+*    gs_dyn_0200-gv_evento = abap_true.
+  ENDMETHOD.
+
+  METHOD handle_node_double_click.
+    PERFORM dobule_click USING node_key
+                               gs_dyn_0200-gv_alv_tree.
+  ENDMETHOD.
+  METHOD handle_item_double_click.
+    PERFORM dobule_click USING node_key
+                               gs_dyn_0200-gv_alv_tree.
+  ENDMETHOD.
+
+  METHOD handle_checkbox_change.
+    CASE sender. "SPEC-64892
+      WHEN gs_dyn_0200-gv_alv_tree. "SPEC-64892
+        PERFORM handle_checkbox_change USING checked
+                                             fieldname
+                                             node_key
+                                             gs_dyn_0200-gv_alv_tree.
+        "INI ECDRB SPEC-64892
+      WHEN gs_dyn_0300-gv_alv_tree.
+        PERFORM handle_checkbox_change_pbim USING checked
+                                                  fieldname
+                                                  node_key.
+        "FI ECDRB SPEC-64892
+    ENDCASE.
+  ENDMETHOD.
+
+***INI MOD ETJHG - SPEC-46407
+  "Añadir botones de añadir y eliminar recursos en el caso que sea Z_MULT_REC = X
+  METHOD handle_toolbar.
+    DATA: ls_toolbar  TYPE stb_button.
+
+*>> SPEC-53130, Inici modificació - ETLJS
+    DATA(lt_eq_aux) = gs_dyn_0200-gt_tree_data.
+    DELETE lt_eq_aux WHERE z_codi_crit_punt NS gs_dyn_0200-gs_node_sel-z_codi_crit_punt.
+    READ TABLE lt_eq_aux TRANSPORTING NO FIELDS
+      WITH KEY z_equip_sep = abap_true.
+    IF sy-subrc EQ 0.
+      CHECK gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+    ENDIF.
+*<< SPEC-53130, Final modificació - ETLJS
+
+    "append a separator to normal toolbar
+    CLEAR ls_toolbar.
+    MOVE 3 TO ls_toolbar-butn_type.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+    CLEAR ls_toolbar.
+    MOVE 'ADD' TO ls_toolbar-function.
+    MOVE icon_insert_row TO ls_toolbar-icon.
+    IF gs_dyn_0200-gs_node_sel-z_mult_equip EQ abap_true. " ETLJS SPEC-47173
+      MOVE text-014 TO ls_toolbar-quickinfo.
+      MOVE text-014 TO ls_toolbar-text.
+    ELSE.
+      MOVE text-013 TO ls_toolbar-quickinfo.
+      MOVE text-013 TO ls_toolbar-text.
+    ENDIF.
+    MOVE ' ' TO ls_toolbar-disabled.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+    CLEAR ls_toolbar.
+    MOVE 'DEL' TO ls_toolbar-function.
+    MOVE icon_delete_row TO ls_toolbar-icon.
+
+    IF gs_dyn_0200-gs_node_sel-z_mult_equip EQ abap_true. " ETLJS SPEC-47173
+      MOVE text-015 TO ls_toolbar-quickinfo.
+      MOVE text-015 TO ls_toolbar-text.
+    ELSE.
+      MOVE text-012 TO ls_toolbar-quickinfo.
+      MOVE text-012 TO ls_toolbar-text.
+    ENDIF.
+    MOVE ' ' TO ls_toolbar-disabled.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+  ENDMETHOD.
+
+  METHOD handle_user_command.
+    DATA: lt_rows  TYPE lvc_t_row.
+
+    DATA: wa_subapartats     TYPE gty_subapartats,
+          wa_dades_equip     TYPE zty_dades_equip,
+          wa_dades_equip_ori TYPE zty_dades_equip.
+
+    DATA: lv_line     TYPE z_sec,
+          lt_tree_aux TYPE tty_tree.
+
+    ">>> SPEC-52548, Inici Modificació - ECTRP  04022020
+    DATA: lv_carrec_cap TYPE flag.
+    FIELD-SYMBOLS: <fs_carr> TYPE gty_carrec.
+    ">>> SPEC-52548, Final Modificació - ECTRP  04022020
+
+    FIELD-SYMBOLS: <subapartats> LIKE LINE OF gs_dyn_0200-gt_subapartats,
+                   <rows>        LIKE LINE OF lt_rows,
+                   <dades_equip> TYPE zty_dades_equip.
+
+    CASE e_ucomm.
+        "Añadir recurso a las tablas gs_dyn_0200-gt_subapartats y gs_dyn_0200-gt_subapartats_ori
+      WHEN 'ADD'.
+
+        IF gs_dyn_0200-gs_node_sel-z_mult_equip IS INITIAL. "ETLJS SPEC-47173
+
+          DESCRIBE TABLE gs_dyn_0200-gt_subapartats LINES lv_line.
+
+          READ TABLE gs_dyn_0200-gt_subapartats ASSIGNING <subapartats> INDEX lv_line.
+
+          IF sy-subrc EQ 0.
+            ADD 1 TO lv_line.
+
+            wa_subapartats-seleccio_sub             = abap_true.
+            wa_subapartats-z_codi_subapar_punt      = <subapartats>-z_codi_subapar_punt.
+            wa_subapartats-z_codi_subapar_punt_rel  = <subapartats>-z_codi_subapar_punt_rel.
+            wa_subapartats-z_punt_max               = <subapartats>-z_punt_max.
+            wa_subapartats-z_sec                    = lv_line.
+            wa_subapartats-z_mod_crit_punt          = <subapartats>-z_mod_crit_punt.
+            wa_subapartats-z_codi_crit_punt         = <subapartats>-z_codi_crit_punt.
+
+            APPEND wa_subapartats TO gs_dyn_0200-gt_subapartats.
+            APPEND wa_subapartats TO gs_dyn_0200-gt_subapartats_ori.
+          ENDIF.
+        ELSE.
+
+          CHECK gt_carrec IS NOT INITIAL.
+
+          DESCRIBE TABLE gs_dyn_0200-gt_dades_equip LINES lv_line.
+
+          READ TABLE gs_dyn_0200-gt_dades_equip ASSIGNING <dades_equip> INDEX lv_line.
+
+          IF sy-subrc EQ 0.
+*            ADD 1 TO lv_line.
+            CLEAR wa_dades_equip.
+            wa_dades_equip-docclass          = <dades_equip>-docclass.
+            wa_dades_equip-objectid          = <dades_equip>-objectid.
+          ELSE.
+            CLEAR lv_line.
+
+            wa_dades_equip-docclass          = g_docclass.
+            wa_dades_equip-objectid          = g_objectid.
+          ENDIF.
+          wa_dades_equip-z_comptador_equip = lv_line + 1.
+          wa_dades_equip-z_pes             = 0.
+          wa_dades_equip-z_sec             = lv_line.
+          wa_dades_equip-z_punt_max        = gs_dyn_0200-gs_node_sel-z_punt_max.
+          wa_dades_equip-z_codi_crit_punt  = gs_dyn_0200-gs_node_sel-z_codi_crit_punt. "SPEC-49500
+          wa_dades_equip-z_mod_crit_punt   = gs_dyn_0200-gs_node_sel-z_mod_crit_punt. "SPEC-49500
+          wa_dades_equip-z_equip_basic     = abap_true. "ETLJS SPEC_49806
+          wa_dades_equip-z_singularitat    = gs_dyn_0200-gs_node_sel-z_singularitat.
+******        >> INI MODIF ETODR SPEC-61754
+          IF gs_dyn_0200-gs_node_sel-z_equip_sep NE abap_true "SPEC-67775
+
+*>> Inici Modificació ECJMS SPEC-66771 25/01/2022
+            OR gs_dyn_0200-gs_node_sel-z_sumatori EQ abap_true.
+*>> FI Modificació ECJMS SPEC-66771 25/01/2022
+
+            wa_dades_equip-z_is_header       = abap_true.
+          ENDIF.
+*          ">> MODIF ETODR SPEC-57911
+*          IF gv_mode = zrm_cl_valoracio_ofertes=>co_mode_punt_quadre3b.
+*            wa_dades_equip-z_is_header       = abap_true. "ETODR SPEC-52548
+*          ENDIF.
+*          "<< MODIF ETODR SPEC-57911
+******        << INI MODIF ETODR SPEC-61754
+*****          wa_dades_equip-z_id_equip        = wa_dades_equip-z_comptador_equip. "SPEC-51135
+          APPEND wa_dades_equip TO gs_dyn_0200-gt_dades_equip.
+          lt_tree_aux[] = gs_dyn_0200-gt_tree[].
+          DELETE lt_tree_aux WHERE z_mult_equip IS INITIAL.
+          LOOP AT gs_dyn_0200-gt_punt_ofer ASSIGNING FIELD-SYMBOL(<fs_of>).
+*>> SPEC-53130, Inici modificació - ETLJS
+
+            IF gs_dyn_0200-gs_node_sel-z_equip_coautor EQ abap_true AND
+            gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+
+              CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_of>-z_codi_crit_punt.
+
+            ENDIF.
+
+*<< SPEC-53130, Final modificació - ETLJS
+            READ TABLE lt_tree_aux ASSIGNING FIELD-SYMBOL(<fs_tree>)
+                  WITH KEY z_codi_crit_punt = <fs_of>-z_codi_crit_punt.
+            CHECK sy-subrc EQ 0.
+            wa_dades_equip-z_codi_crit_punt  = <fs_of>-z_codi_crit_punt.
+            wa_dades_equip-z_num_ofer        = <fs_of>-z_num_ofer.
+            wa_dades_equip-z_mod_crit_punt   = <fs_of>-z_mod_crit_punt.
+            wa_dades_equip-z_punt_max        = <fs_tree>-z_punt_max.
+            APPEND wa_dades_equip TO gs_dyn_0200-gt_dades_equip_ori.
+          ENDLOOP.
+        ENDIF.
+        "Eliminar recurso a las tablas gs_dyn_0200-gt_subapartats y gs_dyn_0200-gt_subapartats_ori
+      WHEN 'DEL'.
+        CALL METHOD gs_dyn_0200-gv_alv_subapart->get_selected_rows(
+          IMPORTING
+            et_index_rows = lt_rows ).
+
+        SORT lt_rows BY index DESCENDING.
+
+        LOOP AT lt_rows ASSIGNING <rows>.
+          IF gs_dyn_0200-gs_node_sel-z_mult_equip IS INITIAL. "ETLJS SPEC-47173
+            READ TABLE gs_dyn_0200-gt_subapartats ASSIGNING <subapartats> INDEX <rows>-index.
+
+            IF sy-subrc EQ 0.
+
+              READ TABLE gs_dyn_0200-gt_subapartats_ori TRANSPORTING NO FIELDS
+                WITH KEY z_codi_subapar_punt          = <subapartats>-z_codi_subapar_punt
+                         z_codi_subapar_punt_rel      = <subapartats>-z_codi_subapar_punt_rel
+                         z_descripcio                 = <subapartats>-z_descripcio
+                         z_sec                        = <subapartats>-z_sec
+                         z_punt_max                   = <subapartats>-z_punt_max
+                         z_mod_crit_punt              = <subapartats>-z_mod_crit_punt
+                         z_codi_crit_punt             = <subapartats>-z_codi_crit_punt.
+              DATA(lv_tabix) = sy-tabix.
+              DATA(lv_subrc) = sy-subrc.
+
+              IF <subapartats>-z_default_rec = ' '.
+                DELETE gs_dyn_0200-gt_subapartats INDEX <rows>-index.
+                IF lv_subrc EQ 0.
+                  DELETE gs_dyn_0200-gt_subapartats_ori INDEX lv_tabix.
+                ENDIF.
+              ELSE.
+                MESSAGE 'No és possible eliminar el registre per defecte' TYPE 'I'.
+              ENDIF.
+
+            ENDIF.
+          ELSE.
+            READ TABLE gs_dyn_0200-gt_dades_equip ASSIGNING <dades_equip> INDEX <rows>-index.
+
+            IF sy-subrc EQ 0.
+
+              CHECK <dades_equip> IS ASSIGNED.
+
+              ">>> SPEC-52548, Inici Modificació - ECTRP  04022020
+              "Permetre eliminar linies de càrrecs buïdes. Afegit tractament de FIELD-SYMBOL
+              "per evitar que cancel.li el procés degut a la falta d'assignació d'aquest
+*              READ TABLE gt_carrec ASSIGNING FIELD-SYMBOL(<fs_carr>) WITH KEY z_carrec_equip = <dades_equip>-z_carrec_equip.
+*              IF sy-subrc NE 0 AND <dades_equip>-z_carrec_equip IS NOT INITIAL.
+*                MESSAGE i550(zrm_errors) DISPLAY LIKE 'E'."No es pot eliminar el càrrec marcat
+*                EXIT.
+*              ENDIF.
+              READ TABLE gt_carrec ASSIGNING <fs_carr>
+                   WITH KEY z_carrec_equip = <dades_equip>-z_carrec_equip.
+              IF sy-subrc NE 0 AND <dades_equip>-z_carrec_equip IS NOT INITIAL.
+                MESSAGE i550(zrm_errors) DISPLAY LIKE 'E'."No es pot eliminar el càrrec marcat
+                EXIT.
+              ELSEIF sy-subrc = 0.
+                lv_carrec_cap = <fs_carr>-z_carrec_cap.
+              ELSE.
+                lv_carrec_cap = abap_false.
+              ENDIF.
+
+***            >> INI MODIF ETODR SPEC-49500
+*              IF <fs_carr> IS NOT ASSIGNED.
+*                EXIT.
+*              ENDIF.
+***            << FI MODIF ETODR SPEC-49500
+              ">>> SPEC-52548, Final Modificació - ECTRP  04022020
+
+              READ TABLE gs_dyn_0200-gt_dades_equip_ori TRANSPORTING NO FIELDS
+                WITH KEY docclass          = <dades_equip>-docclass
+                         objectid          = <dades_equip>-objectid
+*                         z_num_ofer        = <dades_equip>-z_num_ofer      "SPEC-49500
+                         z_mod_crit_punt   = <dades_equip>-z_mod_crit_punt
+                         z_codi_crit_punt  = <dades_equip>-z_codi_crit_punt
+                         z_comptador_equip = <dades_equip>-z_comptador_equip
+                         z_carrec_equip    = <dades_equip>-z_carrec_equip.
+*                         z_descripcio      = <dades_equip>-z_descripcio    "SPEC-49500
+*                         z_punts           = <dades_equip>-z_punts.        "SPEC-49500
+              ">>> SPEC-52548, Inici Modificació - ECTRP  04022020
+*              IF sy-subrc EQ 0 AND <fs_carr>-z_carrec_cap EQ abap_false.
+              IF sy-subrc EQ 0 AND lv_carrec_cap EQ abap_false.
+                ">>> SPEC-52548, Final Modificació - ECTRP  04022020
+
+                DATA(lv_compta) = <dades_equip>-z_comptador_equip.
+
+                DELETE gs_dyn_0200-gt_dades_equip_ori
+                 WHERE z_comptador_equip EQ <dades_equip>-z_comptador_equip.
+                DELETE gs_dyn_0200-gt_dades_equip INDEX <rows>-index.
+
+                LOOP AT gs_dyn_0200-gt_dades_equip_ori ASSIGNING FIELD-SYMBOL(<fs_eq>)
+                  WHERE z_comptador_equip GT lv_compta.
+                  SUBTRACT 1 FROM <fs_eq>-z_comptador_equip.
+                  SUBTRACT 1 FROM <fs_eq>-z_sec.
+                ENDLOOP.
+
+                LOOP AT gs_dyn_0200-gt_dades_equip ASSIGNING <fs_eq>
+                  WHERE z_comptador_equip GT lv_compta.
+                  SUBTRACT 1 FROM <fs_eq>-z_comptador_equip.
+                  SUBTRACT 1 FROM <fs_eq>-z_sec.
+                ENDLOOP.
+              ENDIF.
+
+            ENDIF.
+          ENDIF.
+        ENDLOOP.
+
+        CALL METHOD cl_gui_cfw=>flush.
+    ENDCASE.
+    CLEAR: gs_dyn_0200-gt_fcat[].
+
+    gv_ucomm = e_ucomm.
+    IF gs_dyn_0200-gs_node_sel-z_mult_equip IS INITIAL. "ETLJS SPEC-47173
+
+      PERFORM crear_catalogo_sub      USING      gs_dyn_0200-gt_subapartats
+                                      CHANGING   gs_dyn_0200-gt_fcat.
+      gs_dyn_0200-gv_alv_subapart->set_frontend_fieldcatalog( EXPORTING it_fieldcatalog = gs_dyn_0200-gt_fcat ).
+
+      PERFORM crear_layout_sub        USING      gs_dyn_0200-gt_tree_sel
+                                      CHANGING   gs_dyn_0200-gv_layout.
+
+      PERFORM mostrar_alv USING gs_dyn_0200-gt_subapartats
+                                gs_dyn_0200-gv_alv_subapart
+                                gs_dyn_0200-gt_fcat
+                                gs_dyn_0200-gv_layout.
+
+      PERFORM amaga_recurs_default.
+    ELSE.
+      CLEAR: gs_dyn_0200-gt_fcat[].
+
+      PERFORM crear_catalogo_equip    USING      gs_dyn_0200-gt_dades_equip
+
+  ">>>SPEC:67070, Inici modificació - ECJMS
+                                                 gs_dyn_0200-gs_node_sel
+  "<<<SPEC:67070, Final modificació - ECJMS
+
+                                      CHANGING   gs_dyn_0200-gt_fcat.
+
+      gs_dyn_0200-gv_alv_subapart->set_frontend_fieldcatalog( EXPORTING it_fieldcatalog = gs_dyn_0200-gt_fcat ).
+
+      PERFORM crear_layout_sub        USING      gs_dyn_0200-gt_tree_sel
+                                      CHANGING   gs_dyn_0200-gv_layout.
+
+      PERFORM mostrar_alv_equip       USING      gs_dyn_0200-gt_dades_equip
+                                                 gs_dyn_0200-gv_alv_subapart
+                                                 gs_dyn_0200-gt_fcat
+                                                 gs_dyn_0200-gv_layout.
+
+      PERFORM set_dropdown            USING gt_carrec gs_dyn_0200-gs_node_sel.
+
+      CLEAR: gs_dyn_0200-gt_fcat.
+    ENDIF.
+**    >> INI MODIF ETODR SPEC-49500
+    gs_dyn_0200-gv_alv_subapart->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                             es_col_id = DATA(ls_col_id)
+                                                             es_row_no = DATA(ls_row_no) ).
+**    << FI MODIF ETODR SPEC-49500
+    gs_dyn_0200-gv_alv_subapart->refresh_table_display( ).
+**    >> INI MODIF ETODR SPEC-49500
+    gs_dyn_0200-gv_alv_subapart->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                                    is_row_no    = ls_row_no ).
+**    << FI MODIF ETODR SPEC-49500
+  ENDMETHOD.
+***FIN MOD ETJHG - SPEC-46407
+  "INI ECDRB SPEC-64892
+  METHOD handle_double_click.
+    PERFORM doble_clic USING  e_row
+                              e_column
+                              es_row_no .
+  ENDMETHOD.
+  "FI ECDRB SPEC-64892
+
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_event_handler DEFINITION
+*----------------------------------------------------------------------*
+* Clase local para manejar eventos en las ALV's.
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS:
+*      handle_hotspot_click     FOR EVENT hotspot_click OF cl_gui_alv_grid
+*        IMPORTING e_row_id e_column_id es_row_no,
+      handle_data_changed_0200 FOR EVENT data_changed OF cl_gui_alv_grid
+        IMPORTING er_data_changed,
+      handle_hotspot_click_0500 FOR EVENT hotspot_click OF cl_gui_alv_grid
+        IMPORTING e_row_id e_column_id es_row_no,
+      handle_data_changed_0500 FOR EVENT data_changed OF cl_gui_alv_grid
+        IMPORTING er_data_changed sender,
+
+***INI MOD ETJHG - SPEC-46407
+      handle_toolbar_0500
+                  FOR EVENT toolbar OF cl_gui_alv_grid
+        IMPORTING e_object e_interactive,
+      handle_user_command_0500
+                  FOR EVENT user_command OF cl_gui_alv_grid
+        IMPORTING e_ucomm,
+
+      handle_toolbar_back
+                  FOR EVENT toolbar OF cl_gui_alv_grid
+        IMPORTING e_object e_interactive,
+      handle_toolbar_next
+                  FOR EVENT toolbar OF cl_gui_alv_grid
+        IMPORTING e_object e_interactive.
+***FIN MOD ETJHG - SPEC-46407
+
+  PRIVATE SECTION.
+    CLASS-METHODS: check_set_canvi_punt_dyn CHANGING i_row_id     TYPE lvc_s_row "cr_data_changed TYPE REF TO cl_alv_changed_data_protocol
+                                                     ct_puntuacio TYPE tty_puntuacio.
+    CLASS-METHODS: change_seleccio_puntuacio IMPORTING i_row_id     TYPE lvc_s_row "is_data_changed TYPE lvc_s_modi
+                                             CHANGING  ct_puntuacio TYPE tty_puntuacio.
+    CLASS-METHODS: check_change_seleccio  IMPORTING  i_row_id       TYPE lvc_s_row
+                                                     i_readonly     TYPE xfeld
+                                          EXPORTING  e_nomes_un_sel TYPE xfeld
+                                                     e_result       TYPE z_punt_max_do
+                                          CHANGING   ct_puntuacio   TYPE tty_puntuacio
+                                          EXCEPTIONS no_seleccionable.
+    CLASS-METHODS: show_descripcio_llarga IMPORTING is_puntuacio TYPE gty_puntuacio. "INI MODIF ETODR SPEC-47173
+
+ENDCLASS.                    "lcl_event_handler DEFINITION
+*&---------------------------------------------------------------------*
+*&       Class (Implementation)  lcl_event_handler
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler IMPLEMENTATION.
+  METHOD check_set_canvi_punt_dyn.
+    DATA: ls_ref                     TYPE tabfield,
+          l_puntuacio_actual_marcada TYPE z_punts,
+          l_undo                     TYPE xfeld,
+          wa_puntuacio_ant           TYPE zrm_cl_valoracio_ofertes=>ty_s_puntuacio_subapartats,
+          wa_puntuacio_act           TYPE zrm_cl_valoracio_ofertes=>ty_s_puntuacio_subapartats.
+    DATA: lv_num_sel TYPE z_num_sel.
+*
+    "Si hi ha alguna circular de validació d'OFTEC iniciada cal determinar un motiu per a realitzar cadascun dels canvis de puntuació
+    "Si no es determina un motiu, es restaurarà el valor que hi havia abans del canvi
+    ASSIGN COMPONENT '_CONTROL_' OF STRUCTURE <gs_grid> TO FIELD-SYMBOL(<ls_row>).
+    CHECK sy-subrc = 0.
+
+***INI MOD ETJHG - SPEC-46407
+    "Base
+    ASSIGN COMPONENT 'Z_CODI_CRIT_PUNT' OF STRUCTURE <ls_row> TO FIELD-SYMBOL(<lv_crit_punt>).
+    CHECK sy-subrc = 0.
+    ASSIGN COMPONENT 'Z_MOD_CRIT_PUNT'  OF STRUCTURE <ls_row> TO FIELD-SYMBOL(<lv_mod_punt>). "
+    CHECK sy-subrc = 0.
+    ASSIGN COMPONENT 'Z_DESCRIPCIO' OF STRUCTURE <ls_row> TO FIELD-SYMBOL(<lv_descripcio>).
+    CHECK sy-subrc = 0.
+    ASSIGN COMPONENT 'Z_PUNT_MAX'  OF STRUCTURE <ls_row> TO FIELD-SYMBOL(<lv_punt_max>). "
+    CHECK sy-subrc = 0.
+
+*    IF <lv_crit_punt> IS INITIAL AND <lv_mod_punt> IS INITIAL.
+*    IF <lv_base> EQ 'Base'.
+    IF gs_dyn_0500-g_show_all = abap_on.
+      <lv_crit_punt>  = <fs>-z_codi_crit_punt.
+      <lv_mod_punt>   = <fs>-z_mod_crit_punt.
+      <lv_descripcio> = <fs>-z_descripcio.
+      <lv_punt_max>   = <fs>-z_punt_max.
+    ENDIF.
+***FIN MOD ETJHG - SPEC-46407
+
+    ASSIGN COMPONENT '_PUNTS_'   OF STRUCTURE <gs_grid> TO FIELD-SYMBOL(<ls_punt>).
+    CHECK sy-subrc = 0.
+    CHECK <gs_column> IS ASSIGNED.
+
+    ls_ref-tabname   = 'ZRM_DT_PUNT_OFER' .
+    ls_ref-fieldname = 'Z_PUNTS' .
+
+    LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt>) WHERE seleccio   = abap_on
+                                                             AND z_opcional = abap_off.
+*      DATA(l_tabix) = abap_on.
+      CLEAR wa_puntuacio_ant.
+      wa_puntuacio_ant-z_codi_crit_punt         = <fs_punt>-z_codi_crit_punt.
+      wa_puntuacio_ant-z_codi_subapar_punt      = <fs_punt>-z_codi_subapar_punt.
+      wa_puntuacio_ant-z_codi_subapar_punt_rel  = <fs_punt>-z_codi_subapar_punt_rel.
+      wa_puntuacio_ant-cont_doc                 = <fs_punt>-cont_doc.
+      wa_puntuacio_ant-docclass                 = <fs_punt>-docclass.
+      wa_puntuacio_ant-objectid                 = <fs_punt>-objectid.
+      wa_puntuacio_ant-z_num_ofer               = <fs_punt>-z_num_ofer.
+      wa_puntuacio_ant-z_sec                    = <fs_punt>-z_sec.
+      wa_puntuacio_ant-z_punts                  = <fs_punt>-z_punt_max_do.
+      wa_puntuacio_ant-z_motivacio              = <fs_punt>-z_motivacio.
+      wa_puntuacio_ant-z_comentaris             = <fs_punt>-z_comentaris.
+      READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt2>) WITH KEY seleccio    = abap_on
+                                                                          z_opcional  = abap_on.
+      IF sy-subrc = 0.
+        wa_puntuacio_ant-z_punts             = wa_puntuacio_ant-z_punts - abs( <fs_punt2>-z_punt_max_do ).
+        wa_puntuacio_ant-z_sec_resta         = wa_puntuacio_ant-z_sec_resta.
+        wa_puntuacio_ant-z_motivacio_resta   = wa_puntuacio_ant-z_motivacio_resta.
+        wa_puntuacio_ant-z_comentaris_resta  = wa_puntuacio_ant-z_comentaris_resta.
+      ENDIF.
+    ENDLOOP.
+** >> INI MODIF ETODR SPEC-47173
+    CLEAR: lv_num_sel.
+    LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_sel_ant>) WHERE seleccio = abap_true.
+      IF <fs_punt_sel_ant>-z_opcional = abap_on.
+        ADD 1 TO lv_num_sel.
+      ENDIF.
+      READ TABLE gt_punt_do ASSIGNING FIELD-SYMBOL(<fs_punt_do_ant>) WITH KEY z_codi_subapar_punt = <fs_punt_sel_ant>-z_codi_subapar_punt
+                                                                              z_num_sel           = lv_num_sel.
+      IF sy-subrc = 0.
+        wa_puntuacio_ant-z_punts = <fs_punt_do_ant>-z_punts.
+      ENDIF.
+    ENDLOOP.
+** << FI MODIF ETODR SPEC-47173
+
+    TRY.
+        READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio>) INDEX i_row_id-index.
+        IF sy-subrc = 0.
+          CLEAR wa_puntuacio_act.
+          wa_puntuacio_act-z_codi_crit_punt         = <fs_puntuacio>-z_codi_crit_punt.
+          wa_puntuacio_act-z_codi_subapar_punt      = <fs_puntuacio>-z_codi_subapar_punt.
+          wa_puntuacio_act-z_codi_subapar_punt_rel  = <fs_puntuacio>-z_codi_subapar_punt_rel.
+          wa_puntuacio_act-cont_doc                 = <fs_puntuacio>-cont_doc.
+          wa_puntuacio_act-docclass                 = <fs_puntuacio>-docclass.
+          wa_puntuacio_act-objectid                 = <fs_puntuacio>-objectid.
+          wa_puntuacio_act-z_num_ofer               = <fs_puntuacio>-z_num_ofer.
+          wa_puntuacio_act-z_sec                    = <fs_puntuacio>-z_sec.
+          wa_puntuacio_act-z_punts                  = <fs_puntuacio>-z_punt_max_do.
+
+          IF <fs_puntuacio>-z_pun_rel_sel EQ abap_false.
+**          "Si s'està modificant una puntuació cal realitzar el càlcul del resultat final del canvi en curs
+            check_change_seleccio( EXPORTING  i_row_id         = i_row_id
+                                              i_readonly       = abap_on
+                                   IMPORTING  e_nomes_un_sel   = DATA(l_nomes_un_sel)
+                                              e_result         = DATA(l_result)
+                                   CHANGING   ct_puntuacio     = ct_puntuacio
+                                   EXCEPTIONS no_seleccionable = 1
+                                              OTHERS           = 2 ).
+            IF sy-subrc = 0.
+              IF l_nomes_un_sel = abap_off.
+                wa_puntuacio_act-z_punts = l_result.
+              ENDIF.
+
+              wa_puntuacio_act-z_motivacio              = <fs_puntuacio>-z_motivacio.
+              wa_puntuacio_act-z_comentaris             = <fs_puntuacio>-z_comentaris.
+              IF wa_puntuacio_act <> wa_puntuacio_ant AND wa_puntuacio_ant IS NOT INITIAL.
+                gr_backend->set_canvi_punt_dyn( EXPORTING  i_punt             = <ls_punt>
+                                                           i_row              = <ls_row>
+                                                           i_columns          = <gs_column>
+                                                           is_ref             = ls_ref
+                                                           is_puntuacio_act   = wa_puntuacio_act
+                                                           is_puntuacio_ant   = wa_puntuacio_ant ).
+              ENDIF.
+            ENDIF.
+
+          ELSE. "ETLJS SPEC-47173
+            IF <fs_puntuacio>-z_opcional = abap_off.
+              CLEAR: lv_num_sel.
+            ELSE.
+              IF <fs_puntuacio>-seleccio = abap_on. "Si aquí està marcat és que ara s'està esborrant
+                lv_num_sel = lv_num_sel - 1.
+              ELSE.
+                ADD 1 TO lv_num_sel.
+              ENDIF.
+            ENDIF.
+*            CLEAR: lv_num_sel.
+*            LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_sel>) WHERE seleccio = abap_true.
+*              ADD 1 TO lv_num_sel.
+            READ TABLE gt_punt_do ASSIGNING FIELD-SYMBOL(<fs_punt_do>) WITH KEY z_codi_subapar_punt = <fs_puntuacio>-z_codi_subapar_punt
+                                                                                z_num_sel           = lv_num_sel.
+            IF sy-subrc = 0.
+              wa_puntuacio_act-z_punts = <fs_punt_do>-z_punts.
+            ENDIF.
+*            ENDLOOP.
+            wa_puntuacio_act-z_motivacio              = <fs_puntuacio>-z_motivacio.
+            wa_puntuacio_act-z_comentaris             = <fs_puntuacio>-z_comentaris.
+            READ TABLE ct_puntuacio TRANSPORTING NO FIELDS WITH KEY seleccio = abap_true.
+            IF sy-subrc EQ 0.
+              gr_backend->set_canvi_punt_dyn( EXPORTING  i_punt             = <ls_punt>
+                                                         i_row              = <ls_row>
+                                                         i_columns          = <gs_column>
+                                                         is_ref             = ls_ref
+                                                         is_puntuacio_act   = wa_puntuacio_act
+                                                         is_puntuacio_ant   = wa_puntuacio_ant ).
+            ENDIF.
+          ENDIF.
+          change_seleccio_puntuacio(  EXPORTING i_row_id        = i_row_id
+                                      CHANGING  ct_puntuacio    = ct_puntuacio ).
+        ELSE.
+          l_undo = abap_on.
+        ENDIF.
+      CATCH zcx_rm_valoracio.
+        "Es desfan els canvis
+        l_undo = abap_on.
+**>> INI SPEC-48559 ETJMD 13.06.2018
+*        READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio2>) INDEX i_row_id-index.
+*        IF sy-subrc = 0.
+*          IF <fs_puntuacio2>-seleccio = abap_false.
+*            <fs_puntuacio2>-seleccio = abap_on.
+*          ELSEIF <fs_puntuacio2>-seleccio = abap_on.
+*            <fs_puntuacio2>-seleccio = abap_false.
+*          ENDIF.
+*        ENDIF.
+**<< FIN SPEC-48559 ETJMD 13.06.2018
+    ENDTRY.
+
+    IF l_undo <> abap_on.
+      gs_dyn_0500-gv_alv_puntuacio->refresh_table_display( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD change_seleccio_puntuacio.
+    DATA: lt_messages    TYPE tty_messages,
+          wa_messages    TYPE ty_messages,
+          l_result       TYPE z_punt_max_do,
+          l_lines_sel    TYPE i,
+          l_nomes_un_sel TYPE xfeld.
+
+    CLEAR: l_result.
+*
+    READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio>) INDEX i_row_id-index.
+    CHECK sy-subrc = 0.
+*>> SPEC-53807, Inici modificació - ETLJS
+    IF <fs_puntuacio>-seleccio = abap_false
+      AND <fs_puntuacio>-z_additiva = abap_false.
+      LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_aux2>)
+        WHERE z_additiva = abap_true.
+        CLEAR <fs_aux2>-seleccio.
+      ENDLOOP.
+
+    ELSEIF <fs_puntuacio>-seleccio = abap_false
+       AND <fs_puntuacio>-z_additiva = abap_true.
+
+      LOOP AT ct_puntuacio ASSIGNING <fs_aux2>
+      WHERE z_additiva = abap_false.
+        CLEAR <fs_aux2>-seleccio.
+      ENDLOOP.
+
+**>> INI "SPEC-49499 ETJMD 06.06.2018
+    ELSEIF <fs_puntuacio>-seleccio = abap_false AND <fs_puntuacio>-z_opcional = abap_false.
+      LOOP AT ct_puntuacio ASSIGNING <fs_aux2> WHERE seleccio   = abap_on
+      AND z_opcional = abap_false.
+        CLEAR: <fs_aux2>-seleccio.
+      ENDLOOP.
+    ENDIF.
+
+*<< SPEC-53807, Final modificació - ETLJS
+**<< FIN "SPEC-49499 ETJMD 06.06.2018
+    CLEAR: l_lines_sel.
+    LOOP AT ct_puntuacio TRANSPORTING NO FIELDS WHERE seleccio = abap_on AND z_opcional = abap_false. "SPEC-49499 ETJMD 06.06.2018
+      ADD 1 TO l_lines_sel.
+    ENDLOOP.
+    IF l_lines_sel > 1.
+      LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_aux>) WHERE seleccio   =  abap_on
+                                                              AND z_pun_rel_sel EQ abap_false "ETLJS SPEC-47173
+                                                              AND z_additiva EQ abap_false. " ETLJS SPEC-53807 20.08.2020 12:10:11
+*                                                              AND z_opcional <> abap_on.
+        CLEAR: <fs_aux>-seleccio.
+      ENDLOOP.
+    ENDIF.
+    check_change_seleccio( EXPORTING  i_row_id       = i_row_id
+                                      i_readonly     = abap_off
+                           IMPORTING  e_nomes_un_sel = l_nomes_un_sel
+                                      e_result       = l_result
+                           CHANGING   ct_puntuacio   = ct_puntuacio
+                           EXCEPTIONS OTHERS         = 0 ).
+**  >> INI MODIF ETODR SPEC-46407
+*    <fs_puntuacio>-seleccio = abap_on.
+*    LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio2>) WHERE z_codi_subapar_punt = <fs_puntuacio>-z_codi_subapar_punt
+*                                                                   AND z_sec               <> <fs_puntuacio>-z_sec.
+*      <fs_puntuacio2>-seleccio = abap_off.
+*    ENDLOOP.
+**  << FI MODIF ETODR SPEC-46407
+****    READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_resta>) WITH KEY z_opcional = abap_on.
+****    IF sy-subrc = 0 AND ( <fs_punt_resta>-seleccio = abap_on OR ( <fs_puntuacio>-z_opcional = abap_on ) ).
+****      READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_atual>) WITH KEY seleccio = abap_on.
+****      IF sy-subrc = 0.
+****        "Si aquest criteri té un subapartat com a opcional, es permet marcar 2 (un sent l'opcional) sempre i quan la suma dels dos criteris sigui > 0.
+****        DATA(l_puntuacio)                = <fs_puntuacio>-z_punt_max_do. "Recuperem puntuació seleccionada
+****        DATA(l_puntuacio_actual_marcada) = <fs_punt_atual>-z_punt_max_do. "Recuperem puntuació actualment marcada
+****        "Comprovem si s'ha seleccionat ara el Z_OPCIONAL o ja era el marcat
+****        IF <fs_puntuacio>-z_opcional IS NOT INITIAL.
+****          l_result = abs( l_puntuacio_actual_marcada ) - abs( l_puntuacio ).
+****        ELSE.
+****          l_result = abs( l_puntuacio ) - abs( l_puntuacio_actual_marcada ).
+****        ENDIF.
+****
+****        IF l_result < 0.
+****          l_nomes_un_sel = abap_on.
+****        ELSE.
+****          <fs_puntuacio>-seleccio = abap_on.
+****        ENDIF.
+****      ELSE.
+****        CLEAR: lt_messages[], wa_messages.
+****        wa_messages-icon  = icon_red_light.
+****        wa_messages-descr = 'La puntuació no pot ser inferior a 0'.
+****        APPEND wa_messages TO lt_messages.
+****
+****        CALL FUNCTION 'ZPOPUP_WITH_TABLE'
+****          EXPORTING
+****            endpos_col   = 130
+****            endpos_row   = 20
+****            startpos_col = 20
+****            startpos_row = 10
+****            titletext    = text-e01
+****          TABLES
+****            valuetab     = lt_messages
+****          EXCEPTIONS
+****            OTHERS       = 0.
+****
+****        <fs_puntuacio>-seleccio = abap_off.
+****
+****      ENDIF.
+****
+****    ELSE.
+****      l_nomes_un_sel = abap_on.
+****    ENDIF.
+*
+    IF l_nomes_un_sel = abap_on.
+      <fs_puntuacio>-seleccio = abap_on.
+      IF <fs_puntuacio>-z_additiva = abap_false. "SPEC-53807
+        LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio2>) WHERE z_codi_subapar_punt =  <fs_puntuacio>-z_codi_subapar_punt
+                                                                       AND z_sec               <> <fs_puntuacio>-z_sec
+                                                                       AND z_opcional          =  abap_false.                          " SPEC-49499 ETJMD 06.06.2018
+          <fs_puntuacio2>-seleccio = abap_off.
+        ENDLOOP.
+      ENDIF.
+      READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING FIELD-SYMBOL(<fs_punt_ofer_alv>) WITH KEY z_codi_crit_punt = <fs_puntuacio>-z_codi_crit_punt.
+      IF sy-subrc = 0.
+        <fs_punt_ofer_alv>-z_sec        = <fs_puntuacio>-z_sec.
+        <fs_punt_ofer_alv>-z_punts      = <fs_puntuacio>-z_punt_max_do.
+        <fs_punt_ofer_alv>-z_sec_resta  = <fs_puntuacio>-z_sec_resta.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD check_change_seleccio.
+**>> MODIF SPEC-48559 ETJMD 14.06.2018
+    DATA: lt_puntuacion_aux TYPE tty_puntuacio,
+          punt_opcional     TYPE z_punt_max_do.
+    CLEAR: punt_opcional, lt_puntuacion_aux.
+    READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_puntuacio>) INDEX i_row_id-index.
+    CHECK sy-subrc = 0.
+    LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_resta>) WHERE z_opcional =  abap_on.
+      APPEND <fs_punt_resta> TO lt_puntuacion_aux.
+      IF ( <fs_punt_resta>-z_sec <> i_row_id-index AND <fs_punt_resta>-seleccio = abap_on ) OR
+         ( <fs_punt_resta>-z_sec = i_row_id-index  AND <fs_punt_resta>-seleccio = abap_false ) .
+        punt_opcional = punt_opcional + <fs_punt_resta>-z_punt_max_do.
+      ENDIF.
+    ENDLOOP.
+    IF lt_puntuacion_aux IS NOT INITIAL AND ( <fs_punt_resta>-seleccio = abap_on OR ( <fs_puntuacio>-z_opcional = abap_on ) )
+       AND <fs_puntuacio>-z_pun_rel_sel EQ abap_false.
+
+      READ TABLE ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt_atual>) WITH KEY seleccio = abap_on.
+      IF sy-subrc = 0.
+        "Si aquest criteri té un subapartat com a opcional, es permet marcar 2 (un sent l'opcional) sempre i quan la suma dels dos criteris sigui > 0.
+        DATA(l_puntuacio)                = <fs_puntuacio>-z_punt_max_do. "Recuperem puntuació seleccionada
+        DATA(l_puntuacio_actual_marcada) = <fs_punt_atual>-z_punt_max_do. "Recuperem puntuació actualment marcada
+
+        "Calculem el valor total previst en funció del que hem marcat o desmarcat
+        IF <fs_puntuacio>-z_opcional = abap_on.
+          e_result = punt_opcional + l_puntuacio_actual_marcada.
+        ELSE.
+          e_result = punt_opcional + l_puntuacio.
+        ENDIF.
+
+**      >> INI MODIF ETODR SPEC-50706
+*        IF ( e_result ) LE 0.      " SPEC-49499 ETJMD 06.06.2018
+        IF ( e_result ) LT 0.
+**      << FI MODIF ETODR SPEC-50706
+          MESSAGE s555(zrm_errors) DISPLAY LIKE 'E'.   "La puntuació deu ser major a 0
+          RAISE no_seleccionable.
+        ENDIF.
+**<< MODIF SPEC-48559 ETJMD 14.06.2018
+        "Comprovem si s'ha seleccionat ara el Z_OPCIONAL o ja era el marcat
+*        IF <fs_puntuacio>-z_opcional IS NOT INITIAL.
+**          e_result = abs( l_puntuacio_actual_marcada ) - abs( l_puntuacio ). ETLJS SPEC-47173
+*          e_result = abs( l_puntuacio_actual_marcada ) + l_puntuacio .
+*        ELSE.
+**          e_result = abs( l_puntuacio ) - abs( l_puntuacio_actual_marcada ). ETLJS SPEC-47173
+*          e_result = abs( l_puntuacio ) + l_puntuacio_actual_marcada .
+*        ENDIF.
+
+
+        IF e_result < 0.
+          IF <fs_puntuacio>-z_opcional IS INITIAL.
+            e_nomes_un_sel = abap_on.
+          ELSE.
+            RAISE no_seleccionable.
+          ENDIF.
+        ELSE.
+**>> INI SPEC-49499 ETJMD 06.06.2018
+          IF i_readonly <> abap_on AND <fs_puntuacio>-z_opcional = abap_false.
+            <fs_puntuacio>-seleccio = abap_on.
+*            IF <fs_puntuacio>-z_opcional = abap_on.
+*              READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING FIELD-SYMBOL(<fs_punt_ofer_alv>) WITH KEY z_codi_crit_punt = <fs_puntuacio>-z_codi_crit_punt.
+*              IF sy-subrc = 0.
+*                <fs_punt_ofer_alv>-z_punts      = e_result.
+*                <fs_punt_ofer_alv>-z_sec_resta  = <fs_puntuacio>-z_sec.
+*              ENDIF.
+*            ENDIF.
+          ELSEIF i_readonly <> abap_on AND <fs_puntuacio>-seleccio = abap_false.
+            <fs_puntuacio>-seleccio = abap_on.
+          ELSEIF i_readonly <> abap_on.
+            <fs_puntuacio>-seleccio = abap_false.
+          ENDIF.
+**<< FIN SPEC-49499 ETJMD 06.06.2018
+        ENDIF.
+      ELSE.
+*        CLEAR: lt_messages[], wa_messages.
+*        wa_messages-icon  = icon_red_light.
+*        wa_messages-descr = 'La puntuació no pot ser inferior a 0'.
+*        APPEND wa_messages TO lt_messages.
+*
+*        CALL FUNCTION 'ZPOPUP_WITH_TABLE'
+*          EXPORTING
+*            endpos_col   = 130
+*            endpos_row   = 20
+*            startpos_col = 20
+*            startpos_row = 10
+*            titletext    = text-e01
+*          TABLES
+*            valuetab     = lt_messages
+*          EXCEPTIONS
+*            OTHERS       = 0.
+        IF i_readonly <> abap_on.
+          <fs_puntuacio>-seleccio = abap_off.
+        ENDIF.
+      ENDIF.
+*    >> INI ETLJS SPEC-47173
+      DATA lv_cont        TYPE z_num_sel.
+
+    ELSEIF sy-subrc EQ 0 AND <fs_puntuacio>-z_pun_rel_sel EQ abap_true.
+      CLEAR lv_cont.
+      CLEAR e_nomes_un_sel.
+      IF <fs_puntuacio>-seleccio EQ abap_true.
+        CLEAR <fs_puntuacio>-seleccio.
+      ELSE.
+        <fs_puntuacio>-seleccio = abap_true.
+      ENDIF.
+      IF <fs_puntuacio>-z_opcional EQ abap_true.
+        LOOP AT ct_puntuacio ASSIGNING FIELD-SYMBOL(<fs_punt>) WHERE seleccio = abap_true.
+          IF <fs_punt>-z_opcional EQ abap_false.
+            CLEAR <fs_punt>-seleccio.
+          ELSE.
+            ADD 1 TO lv_cont.
+          ENDIF.
+        ENDLOOP.
+
+        CHECK gt_punt_do IS NOT INITIAL AND <fs_puntuacio>-z_pun_rel_sel EQ abap_true.
+        READ TABLE gt_punt_do ASSIGNING FIELD-SYMBOL(<fs_punt_do>) WITH KEY z_num_sel = lv_cont.
+        IF sy-subrc EQ 0.
+          e_result = <fs_punt_do>-z_punts.
+        ENDIF.
+      ELSE.
+        LOOP AT ct_puntuacio ASSIGNING <fs_punt> WHERE seleccio = abap_true
+                                                   AND z_opcional = abap_true.
+          CLEAR <fs_punt>-seleccio.
+        ENDLOOP.
+        e_result = <fs_puntuacio>-z_punt_max_do.
+      ENDIF.
+
+*    << FIN ETLJS SPEC-47173
+    ELSE.
+      e_nomes_un_sel = abap_on.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD show_descripcio_llarga.
+    DATA: lt_text                TYPE wcb_tdline_tab,
+          wa_text                TYPE tdline,
+          lt_tdline              TYPE TABLE OF tline,
+          lt_wrap_text           TYPE string_table,
+          lv_string_text(160000) TYPE c,
+          lv_titol               TYPE sy-title,
+          lv_index               TYPE n,
+          lv_read_text           TYPE string.
+
+    DATA(lv_sec) = is_puntuacio-z_sec.
+    SHIFT lv_sec LEFT DELETING LEADING '0'.
+
+    CONCATENATE 'Descripció completa de la puntuació' lv_sec 'del criteri' is_puntuacio-z_codi_crit_punt INTO lv_titol SEPARATED BY space.
+
+    SELECT SINGLE z_descripcio_do AS text1, z_descripcio_do_2 AS text2, z_descripcio_do_3 AS text3, z_descripcio_do_4 AS text4
+      FROM zrm_dm_suapar_do
+      INTO @DATA(wa_descripcio)
+      WHERE z_codi_subapar_punt = @is_puntuacio-z_codi_subapar_punt
+        AND z_sec               = @is_puntuacio-z_sec.
+
+    lv_index = 1.
+    CLEAR: lv_string_text.
+    DO.
+      CONCATENATE 'text' lv_index INTO lv_read_text.
+      ASSIGN COMPONENT lv_read_text OF STRUCTURE wa_descripcio TO FIELD-SYMBOL(<fs_text>).
+      IF sy-subrc <> 0.
+        EXIT.
+      ELSE.
+        IF lv_index EQ 1.
+          CONCATENATE lv_string_text <fs_text> INTO lv_string_text.
+        ELSE.
+          CONCATENATE lv_string_text <fs_text> INTO lv_string_text SEPARATED BY space.
+        ENDIF.
+      ENDIF.
+      ADD 1 TO lv_index.
+    ENDDO.
+    CHECK lv_string_text IS NOT INITIAL.
+    CALL FUNCTION 'ZRM_EDIT_STRING'
+      EXPORTING
+        i_title = lv_titol
+      CHANGING
+        c_text  = lv_string_text.
+
+  ENDMETHOD.
+
+  METHOD handle_hotspot_click_0500.
+    DATA: l_editable   TYPE xfeld,
+          lt_dades_sub TYPE zrm_cl_valoracio_ofertes=>ty_t_puntuacio_subapartats.
+
+    DATA: lv_tittle TYPE string,
+          lv_text1  TYPE string,
+          lv_text2  TYPE string.
+
+    CHECK gs_dyn_0500-gv_alv_puntuacio IS BOUND.
+
+    READ TABLE gs_dyn_0500-gt_puntuacio_ori ASSIGNING FIELD-SYMBOL(<fs_puntuacio>) INDEX e_row_id-index.
+    IF sy-subrc = 0.
+**    >> INI MODIF ETODR SPEC-47173
+      IF e_column_id-fieldname EQ 'Z_DESCRIPCIO_DO' AND e_row_id-index IS NOT INITIAL.
+        show_descripcio_llarga( is_puntuacio = <fs_puntuacio> ).
+      ENDIF.
+**    << FI MODIF ETODR SPEC-47173
+      IF e_column_id-fieldname EQ 'MOTIVACIO' AND e_row_id-index IS NOT INITIAL
+        AND <fs_puntuacio>-z_motivacio IS BOUND.
+        IF g_readonly IS INITIAL.
+          l_editable = abap_on.
+        ELSE.
+          l_editable = abap_off.
+        ENDIF.
+        <fs_puntuacio>-z_motivacio->edit_text( EXPORTING i_editable = l_editable ).
+      ENDIF.
+
+      IF e_column_id-fieldname EQ 'COMENTARIS' AND e_row_id-index IS NOT INITIAL
+        AND <fs_puntuacio>-z_comentaris IS BOUND.
+        <fs_puntuacio>-z_comentaris->edit_text( EXPORTING i_editable = abap_on ).
+      ENDIF.
+
+      IF e_column_id-fieldname EQ 'SELECCIO' AND e_row_id-index IS NOT INITIAL.
+
+*  >> INI MOD ETLJS SPEC-47173
+
+
+        CALL METHOD gr_backend->get_punt_subapart
+*    EXPORTING
+*      i_subapartat      = GS_DYN_0500-GV_CODI_SUBAPART
+          IMPORTING
+            et_dades_subapart = lt_dades_sub.
+
+        READ TABLE gs_dyn_0500-gt_puntuacio_ori ASSIGNING FIELD-SYMBOL(<fs_punt>) INDEX e_row_id.
+        IF sy-subrc EQ 0.
+          IF <fs_punt>-z_codi_subapar_punt_dep IS NOT INITIAL.
+
+            ">>>SPEC:83700, Inici modificació - 05.03.2024 11:50:18
+
+*            READ TABLE lt_dades_sub
+*             ASSIGNING FIELD-SYMBOL(<fs_dades_sub>)
+*                  WITH KEY z_codi_subapar_punt = <fs_punt>-z_codi_subapar_punt_dep
+*                           z_punts             = <fs_punt>-z_punts_no_val_dep
+*                           z_num_ofer          = <fs_punt>-z_num_ofer.
+
+            READ TABLE gs_dyn_0500-gt_punt_ofer_alv
+             ASSIGNING FIELD-SYMBOL(<fs_dades_sub>)
+                  WITH KEY z_codi_subapar_punt = <fs_punt>-z_codi_subapar_punt_dep
+                           z_punts             = <fs_punt>-z_punts_no_val_dep.
+
+            ">>>SPEC:83700, Final modificació - 05.03.2024 11:50:18
+
+            IF sy-subrc EQ 0 AND <fs_punt>-z_punt_max_do IS NOT INITIAL.
+
+              CONCATENATE 'El criteri' <fs_punt>-z_codi_crit_punt 'no es pot puntuar ' INTO lv_tittle SEPARATED BY space.
+              lv_text1 = <fs_punt>-z_punt_max_do.
+              CONCATENATE 'El criteri' <fs_punt>-z_codi_crit_punt 'no es pot puntuar amb' lv_text1 'ja que s’ha puntuat' INTO lv_text1 SEPARATED BY space.
+              lv_text2 = <fs_dades_sub>-z_punts.
+              CONCATENATE  'amb' lv_text2 'el criteri' <fs_dades_sub>-z_codi_crit_punt INTO lv_text2 SEPARATED BY space.
+
+              CALL FUNCTION 'POPUP_TO_INFORM'
+                EXPORTING
+                  titel = lv_tittle
+                  txt1  = lv_text1
+                  txt2  = lv_text2.
+
+*              MESSAGE s556(zrm_errors) WITH gs_dyn_0500-gv_crit_punt <fs_dades_sub>-z_punts <fs_dades_sub>-z_codi_crit_punt
+*                DISPLAY LIKE 'E'.
+*   El criteri &1 no es pot puntuar
+              CHECK 1 = 2.
+            ENDIF.
+          ENDIF.
+
+          IF <fs_punt>-z_codi_subapar_punt_dep2 IS NOT INITIAL.
+
+">>>SPEC:83700, Inici modificació - 05.03.2024 11:52:50
+*            READ TABLE lt_dades_sub
+*                    ASSIGNING <fs_dades_sub>
+*                         WITH KEY z_codi_subapar_punt = <fs_punt>-z_codi_subapar_punt_dep2
+*                                  z_num_ofer          = <fs_punt>-z_num_ofer.
+            READ TABLE gs_dyn_0500-gt_punt_ofer_alv
+                    ASSIGNING <fs_dades_sub>
+                         WITH KEY z_codi_subapar_punt = <fs_punt>-z_codi_subapar_punt_dep2.
+">>>SPEC:83700, Final modificació - 05.03.2024 11:52:50
+
+            IF sy-subrc EQ 0 AND <fs_dades_sub>-z_punts IS NOT INITIAL AND <fs_punt>-z_punt_max_do EQ <fs_punt>-z_punts_no_val_dep.
+
+              CONCATENATE 'El criteri' gs_dyn_0500-gv_crit_punt 'no es pot puntuar ' INTO lv_tittle SEPARATED BY space.
+              CONCATENATE 'El criteri' gs_dyn_0500-gv_crit_punt 'no es pot puntuar ja que s’ha puntuat' INTO lv_text1 SEPARATED BY space.
+              lv_text2 = <fs_dades_sub>-z_punts.
+              CONCATENATE  'amb' lv_text2 'el criteri' <fs_dades_sub>-z_codi_crit_punt INTO lv_text2 SEPARATED BY space.
+
+              CALL FUNCTION 'POPUP_TO_INFORM'
+                EXPORTING
+                  titel = lv_tittle
+                  txt1  = lv_text1
+                  txt2  = lv_text2.
+*              MESSAGE s556(zrm_errors) WITH gs_dyn_0500-gv_crit_punt <fs_dades_sub>-z_punts <fs_dades_sub>-z_codi_crit_punt
+*              display like 'E'.
+              CHECK 1 = 2.
+*   El criteri &1 no es pot puntuar
+            ENDIF.
+          ENDIF.
+        ENDIF.
+*  << FIN MOD ETLJS SPEC-47173
+
+        IF gr_backend->get_is_cp_iniciada( ) = abap_on.
+          check_set_canvi_punt_dyn( CHANGING i_row_id        = e_row_id "cr_data_changed = er_data_changed
+                                             ct_puntuacio    = gs_dyn_0500-gt_puntuacio_ori ).
+        ELSE.
+          change_seleccio_puntuacio(  EXPORTING i_row_id        = e_row_id
+                                      CHANGING  ct_puntuacio    = gs_dyn_0500-gt_puntuacio_ori ).
+          gs_dyn_0500-gv_alv_puntuacio->refresh_table_display( ).
+        ENDIF.
+      ENDIF.
+    ENDIF.
+***INI MOD ETJHG - SPEC-46407
+    gv_ucomm = 'X'.
+***FIN MOD ETJHG - SPEC-46407
+  ENDMETHOD.                    "handle_hotspot_click
+
+  METHOD handle_data_changed_0500.
+    LOOP AT er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<fs>).
+      IF <fs>-fieldname EQ 'Z_NUM_OB_OFERTA' OR <fs>-fieldname EQ 'Z_NUM_OB_TIP_OK' OR <fs>-fieldname EQ 'Z_NUM_OB_ACREDIT_OK'.
+        CALL FUNCTION 'CATS_NUMERIC_INPUT_CHECK'
+          EXPORTING
+            input      = <fs>-value
+          EXCEPTIONS
+            no_numeric = 1
+            OTHERS     = 2.
+        IF sy-subrc <> 0.
+          MESSAGE 'Només es permet introduir valors númerics enters' TYPE 'I'.
+          <fs>-value = 0.
+          READ TABLE gs_dyn_0500-gt_puntuacio_ori ASSIGNING FIELD-SYMBOL(<fs_puntuacio>) INDEX <fs>-row_id.
+          IF sy-subrc = 0.
+            ASSIGN COMPONENT <fs>-fieldname OF STRUCTURE <fs_puntuacio> TO FIELD-SYMBOL(<fs_fieldname_value>).
+            <fs_fieldname_value> = <fs>-value.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    gs_dyn_0500-gv_alv_puntuacio->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                              es_col_id = DATA(ls_col_id)
+                                                              es_row_no = DATA(ls_row_no) ).
+    gs_dyn_0500-gv_alv_puntuacio->refresh_table_display( ).
+    gs_dyn_0500-gv_alv_puntuacio->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                                     is_row_no    = ls_row_no ).
+
+  ENDMETHOD.
+
+  METHOD handle_data_changed_0200.
+    DATA: wa_dt_punt_of_sub TYPE zrm_dt_pu_of_sub,
+          lv_seleccio_contr TYPE xfeld,
+          l_mateixa_seq     TYPE xfeld.
+
+    CHECK gs_dyn_0200-gv_alv_subapart IS BOUND.
+
+    LOOP AT er_data_changed->mt_good_cells ASSIGNING FIELD-SYMBOL(<fs>).
+      IF gs_dyn_0200-gs_node_sel-z_mult_equip EQ abap_false.
+        READ TABLE gs_dyn_0200-gt_subapartats ASSIGNING FIELD-SYMBOL(<fs_subapartat>) INDEX <fs>-row_id.
+        CHECK sy-subrc = 0.
+        IF <fs>-fieldname EQ 'SELECCIO_SUB'.
+          "Si mateixa seqüencialitat: verificar que al marcar/desmarcar l'altre es marqui/desmarqui segons correspongui
+          PERFORM es_mateixa_sequencialitat USING     gs_dyn_0200-gt_subapartats
+                                            CHANGING  l_mateixa_seq.
+*
+          IF <fs>-value EQ abap_false.
+            lv_seleccio_contr            = abap_true.
+          ELSE.
+            lv_seleccio_contr            = abap_false.
+          ENDIF.
+*
+          IF l_mateixa_seq = abap_on.
+            LOOP AT  gs_dyn_0200-gt_subapartats ASSIGNING FIELD-SYMBOL(<fs_sub_excloent>) WHERE z_codi_subapar_punt_rel <> <fs_subapartat>-z_codi_subapar_punt_rel.
+              <fs_sub_excloent>-seleccio_sub = lv_seleccio_contr.
+            ENDLOOP.
+            LOOP AT  gs_dyn_0200-gt_subapartats ASSIGNING FIELD-SYMBOL(<fs_sub_excloent2>) WHERE z_codi_subapar_punt_rel = <fs_subapartat>-z_codi_subapar_punt_rel.
+              <fs_sub_excloent2>-seleccio_sub = <fs>-value.
+            ENDLOOP.
+          ENDIF.
+*
+          LOOP AT  gs_dyn_0200-gt_subapartats_ori ASSIGNING FIELD-SYMBOL(<fs_sub_ori>).
+            READ TABLE gs_dyn_0200-gt_subapartats INTO DATA(wa_aux) WITH KEY z_codi_subapar_punt_rel = <fs_sub_ori>-z_codi_subapar_punt_rel.
+            IF sy-subrc = 0.
+              <fs_sub_ori>-seleccio_sub = wa_aux-seleccio_sub.
+            ENDIF.
+          ENDLOOP.
+*
+          CLEAR: wa_dt_punt_of_sub.
+          "Omplim la taula gs_dyn_0200-gt_punt_ofer amb l'entrada marcada
+          READ TABLE gs_dyn_0200-gt_subapartats ASSIGNING FIELD-SYMBOL(<fs_subapartat_check>) WITH KEY seleccio_sub = abap_on.
+          IF sy-subrc = 0.
+            LOOP AT gs_dyn_0200-gt_punt_ofer ASSIGNING FIELD-SYMBOL(<fs_punt_ofer>) WHERE z_codi_crit_punt = <fs_subapartat_check>-z_codi_crit_punt.
+              <fs_punt_ofer>-z_codi_subapar_punt  = <fs_subapartat_check>-z_codi_subapar_punt_rel.
+*              <fs_punt_ofer>-z_sec                = <fs_subapartat_check>-z_sec. "SPEC-49500
+              <fs_punt_ofer>-z_punt_max           = <fs_subapartat_check>-z_punt_max.
+            ENDLOOP.
+          ENDIF.
+        ENDIF.
+
+***INI MOD ETJHG - SPEC-46407
+        DATA: lv_sec TYPE z_sec.
+        IF <fs>-fieldname EQ 'Z_DESCRIPCIO'.
+          <fs_subapartat>-z_descripcio = <fs>-value.
+          lv_sec = <fs>-row_id.
+
+          READ TABLE gs_dyn_0200-gt_subapartats_ori ASSIGNING FIELD-SYMBOL(<subapartats_ori>)
+            WITH KEY z_codi_subapar_punt      = <fs_subapartat>-z_codi_subapar_punt
+                     z_codi_subapar_punt_rel  = <fs_subapartat>-z_codi_subapar_punt_rel
+                     z_sec                    = lv_sec
+                     z_mod_crit_punt          = <fs_subapartat>-z_mod_crit_punt
+                     z_codi_crit_punt         = <fs_subapartat>-z_codi_crit_punt.
+
+          IF sy-subrc EQ 0.
+            <subapartats_ori>-z_descripcio = <fs>-value.
+          ENDIF.
+        ENDIF.
+
+        ">>>SPEC:67070, Inici modificació - ECJMS
+        IF <fs>-fieldname EQ 'Z_COEFICIENT'.
+*          <fs_subapartat>-z_coeficient = <fs>-value.
+          lv_sec                = <fs>-row_id.
+
+          READ TABLE gs_dyn_0200-gt_subapartats_ori ASSIGNING FIELD-SYMBOL(<subapartats_ori_coef>)
+            WITH KEY z_codi_subapar_punt      = <fs_subapartat>-z_codi_subapar_punt
+                     z_codi_subapar_punt_rel  = <fs_subapartat>-z_codi_subapar_punt_rel
+                     z_sec                    = lv_sec
+                     z_mod_crit_punt          = <fs_subapartat>-z_mod_crit_punt
+                     z_codi_crit_punt         = <fs_subapartat>-z_codi_crit_punt.
+          IF sy-subrc EQ 0.
+*            <subapartats_ori_coef>-z_coeficient = <fs>-value.
+          ENDIF.
+
+        ENDIF.
+        "<<<SPEC:67070, Final modificació - ECJMS
+
+        IF <fs>-fieldname EQ 'Z_PES'.
+          <fs_subapartat>-z_pes = <fs>-value.
+*        SHIFT <fs_subapartat>-z_pes LEFT DELETING LEADING '0'.
+          lv_sec                = <fs>-row_id.
+
+          READ TABLE gs_dyn_0200-gt_subapartats_ori ASSIGNING FIELD-SYMBOL(<subapartats_ori_pes>)
+            WITH KEY z_codi_subapar_punt      = <fs_subapartat>-z_codi_subapar_punt
+                     z_codi_subapar_punt_rel  = <fs_subapartat>-z_codi_subapar_punt_rel
+                     z_sec                    = lv_sec
+                     z_mod_crit_punt          = <fs_subapartat>-z_mod_crit_punt
+                     z_codi_crit_punt         = <fs_subapartat>-z_codi_crit_punt.
+          IF sy-subrc EQ 0.
+            <subapartats_ori_pes>-z_pes = <fs>-value.
+*          SHIFT <subapartats_ori_pes>-z_pes LEFT DELETING LEADING '0'.
+          ENDIF.
+
+        ENDIF.
+        "INI ECDRB SPEC-64892
+        IF <fs>-fieldname EQ 'Z_CODI_BIM'.
+          <fs_subapartat>-z_codi_bim = <fs>-value.
+          lv_sec                = <fs>-row_id.
+          READ TABLE gs_dyn_0200-gt_subapartats_ori ASSIGNING <subapartats_ori>
+            WITH KEY z_codi_subapar_punt      = <fs_subapartat>-z_codi_subapar_punt
+                     z_codi_subapar_punt_rel  = <fs_subapartat>-z_codi_subapar_punt_rel
+                     z_sec                    = lv_sec
+                     z_mod_crit_punt          = <fs_subapartat>-z_mod_crit_punt
+                     z_codi_crit_punt         = <fs_subapartat>-z_codi_crit_punt.
+          IF sy-subrc EQ 0.
+            <subapartats_ori>-z_codi_bim = <fs>-value.
+          ENDIF.
+          "Refresh del container del tree pbim (dynpro 0300) perquè quan facin
+          "doble click en el camp, s'obri la dynpro carregant els valors corresponents
+          "al nou codi bim seleccionat
+          IF gr_container_tree_pbim IS BOUND. gr_container_tree_pbim->free( ). ENDIF.
+          FREE: gr_container_tree_pbim.
+          CALL METHOD cl_gui_cfw=>update_view( ).
+        ENDIF.
+        "FI ECDRB SPEC-64892
+      ELSE.
+        READ TABLE gs_dyn_0200-gt_dades_equip ASSIGNING FIELD-SYMBOL(<fs_dades_equip>) INDEX <fs>-row_id.
+        CHECK sy-subrc EQ 0.
+        CASE <fs>-fieldname.
+          WHEN 'Z_DESCRIPCIO'.
+            <fs_dades_equip>-z_descripcio = <fs>-value.
+            LOOP AT gs_dyn_0200-gt_dades_equip_ori ASSIGNING FIELD-SYMBOL(<fs_equip_ori>)
+              WHERE z_comptador_equip EQ <fs_dades_equip>-z_comptador_equip.
+*>> SPEC-53130, Inici modificació - ETLJS
+              IF gs_dyn_0200-gs_node_sel-z_equip_coautor EQ abap_true AND
+              gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+
+                CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_equip_ori>-z_codi_crit_punt.
+
+              ENDIF.
+*<< SPEC-53130, Final modificació - ETLJS
+              <fs_equip_ori>-z_descripcio = <fs_dades_equip>-z_descripcio.
+
+            ENDLOOP.
+
+            ">>>SPEC:67070, Inici modificació - ECJMS
+          WHEN 'Z_COEFICIENT'.
+            <fs_dades_equip>-z_coeficient = <fs>-value.
+            LOOP AT gs_dyn_0200-gt_dades_equip_ori ASSIGNING FIELD-SYMBOL(<fs_eq_coef>)
+              WHERE z_comptador_equip EQ <fs_dades_equip>-z_comptador_equip.
+
+              IF gs_dyn_0200-gs_node_sel-z_equip_coautor EQ abap_true AND
+              gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+                CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_eq_coef>-z_codi_crit_punt.
+              ENDIF.
+
+              <fs_eq_coef>-z_coeficient = <fs_dades_equip>-z_coeficient.
+
+            ENDLOOP.
+            "<<<SPEC:67070, Final modificació - ECJMS
+
+          WHEN 'Z_PES'.
+            <fs_dades_equip>-z_pes = <fs>-value.
+            LOOP AT gs_dyn_0200-gt_dades_equip_ori ASSIGNING FIELD-SYMBOL(<fs_eq_ori>)
+              WHERE z_comptador_equip EQ <fs_dades_equip>-z_comptador_equip.
+*>> SPEC-53130, Inici modificació - ETLJS
+              IF gs_dyn_0200-gs_node_sel-z_equip_coautor EQ abap_true AND
+              gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+                CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_eq_ori>-z_codi_crit_punt.
+              ENDIF.
+*<< SPEC-53130, Final modificació - ETLJS
+              <fs_eq_ori>-z_pes = <fs_dades_equip>-z_pes.
+
+            ENDLOOP.
+          WHEN 'Z_CARREC_EQUIP'.
+            <fs_dades_equip>-z_carrec_equip = <fs>-value.
+            LOOP AT gs_dyn_0200-gt_dades_equip_ori ASSIGNING <fs_eq_ori>
+              WHERE z_comptador_equip EQ <fs_dades_equip>-z_comptador_equip.
+*>> SPEC-53130, Inici modificació - ETLJS
+              IF gs_dyn_0200-gs_node_sel-z_equip_coautor EQ abap_true AND
+               gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+                CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_eq_ori>-z_codi_crit_punt.
+              ENDIF.
+*<< SPEC-53130, Final modificació - ETLJS
+              <fs_eq_ori>-z_carrec_equip = <fs_dades_equip>-z_carrec_equip.
+
+            ENDLOOP.
+**        >> INI MODIF ETODR SPEC-49500
+          WHEN 'Z_DEDICACIO_MIN'.
+            <fs_dades_equip>-z_dedicacio_min = <fs>-value.
+            LOOP AT gs_dyn_0200-gt_dades_equip_ori ASSIGNING <fs_eq_ori>
+              WHERE z_comptador_equip EQ <fs_dades_equip>-z_comptador_equip.
+*>> SPEC-53130, Inici modificació - ETLJS
+              IF gs_dyn_0200-gs_node_sel-z_equip_coautor EQ abap_true AND
+              gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+                CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_eq_ori>-z_codi_crit_punt.
+              ENDIF.
+*<< SPEC-53130, Final modificació - ETLJS
+              <fs_eq_ori>-z_dedicacio_min = <fs_dades_equip>-z_dedicacio_min.
+
+            ENDLOOP.
+          WHEN 'Z_EXCLUSIVITAT'.
+            <fs_dades_equip>-z_exclusivitat = <fs>-value.
+            LOOP AT gs_dyn_0200-gt_dades_equip_ori ASSIGNING <fs_eq_ori>
+              WHERE z_comptador_equip EQ <fs_dades_equip>-z_comptador_equip.
+*>> SPEC-53130, Inici modificació - ETLJS
+              IF gs_dyn_0200-gs_node_sel-z_equip_coautor EQ abap_true AND
+              gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+                ">> SPEC-66771, Inici Modificació - ETODR
+*                CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_equip_ori>-z_codi_crit_punt.
+                CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_eq_ori>-z_codi_crit_punt.
+                "<< SPEC-66771, Final Modificació - ETODR
+              ENDIF.
+*<< SPEC-53130, Final modificació - ETLJS
+              <fs_eq_ori>-z_exclusivitat = <fs_dades_equip>-z_exclusivitat.
+            ENDLOOP.
+            LOOP AT gs_dyn_0200-gt_dades_equip ASSIGNING FIELD-SYMBOL(<fs_canvi_sytle_dedic>).
+              READ TABLE <fs_canvi_sytle_dedic>-style ASSIGNING FIELD-SYMBOL(<fs_style_dedic>) WITH KEY fieldname = 'Z_DEDICACIO_MIN'.
+              IF sy-subrc = 0.
+                IF <fs_canvi_sytle_dedic>-z_exclusivitat = abap_on.
+                  "Si exlcusivitat = X, deshabilitem Z_DEDICACIO_MIN
+                  <fs_style_dedic>-style     = cl_gui_alv_grid=>mc_style_disabled.
+                ELSE.
+                  "Si exlcusivitat <> X, habilitem Z_DEDICACIO_MIN
+                  <fs_style_dedic>-style     = cl_gui_alv_grid=>mc_style_enabled.
+                ENDIF.
+              ENDIF.
+            ENDLOOP.
+**        << FI MODIF ETODR SPEC-49500
+            "INI ECDRB SPEC-64891
+          WHEN 'Z_IMIN'.
+            <fs_dades_equip>-z_imin = <fs>-value.
+            LOOP AT gs_dyn_0200-gt_dades_equip_ori ASSIGNING <fs_eq_ori>
+              WHERE z_comptador_equip EQ <fs_dades_equip>-z_comptador_equip.
+              IF gs_dyn_0200-gs_node_sel-z_equip_coautor EQ abap_true AND
+              gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+                CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_eq_ori>-z_codi_crit_punt.
+              ENDIF.
+              <fs_eq_ori>-z_imin = <fs_dades_equip>-z_imin.
+            ENDLOOP.
+          WHEN 'Z_SINGULARITAT'.
+            <fs_dades_equip>-z_singularitat = <fs>-value.
+            LOOP AT gs_dyn_0200-gt_dades_equip_ori ASSIGNING <fs_eq_ori>
+              WHERE z_comptador_equip EQ <fs_dades_equip>-z_comptador_equip.
+              IF gs_dyn_0200-gs_node_sel-z_equip_coautor EQ abap_true AND
+              gs_dyn_0200-gs_node_sel-z_equip_sep = abap_true.
+                CHECK gs_dyn_0200-gs_node_sel-z_codi_crit_punt = <fs_eq_ori>-z_codi_crit_punt.
+              ENDIF.
+              <fs_eq_ori>-z_singularitat = <fs_dades_equip>-z_singularitat.
+            ENDLOOP.
+            "FI ECDRB SPEC-64891
+          WHEN OTHERS.
+        ENDCASE.
+      ENDIF.
+***FIN MOD ETJHG - SPEC-46407
+    ENDLOOP.
+
+**    >> INI MODIF ETODR SPEC-49500
+    gs_dyn_0200-gv_alv_subapart->get_current_cell( IMPORTING es_row_id = DATA(ls_row_id)
+                                                             es_col_id = DATA(ls_col_id)
+                                                             es_row_no = DATA(ls_row_no) ).
+**    << FI MODIF ETODR SPEC-49500
+    gs_dyn_0200-gv_alv_subapart->refresh_table_display( ).
+**    >> INI MODIF ETODR SPEC-49500
+    gs_dyn_0200-gv_alv_subapart->set_current_cell_via_id( EXPORTING is_column_id = ls_col_id
+                                                                    is_row_no    = ls_row_no ).
+**    << FI MODIF ETODR SPEC-49500
+
+  ENDMETHOD.
+
+***INI MOD ETJHG - SPEC-46407
+  METHOD handle_toolbar_0500.
+    DATA: ls_toolbar  TYPE stb_button.
+
+    "append a separator to normal toolbar
+    CLEAR ls_toolbar.
+    MOVE 3 TO ls_toolbar-butn_type.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+    CLEAR ls_toolbar.
+    MOVE 'BACK' TO ls_toolbar-function.
+    MOVE icon_previous_object TO ls_toolbar-icon.
+    MOVE ' ' TO ls_toolbar-disabled.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+    CLEAR ls_toolbar.
+    MOVE 'NEXT' TO ls_toolbar-function.
+    MOVE icon_next_object TO ls_toolbar-icon.
+    MOVE ' ' TO ls_toolbar-disabled.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+  ENDMETHOD.
+
+  METHOD handle_user_command_0500.
+
+    DATA: lt_rows TYPE lvc_t_row.
+
+    DATA: wa_subapartats TYPE gty_subapartats.
+
+    DATA: lv_line TYPE z_sec,
+          lv_save TYPE xfeld.
+
+    FIELD-SYMBOLS: <subapartats> LIKE LINE OF gs_dyn_0200-gt_subapartats,
+                   <rows>        LIKE LINE OF lt_rows.
+
+    CASE e_ucomm.
+      WHEN 'BACK'.
+        PERFORM check_before_puntuar  USING gs_dyn_0500-gt_puntuacio_ori
+                                   CHANGING lv_save.
+
+        IF lv_save EQ abap_true.
+*        IF gs_dyn_0500-g_show_all = abap_on.
+          READ TABLE gs_dyn_0500-gt_punt_ofer_alv TRANSPORTING NO FIELDS WITH KEY is_actual = abap_on.
+          CHECK sy-subrc = 0.
+          DATA(l_index) = sy-tabix.
+          IF sy-tabix > 1.
+            READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING FIELD-SYMBOL(<fs_back>) INDEX l_index - 1.
+            CHECK sy-subrc = 0.
+            READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING FIELD-SYMBOL(<fs_current>) WITH KEY is_actual = abap_on.
+            CLEAR: <fs_current>-is_actual.
+
+            <fs_back>-is_actual = abap_on.
+          ENDIF.
+*        ELSE.
+          gv_ucomm = e_ucomm.
+*        ENDIF.
+        ENDIF.
+      WHEN 'NEXT'.
+        PERFORM check_before_puntuar  USING gs_dyn_0500-gt_puntuacio_ori
+                                   CHANGING lv_save.
+
+        IF lv_save EQ abap_true.
+*        IF gs_dyn_0500-g_show_all = abap_on.
+          READ TABLE gs_dyn_0500-gt_punt_ofer_alv TRANSPORTING NO FIELDS WITH KEY is_actual = abap_on.
+          CHECK sy-subrc = 0.
+          l_index = sy-tabix.
+          DESCRIBE TABLE gs_dyn_0500-gt_punt_ofer_alv LINES DATA(l_max).
+          IF sy-tabix < l_max.
+            READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING FIELD-SYMBOL(<fs_next>) INDEX l_index + 1.
+            CHECK sy-subrc = 0.
+            READ TABLE gs_dyn_0500-gt_punt_ofer_alv ASSIGNING <fs_current> WITH KEY is_actual = abap_on.
+            CLEAR: <fs_current>-is_actual.
+
+            <fs_next>-is_actual = abap_on.
+          ENDIF.
+*        ELSE.
+          gv_ucomm = e_ucomm.
+*        ENDIF.
+        ENDIF.
+    ENDCASE.
+**  >> INI MODIF ETODR SPEC-49075
+    IF <fs> IS ASSIGNED.
+      DATA(lv_compta_rec) = <fs>-z_compta_rec.
+
+      PERFORM puntuar USING gs_dyn_0500-gt_puntuacio_ori
+                      lv_compta_rec
+             CHANGING gs_dyn_0500-gt_puntuacio.
+**>> INI SPEC-49499 ETJMD 11.06.2018
+*      IF gs_dyn_0500-g_is_llei91017 EQ 'X'.
+      PERFORM guardar_zrm_dt_punt_rec2 USING gs_dyn_0500-gt_puntuacio_ori
+                                             gs_dyn_0500-gs_punt_rec.
+*      ELSE.
+*        PERFORM guardar_zrm_dt_punt_rec USING gs_dyn_0500-gt_puntuacio_ori
+*                                              gs_dyn_0500-gs_punt_rec.
+*      ENDIF.
+**<< FIN SPEC-49499 ETJMD 11.06.2018
+      PERFORM liberar_objetos_punt USING gs_dyn_0500-gv_alv_puntuacio
+                                         gs_dyn_0500-gv_cont_puntuacio.
+    ENDIF.
+**  << FI MODIF ETODR SPEC-49075
+  ENDMETHOD.
+
+  METHOD handle_toolbar_back.
+    DATA: ls_toolbar  TYPE stb_button.
+
+    "append a separator to normal toolbar
+    CLEAR ls_toolbar.
+    MOVE 3 TO ls_toolbar-butn_type.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+    CLEAR ls_toolbar.
+    MOVE 'BACK' TO ls_toolbar-function.
+    MOVE icon_previous_object TO ls_toolbar-icon.
+    MOVE ' ' TO ls_toolbar-disabled.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+  ENDMETHOD.
+
+  METHOD handle_toolbar_next.
+    DATA: ls_toolbar  TYPE stb_button.
+
+    "append a separator to normal toolbar
+    CLEAR ls_toolbar.
+    MOVE 3 TO ls_toolbar-butn_type.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+    CLEAR ls_toolbar.
+    MOVE 'NEXT' TO ls_toolbar-function.
+    MOVE icon_next_object TO ls_toolbar-icon.
+    MOVE ' ' TO ls_toolbar-disabled.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+
+  ENDMETHOD.
+***FIN MOD ETJHG - SPEC-46407
+ENDCLASS.                    "lcl_event_handler IMPLEMENTATION

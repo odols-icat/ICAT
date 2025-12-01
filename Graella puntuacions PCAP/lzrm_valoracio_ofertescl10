@@ -1,0 +1,802 @@
+**----------------------------------------------------------------------*
+****INCLUDE LZRM_VALORACIO_OFERTESCL10.
+**----------------------------------------------------------------------*
+CLASS lcl_alv_0850_util_obj DEFINITION FINAL.
+***********************************************************************************************
+**                                         PUBLIC SECTION                                     *
+***********************************************************************************************
+  PUBLIC SECTION.
+    TYPES: BEGIN OF ty_s_formula,
+             formula TYPE string,
+             z_incr  TYPE zrm_dt_punt_incr-z_incr,
+             z_imin  TYPE zrm_dt_punt_incr-z_imin,
+           END OF ty_s_formula.
+    TYPES: ty_t_formula TYPE STANDARD TABLE OF ty_s_formula.
+
+    CONSTANTS: co_cell_color        TYPE string  VALUE 'CELL_COLOR',
+               co_cell_style        TYPE string  VALUE 'CELL_STYLE',
+               co_puntuacio_bim     TYPE zrm_dm_crit_punt-z_coeficient_iref VALUE '02',
+               co_puntuacio_tcqcoef TYPE zrm_dm_crit_punt-z_coeficient_iref VALUE '03'. "SPEC-71554 ETODR
+
+    DATA: my_changes_done         TYPE xfeld VALUE abap_off,
+          gt_fcat                 TYPE lvc_t_fcat,
+          gr_cont_incr            TYPE REF TO cl_gui_custom_container,
+          gr_alv_incr             TYPE REF TO cl_gui_alv_grid,
+          my_puntuacions_inicials TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen,
+          my_punts                TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen,
+          my_graella_crits        TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt,
+          my_suapar_do_punts      TYPE zrm_dm_suapar_do,
+          my_tt_suapar_do_punts   TYPE STANDARD TABLE OF zrm_dm_suapar_do,
+          my_tt_formula           TYPE ty_t_formula,
+          my_readonly             TYPE xfeld,
+          my_equip                TYPE zrm_tt_dt_punt_equi,
+          my_incr                 TYPE zrm_tt_dt_punt_equi_amp,
+          my_incr_bd              TYPE zrm_tt_dt_punt_equi_amp,
+          my_company_name         TYPE string,
+          my_num_oferta           TYPE z_num_ofer,
+          my_singularitat(2)      TYPE c,
+          my_formula              TYPE z_formula_incr,
+          my_punt_max_do          TYPE z_punt_max_do.
+
+    METHODS free_variables.
+
+    METHODS create_alv.
+
+    METHODS show_alv.
+
+    METHODS constructor
+      IMPORTING it_equip         TYPE zrm_tt_dt_punt_equi
+                it_puntuacio     TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                it_graella_crits TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt
+                iv_mod_crit_punt TYPE z_mod_crit_punt
+                i_readonly       TYPE xfeld.
+
+    METHODS handle_incr_changed  FOR EVENT data_changed OF cl_gui_alv_grid
+      IMPORTING er_data_changed.
+
+    METHODS set_layout
+      EXPORTING es_layout TYPE lvc_s_layo.
+
+    METHODS fill_catalog
+      EXPORTING et_fieldcat TYPE lvc_t_fcat.
+
+    METHODS user_command
+      IMPORTING i_ucomm TYPE syst_ucomm.
+
+    METHODS check_incr_introduida
+      RETURNING VALUE(r_incr_ok) TYPE xfeld.
+
+    METHODS get_flag_changes
+      RETURNING VALUE(r_changes) TYPE xfeld.
+
+    METHODS set_flag_changes
+      IMPORTING i_changes TYPE xfeld.
+
+    METHODS modif_incr_puntuacions
+      CHANGING er_data_changed TYPE REF TO cl_alv_changed_data_protocol.
+
+    METHODS get_valors_finals EXPORTING et_equip      TYPE zrm_tt_dt_punt_equi
+                                        et_puntuacio  TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen
+                                        et_no_changes TYPE xfeld.
+
+    METHODS get_puntuacions
+      CHANGING cs_incr TYPE zrm_dt_punt_equi_amp.
+
+    METHODS aplicar_formula
+      IMPORTING im_formula TYPE z_form_sum_incr
+      CHANGING  cs_incr    TYPE zrm_dt_punt_equi_amp.
+
+    METHODS aplicar_formula_verif
+      IMPORTING im_formula TYPE zrm_dm_eval_incr
+      CHANGING  cs_incr    TYPE zrm_dt_punt_equi_amp
+                cv_assig   TYPE xfeld.
+  PRIVATE SECTION.
+    METHODS retorna_puntuacio
+      EXPORTING et_equip     TYPE zrm_tt_dt_punt_equi
+                et_puntuacio TYPE zrm_cl_valoracio_ofertes=>ty_t_punt_gen.
+
+    METHODS modif_aplica_bim
+      CHANGING er_data_changed TYPE REF TO cl_alv_changed_data_protocol.
+
+    METHODS modif_aplica_tcq
+      CHANGING er_data_changed TYPE REF TO cl_alv_changed_data_protocol.
+
+
+ENDCLASS.
+*
+*
+CLASS lcl_alv_0850_util_obj IMPLEMENTATION.
+***********************************************************************************************
+**                                         PUBLIC SECTION                                     *
+***********************************************************************************************
+**---------------------------------------------------------------------*
+** METHOD CONSTRUCTOR
+**---------------------------------------------------------------------*
+** Mètode constructor.
+**---------------------------------------------------------------------*
+  METHOD constructor.
+
+    DATA: ls_equip_alv  TYPE zrm_dt_punt_equi_amp.
+    DATA: ls_ofer  TYPE zrm_dt_punt_ofer.
+    DATA: ls_graella_crit TYPE zrm_cl_valoracio_ofertes=>ty_s_crit_punt.
+    DATA: ls_style TYPE lvc_s_styl.
+
+    FIELD-SYMBOLS <fs_incr> TYPE zrm_dt_punt_equi_amp.
+
+    CLEAR my_num_oferta.
+
+    my_puntuacions_inicials = it_puntuacio.
+    my_punts                = it_puntuacio.
+    my_readonly             = i_readonly.
+    my_graella_crits        = it_graella_crits.
+
+    IF my_graella_crits IS INITIAL.
+      SELECT *
+        FROM zrm_dm_crit_punt
+        INTO TABLE @DATA(lt_dm_crit_punt)
+        WHERE z_mod_crit_punt = @iv_mod_crit_punt.
+
+      LOOP AT lt_dm_crit_punt ASSIGNING FIELD-SYMBOL(<fs_crit_punt>).
+        MOVE-CORRESPONDING <fs_crit_punt> TO ls_graella_crit.
+        APPEND ls_graella_crit TO my_graella_crits.
+      ENDLOOP.
+    ENDIF.
+
+    my_equip = it_equip.
+    LOOP AT my_equip ASSIGNING FIELD-SYMBOL(<fs_equip>) WHERE z_is_header = abap_off.
+      LOOP AT my_graella_crits TRANSPORTING NO FIELDS WHERE z_codi_crit_punt  = <fs_equip>-z_codi_crit_punt
+                                                        AND z_coeficient_iref <> space.
+        EXIT.
+      ENDLOOP.
+      IF sy-subrc = 0.
+        MOVE-CORRESPONDING <fs_equip> TO ls_equip_alv.
+        APPEND ls_equip_alv TO my_incr.
+      ENDIF.
+    ENDLOOP.
+*    MOVE-CORRESPONDING it_incr TO my_incr.
+    MOVE-CORRESPONDING it_equip TO my_incr_bd.
+
+
+    LOOP AT my_incr ASSIGNING <fs_incr>.
+
+      CLEAR <fs_incr>-style.
+
+      AT FIRST.
+        my_num_oferta = <fs_incr>-z_num_ofer.
+      ENDAT.
+
+      CHECK <fs_incr>-z_singularitat NE 'SI'.
+
+      ls_style-fieldname = 'Z_ACR_SING'.
+      ls_style-style = cl_gui_alv_grid=>mc_style_disabled.
+      ls_style-style2 = space.
+      ls_style-style3 = space.
+      ls_style-style4 = space.
+      ls_style-maxlen = 6.
+
+      APPEND ls_style TO <fs_incr>-style.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD SHOW_ALV
+*---------------------------------------------------------------------*
+* Mètode que mostra la ALV.
+*---------------------------------------------------------------------*
+  METHOD create_alv.
+    CALL SCREEN '0860' STARTING AT 10 10.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SHOW_ALV
+*---------------------------------------------------------------------*
+* Mètode que mostra la ALV.
+*---------------------------------------------------------------------*
+  METHOD show_alv.
+
+    DATA: lt_exclude TYPE ui_functions,
+          wa_exclude TYPE ui_func.
+    DATA: is_estable TYPE lvc_s_stbl.
+
+    IF gr_cont_incr IS INITIAL.
+      CREATE OBJECT gr_cont_incr
+        EXPORTING
+          container_name = 'CC_ALV_INCR_EQUIP'.
+
+      CHECK gr_cont_incr IS BOUND.
+
+      CREATE OBJECT gr_alv_incr
+        EXPORTING
+          i_parent = gr_cont_incr
+        EXCEPTIONS
+          OTHERS   = 0.
+      CHECK gr_alv_incr IS BOUND.
+
+* --------------------------------------------------------------------*
+** Aplicar el manegador del hotspot.
+      SET HANDLER gr_util_incr_obj->handle_incr_changed FOR gr_alv_incr.
+
+      gr_alv_incr->register_edit_event(
+             EXPORTING i_event_id = cl_gui_alv_grid=>mc_evt_modified ).
+* --------------------------------------------------------------------*
+
+      set_layout( IMPORTING es_layout     = DATA(ls_layout) ).
+      fill_catalog( IMPORTING et_fieldcat = DATA(lt_fcat) ).
+
+      CLEAR: lt_exclude[].
+      wa_exclude = cl_gui_alv_grid=>mc_fc_excl_all.
+      APPEND wa_exclude TO lt_exclude.
+
+      gr_alv_incr->set_table_for_first_display(
+      EXPORTING
+        is_layout                     = ls_layout
+        it_toolbar_excluding          = lt_exclude
+      CHANGING
+        it_outtab                     = my_incr
+        it_fieldcatalog               = lt_fcat
+      EXCEPTIONS invalid_parameter_combination = 1
+        program_error                 = 2
+        too_many_lines                = 3
+        OTHERS                        = 4 ).
+
+      CHECK sy-subrc = 0.
+
+      IF my_readonly = abap_on.
+        gr_alv_incr->set_ready_for_input( EXPORTING i_ready_for_input = 0 ).
+      ELSE.
+        gr_alv_incr->set_ready_for_input( EXPORTING i_ready_for_input = 1 ).
+      ENDIF.
+    ELSE.
+      is_estable = 'XX'.
+      gr_alv_incr->refresh_table_display( EXPORTING is_stable = is_estable ).
+    ENDIF.
+  ENDMETHOD.
+*---------------------------------------------------------------------*
+* METHOD GET_FLAG_CHANGES
+*---------------------------------------------------------------------*
+* Mètode que retorna si s'han realitzat canvis
+*---------------------------------------------------------------------*
+  METHOD get_flag_changes.
+    r_changes = my_changes_done.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SET_FLAG_CHANGES
+*---------------------------------------------------------------------*
+* Mètode que determina si s'han realitzat canvis
+*---------------------------------------------------------------------*
+  METHOD set_flag_changes.
+    my_changes_done = i_changes.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD GET_PDM_PUNTUACIONS
+*---------------------------------------------------------------------*
+* Mètode que retorna les puntuacions del criteri de PDM per tècnic
+*---------------------------------------------------------------------*
+  METHOD modif_incr_puntuacions.
+
+    DATA: wa_incr  TYPE zrm_dt_punt_equi_amp,
+          lv_punts TYPE f.
+
+    READ TABLE er_data_changed->mt_good_cells
+         ASSIGNING FIELD-SYMBOL(<fs_good>) INDEX 1.
+
+    CHECK sy-subrc EQ 0.
+
+    READ TABLE my_incr
+         ASSIGNING FIELD-SYMBOL(<fs_incr>) INDEX <fs_good>-row_id.
+
+    CHECK sy-subrc EQ 0.
+
+    ASSIGN COMPONENT <fs_good>-fieldname OF STRUCTURE <fs_incr>
+           TO FIELD-SYMBOL(<fs_camp>).
+
+    CHECK sy-subrc EQ 0.
+
+    CONDENSE <fs_good>-value NO-GAPS.
+
+    <fs_camp> = <fs_good>-value.
+
+* Nous Calculs
+
+    wa_incr = <fs_incr>.
+
+    wa_incr-z_irefcss = wa_incr-z_imin * wa_incr-z_coeficient.
+
+    me->aplicar_formula(
+          EXPORTING im_formula = wa_incr-z_codi_formula_incr_carrec
+          CHANGING  cs_incr    = wa_incr ).
+
+* Passar tots els calculs a la nova taula
+    <fs_incr> = wa_incr.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD SET_LAYOUT
+*---------------------------------------------------------------------*
+* Layout per la ALV de modificacions de càrrecs de l'equip
+*---------------------------------------------------------------------*
+  METHOD set_layout.
+
+    es_layout-smalltitle = abap_off.
+    es_layout-no_totline = abap_off.
+    es_layout-no_toolbar = abap_off.
+    es_layout-no_rowins  = abap_on.
+    es_layout-no_rowmove = abap_on.
+    es_layout-zebra      = abap_on.
+    es_layout-edit_mode  = abap_on.
+    es_layout-numc_total = abap_off.
+*    es_layout-col_opt    = abap_on.
+    es_layout-sel_mode   = 'A'.
+
+    ASSIGN COMPONENT 'FULL_NAME' OF STRUCTURE <gs_column>
+           TO FIELD-SYMBOL(<fs_titl>).
+
+    CONCATENATE text-t11 <fs_titl> INTO es_layout-grid_title SEPARATED BY space.
+
+    es_layout-stylefname = 'STYLE'.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD FILL_CATALOG
+*---------------------------------------------------------------------*
+* Catàleg de camps per la ALV de modificacions de càrrecs de l'equip
+*---------------------------------------------------------------------*
+  METHOD fill_catalog.
+
+    DATA: wa_fcat TYPE lvc_s_fcat.
+    DATA: ls_style TYPE lvc_s_styl,
+          lt_style TYPE lvc_t_styl.
+
+    CALL FUNCTION 'LVC_FIELDCATALOG_MERGE'
+      EXPORTING
+        i_structure_name       = 'ZSPUNTUA_INCR_EQUIP_OBJ'
+        i_bypassing_buffer     = 'X'
+      CHANGING
+        ct_fieldcat            = et_fieldcat
+      EXCEPTIONS
+        inconsistent_interface = 1
+        program_error          = 2
+        OTHERS                 = 3.
+
+    wa_fcat-col_opt = abap_true.
+    MODIFY et_fieldcat FROM wa_fcat TRANSPORTING col_opt
+            WHERE fieldname NE space.
+
+    wa_fcat-scrtext_l = wa_fcat-scrtext_m = wa_fcat-scrtext_s = text-t01.
+    MODIFY et_fieldcat FROM wa_fcat
+           TRANSPORTING scrtext_l scrtext_m scrtext_s
+           WHERE fieldname EQ 'Z_DESCRIPCIO'.
+
+    wa_fcat-scrtext_l = wa_fcat-scrtext_m = wa_fcat-scrtext_s = text-t02.
+    MODIFY et_fieldcat FROM wa_fcat
+           TRANSPORTING scrtext_l scrtext_m scrtext_s
+           WHERE fieldname EQ 'Z_IMP_INCR_TOT'.
+
+    wa_fcat-scrtext_l = wa_fcat-scrtext_m = wa_fcat-scrtext_s = text-t03.
+    MODIFY et_fieldcat FROM wa_fcat
+           TRANSPORTING scrtext_l scrtext_m scrtext_s
+           WHERE fieldname EQ 'Z_PUNTS'.
+
+    wa_fcat-edit = abap_true.
+    MODIFY et_fieldcat FROM wa_fcat TRANSPORTING edit
+           WHERE fieldname EQ 'Z_IMIN'        OR fieldname EQ 'Z_IMP_INCR_A1' OR
+                 fieldname EQ 'Z_IMP_INCR_A2' OR fieldname EQ 'Z_ACR_SING' OR
+                 fieldname EQ 'Z_APLICA_BIM'
+                 OR fieldname EQ 'Z_TCQCOEF'. "SPEC-71554 ETODR
+
+    wa_fcat-checkbox = abap_true.
+    MODIFY et_fieldcat FROM wa_fcat TRANSPORTING checkbox
+           WHERE fieldname EQ 'Z_ACR_SING' OR fieldname EQ 'Z_APLICA_BIM'.
+
+    ">> SPEC-71554, Inici Modificació - ETODR
+    READ TABLE et_fieldcat ASSIGNING FIELD-SYMBOL(<fs_fcat_tcqcoef>) WITH KEY fieldname = 'Z_TCQCOEF'.
+    IF sy-subrc = 0.
+      <fs_fcat_tcqcoef>-checkbox = abap_true.
+    ENDIF.
+    "<< SPEC-71554, Final Modificació - ETODR
+
+    LOOP AT my_incr ASSIGNING FIELD-SYMBOL(<fs_my_incr>).
+
+      FIND 'A2' IN <fs_my_incr>-z_codi_formula_incr_carrec.
+
+      IF sy-subrc <> 0.
+
+        ls_style-fieldname = 'Z_IMP_INCR_A2'.
+        ls_style-style     = cl_gui_alv_grid=>mc_style_disabled.
+        INSERT ls_style INTO TABLE <fs_my_incr>-style.
+
+        CLEAR ls_style.
+
+      ENDIF.
+
+      FIND 'A1' IN <fs_my_incr>-z_codi_formula_incr_carrec.
+
+      IF sy-subrc <> 0.
+
+        CLEAR ls_style.
+        ls_style-fieldname = 'Z_IMP_INCR_A1'.
+        ls_style-style     = cl_gui_alv_grid=>mc_style_disabled.
+        INSERT ls_style INTO TABLE <fs_my_incr>-style.
+
+      ENDIF.
+      ">> SPEC-67070, Inici Modificació - ETODR
+      "Si tinc un 01 o qualsevol valor diferent de 02 a ZRM_DM_CRIT_PUNT-Z_COEFICIENT_IREF
+      "el flag de BIM deshabilitat
+      READ TABLE my_graella_crits ASSIGNING FIELD-SYMBOL(<fs_crit>) WITH KEY z_codi_crit_punt = <fs_my_incr>-z_codi_crit_punt.
+      IF sy-subrc = 0.
+        IF <fs_crit>-z_coeficient_iref <> co_puntuacio_bim.
+          CLEAR ls_style.
+          ls_style-fieldname = 'Z_APLICA_BIM'.
+          ls_style-style     = cl_gui_alv_grid=>mc_style_disabled.
+          INSERT ls_style INTO TABLE <fs_my_incr>-style.
+        ELSEIF <fs_crit>-z_coeficient_iref = co_puntuacio_bim.
+          CLEAR ls_style.
+          ls_style-fieldname = 'Z_IMIN'.
+          ls_style-style     = cl_gui_alv_grid=>mc_style_disabled.
+          INSERT ls_style INTO TABLE <fs_my_incr>-style.
+        ENDIF.
+        "<< SPEC-67070, Final Modificació - ETODR
+
+        ">> SPEC-71554, Inici Modificació - ETODR
+        "Si tinc un 03 a ZRM_DM_CRIT_PUNT-Z_COEFICIENT_IREF el flag de TCQ COEF habilitat
+        IF <fs_crit>-z_coeficient_iref = co_puntuacio_tcqcoef.
+          CLEAR ls_style.
+          ls_style-fieldname = 'Z_TCQCOEF'.
+          ls_style-style     = cl_gui_alv_grid=>mc_style_enabled.
+          INSERT ls_style INTO TABLE <fs_my_incr>-style.
+          CLEAR ls_style.
+          ls_style-fieldname = 'Z_IMIN'.
+          ls_style-style     = cl_gui_alv_grid=>mc_style_disabled.
+          INSERT ls_style INTO TABLE <fs_my_incr>-style.
+          CLEAR ls_style.
+          ls_style-fieldname = 'Z_APLICA_BIM'.
+          ls_style-style     = cl_gui_alv_grid=>mc_style_disabled.
+          INSERT ls_style INTO TABLE <fs_my_incr>-style.
+        ELSE.
+          CLEAR ls_style.
+          ls_style-fieldname = 'Z_TCQCOEF'.
+          ls_style-style     = cl_gui_alv_grid=>mc_style_disabled.
+          INSERT ls_style INTO TABLE <fs_my_incr>-style.
+        ENDIF.
+        "<< SPEC-71554, Final Modificació - ETODR
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD HANDLE_DEDICACIO_CHANGED
+*---------------------------------------------------------------------*
+* Mètode per controlar els canvis en la ALV de càrrecs
+*---------------------------------------------------------------------*
+  METHOD handle_incr_changed.
+
+    DATA: is_estable TYPE lvc_s_stbl.
+
+    set_flag_changes( abap_on ).
+    READ TABLE er_data_changed->mt_good_cells
+     ASSIGNING FIELD-SYMBOL(<fs_good>) INDEX 1.
+    CHECK sy-subrc = 0. " SPEC-72907 - ECMRG
+    IF <fs_good>-fieldname = 'Z_APLICA_BIM'.
+      me->modif_aplica_bim( CHANGING er_data_changed = er_data_changed ).
+      ">> SPEC-71554, Inici Modificació - ETODR
+    ELSEIF <fs_good>-fieldname = 'Z_TCQCOEF'.
+      me->modif_aplica_tcq( CHANGING er_data_changed = er_data_changed ).
+      "<< SPEC-71554, Final Modificació - ETODR
+    ELSE.
+      me->modif_incr_puntuacions( CHANGING er_data_changed = er_data_changed ).
+    ENDIF.
+    is_estable = 'XX'.
+    gr_alv_incr->refresh_table_display( EXPORTING is_stable = is_estable ).
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD USER_COMMAND
+*---------------------------------------------------------------------*
+* Mètode que realitza la acció del botó premut per l'usuari
+*---------------------------------------------------------------------*
+  METHOD user_command.
+    DATA: l_answer TYPE c.
+    CASE i_ucomm.
+
+      WHEN 'CANC_EQUI'.
+        IF get_flag_changes( ) = abap_on.
+          CLEAR:l_answer.
+          CALL FUNCTION 'POPUP_TO_CONFIRM'
+            EXPORTING
+              titlebar              = text-i01
+              text_question         = text-i02
+              display_cancel_button = abap_off
+            IMPORTING
+              answer                = l_answer.
+          CHECK l_answer = 1.
+*          CLEAR: my_equip_for_pdm[].
+          my_incr = my_incr_bd.
+          my_punts = my_puntuacions_inicials.
+        ENDIF.
+        CALL METHOD cl_gui_cfw=>flush.
+        LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+*
+      WHEN 'OK_PDM'.
+        IF my_readonly = abap_off.
+          CALL METHOD cl_gui_cfw=>flush.
+          LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+        ELSE.
+          IF check_incr_introduida( ) = abap_off.
+            MESSAGE 'No es pot introduir una dedicació inferior a la mínima establerta ni tampoc superior al 100%' TYPE 'I'.
+          ELSE.
+            CALL METHOD cl_gui_cfw=>flush.
+            LEAVE TO LIST-PROCESSING AND RETURN TO SCREEN 0.
+          ENDIF.
+        ENDIF.
+      WHEN OTHERS.
+        EXIT.
+    ENDCASE.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD check_dedicacio_introduida
+*---------------------------------------------------------------------*
+* Mètode que comprova si la dedicació ofertada introduïda és vàlida
+*---------------------------------------------------------------------*
+  METHOD check_incr_introduida.
+    r_incr_ok = abap_on.
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD free_variables
+*---------------------------------------------------------------------*
+* Mètode que allibera la memòria de les variables
+*---------------------------------------------------------------------*
+  METHOD free_variables.
+    TRY.
+        IF gr_alv_incr   IS BOUND . gr_alv_incr->free( ).  ENDIF.
+        IF gr_cont_incr  IS BOUND . gr_cont_incr->free( ). ENDIF.
+        FREE: gr_alv_incr, gr_cont_incr.
+      CATCH cx_root.
+        EXIT.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD get_valors_finals.
+    ">> SPEC-67070, Inici Modificació - ETODR
+*    et_puntuacio = my_punts.
+*    et_incr      = my_incr.
+    retorna_puntuacio( IMPORTING et_puntuacio = et_puntuacio
+                                 et_equip     = et_equip ).
+    "<< SPEC-67070, Final Modificació - ETODR
+  ENDMETHOD.
+
+  ">> SPEC-67070, Inici Modificació - ETODR
+  METHOD retorna_puntuacio.
+    LOOP AT my_punts ASSIGNING FIELD-SYMBOL(<fs_puntuacio>).
+      READ TABLE my_incr ASSIGNING FIELD-SYMBOL(<fs_incr_bim>) WITH KEY z_codi_crit_punt  = <fs_puntuacio>-z_codi_crit_punt
+                                                                        z_comptador_equip = <fs_puntuacio>-z_num_equip
+                                                                        z_carrec_equip    = <fs_puntuacio>-z_carrec_equip.
+      IF sy-subrc = 0.
+        <fs_puntuacio>-z_punts = <fs_incr_bim>-z_punts.
+      ENDIF.
+    ENDLOOP.
+    et_puntuacio = my_punts.
+
+    DATA(lt_equip) = my_equip.
+    LOOP AT lt_equip ASSIGNING FIELD-SYMBOL(<fs_equip>).
+      LOOP AT my_incr ASSIGNING <fs_incr_bim> WHERE z_codi_crit_punt  = <fs_equip>-z_codi_crit_punt
+                                                AND z_comptador_equip = <fs_equip>-z_comptador_equip
+                                                AND z_carrec_equip    = <fs_equip>-z_carrec_equip.
+        MOVE-CORRESPONDING <fs_incr_bim> TO <fs_equip>.
+      ENDLOOP.
+    ENDLOOP.
+    et_equip = lt_equip.
+  ENDMETHOD.
+
+  METHOD modif_aplica_tcq.
+    READ TABLE er_data_changed->mt_good_cells
+         ASSIGNING FIELD-SYMBOL(<fs_good>) INDEX 1.
+
+    CHECK sy-subrc EQ 0.
+
+    READ TABLE my_incr
+         ASSIGNING FIELD-SYMBOL(<fs_incr>) INDEX <fs_good>-row_id.
+    CHECK sy-subrc EQ 0.
+
+    READ TABLE my_graella_crits ASSIGNING FIELD-SYMBOL(<fs_criteri>) WITH KEY z_codi_crit_punt = <fs_incr>-z_codi_crit_punt.
+
+    ASSIGN COMPONENT <fs_good>-fieldname OF STRUCTURE <fs_incr>
+           TO FIELD-SYMBOL(<fs_camp>).
+
+    CHECK sy-subrc EQ 0.
+
+    CONDENSE <fs_good>-value NO-GAPS.
+    IF <fs_good>-value = abap_on.
+      IF <fs_criteri> IS ASSIGNED.
+        <fs_incr>-z_punts = <fs_criteri>-z_punt_max.
+      ELSE.
+        <fs_incr>-z_punts =  1.
+      ENDIF.
+    ELSE.
+      IF <fs_criteri> IS ASSIGNED.
+        <fs_incr>-z_punts = <fs_criteri>-z_punt_min.
+      ELSE.
+        <fs_incr>-z_punts =  0.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD modif_aplica_bim.
+    READ TABLE er_data_changed->mt_good_cells
+         ASSIGNING FIELD-SYMBOL(<fs_good>) INDEX 1.
+
+    CHECK sy-subrc EQ 0.
+
+    READ TABLE my_incr
+         ASSIGNING FIELD-SYMBOL(<fs_incr>) INDEX <fs_good>-row_id.
+
+    CHECK sy-subrc EQ 0.
+    READ TABLE my_graella_crits ASSIGNING FIELD-SYMBOL(<fs_criteri>) WITH KEY z_codi_crit_punt = <fs_incr>-z_codi_crit_punt.
+
+    ASSIGN COMPONENT <fs_good>-fieldname OF STRUCTURE <fs_incr>
+           TO FIELD-SYMBOL(<fs_camp>).
+
+    CHECK sy-subrc EQ 0.
+
+    CONDENSE <fs_good>-value NO-GAPS.
+    IF <fs_good>-value = abap_on.
+      IF <fs_criteri> IS ASSIGNED.
+        <fs_incr>-z_punts = <fs_criteri>-z_punt_max.
+      ELSE.
+        <fs_incr>-z_punts = 1." * <fs_incr>-z_pes / 100 .
+      ENDIF.
+    ELSE.
+      IF <fs_criteri> IS ASSIGNED.
+        <fs_incr>-z_punts = <fs_criteri>-z_punt_min.
+      ELSE.
+        <fs_incr>-z_punts = 0.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+  "<< SPEC-67070, Final Modificació - ETODR
+
+  METHOD get_puntuacions.
+
+    DATA iv_formula_incr TYPE          z_formula_incr.
+    DATA it_eval         TYPE TABLE OF zrm_dm_eval_incr.
+    DATA is_eval         TYPE          zrm_dm_eval_incr.
+    DATA iv_sum_punts    TYPE          z_punts_singul.
+    DATA iv_assig        TYPE          xfeld.
+    DATA iv_lectura      TYPE          z_singularitat.
+
+    iv_lectura = 'NO'.
+    IF cs_incr-z_singularitat EQ 'SI'.
+      iv_lectura = 'SI'.
+    ENDIF.
+
+    SELECT SINGLE z_formula_incr INTO iv_formula_incr
+      FROM zrm_dm_crit_punt AS a
+      INNER JOIN zrm_dm_suapar_pt AS b
+       ON b~z_codi_subapar_punt  EQ a~z_codi_subapar_punt
+      WHERE a~z_mod_crit_punt    EQ cs_incr-z_mod_crit_punt  AND
+            a~z_codi_crit_punt   EQ cs_incr-z_codi_crit_punt AND
+            b~z_singularitat_hdr EQ iv_lectura.
+
+    CHECK sy-subrc EQ 0.
+
+    SELECT * FROM zrm_dm_eval_incr INTO TABLE it_eval
+    WHERE z_codi_formula_incr EQ iv_formula_incr.
+
+    CHECK sy-subrc EQ 0.
+
+    IF cs_incr-z_imp_incr_tot EQ 0 AND cs_incr-z_irefcss EQ 0.
+
+      cs_incr-z_punts = 0.
+
+    ELSE.
+
+      LOOP AT it_eval INTO is_eval.
+
+        me->aplicar_formula_verif( EXPORTING im_formula = is_eval
+                                   CHANGING  cs_incr    = cs_incr
+                                             cv_assig   = iv_assig ).
+
+        CHECK iv_assig EQ abap_true.
+
+        IF cs_incr-z_acr_sing EQ 'X'.
+          CLEAR iv_sum_punts.
+          SELECT SINGLE z_punts_singul INTO iv_sum_punts FROM zrm_dm_hdr_incr
+            WHERE z_codi_formula_incr EQ iv_formula_incr.
+          cs_incr-z_punts = cs_incr-z_punts + iv_sum_punts.
+        ENDIF.
+
+        EXIT.
+
+      ENDLOOP.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+*---------------------------------------------------------------------*
+* METHOD aplicar_formula
+*---------------------------------------------------------------------*
+  METHOD aplicar_formula.
+
+    DATA is_incr TYPE zrm_dt_punt_equi.
+
+    MOVE-CORRESPONDING cs_incr TO is_incr.
+
+    CALL FUNCTION 'ZRM_APLICAR_FORMULA'
+      EXPORTING
+        im_formula = im_formula
+      CHANGING
+        cs_incr    = is_incr.
+
+    MOVE-CORRESPONDING is_incr TO cs_incr.
+
+    me->get_puntuacions( CHANGING  cs_incr    = cs_incr ).
+
+  ENDMETHOD.
+
+  METHOD aplicar_formula_verif.
+
+    DATA: ls_zrm_dm_eval_incr    TYPE z_form_sum_incr,
+          lv_resultat_formula_fm TYPE char5,
+          lv_formula_val         TYPE string,
+          lv_rc                  TYPE sysubrc.
+
+    cv_assig            = abap_false.
+    ls_zrm_dm_eval_incr = im_formula-z_formula.
+
+    lv_formula_val = CONV #( cs_incr-z_irefcss ).
+    SHIFT lv_formula_val LEFT DELETING LEADING space.
+    REPLACE ALL OCCURRENCES OF '[IREF]' IN ls_zrm_dm_eval_incr
+            WITH lv_formula_val.
+
+    lv_formula_val = CONV #( cs_incr-z_imin ).
+    SHIFT lv_formula_val LEFT DELETING LEADING space.
+    REPLACE ALL OCCURRENCES OF '[IMIN]' IN ls_zrm_dm_eval_incr
+            WITH lv_formula_val.
+
+    lv_formula_val = CONV #( cs_incr-z_imp_incr_tot ).
+    SHIFT lv_formula_val LEFT DELETING LEADING space.
+    REPLACE ALL OCCURRENCES OF '[INCR]' IN ls_zrm_dm_eval_incr
+            WITH lv_formula_val.
+
+    CALL FUNCTION 'CHECK_FORMULA'
+      EXPORTING
+        formula = ls_zrm_dm_eval_incr
+        program = sy-repid
+      IMPORTING
+        subrc   = lv_rc.
+
+    IF lv_rc EQ 0.
+
+      CLEAR lv_formula_val.
+      CALL FUNCTION 'EVAL_FORMULA'
+        EXPORTING
+          formula = ls_zrm_dm_eval_incr
+          program = sy-repid
+        IMPORTING
+          value   = lv_resultat_formula_fm
+        EXCEPTIONS
+          OTHERS  = 1.
+
+      IF sy-subrc = 0.
+        IF lv_resultat_formula_fm EQ 'TRUE'.
+          cs_incr-z_punts = im_formula-z_punts.
+          cv_assig        = abap_true.
+        ELSE.
+          CLEAR cs_incr-z_punts.
+        ENDIF.
+      ENDIF.
+
+    ELSE.
+      CLEAR cs_incr-z_punts.
+    ENDIF.
+
+  ENDMETHOD.
+ENDCLASS.

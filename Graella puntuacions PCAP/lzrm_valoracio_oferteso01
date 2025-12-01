@@ -1,0 +1,485 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESO01 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  pbo_0100  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE pbo_0100 OUTPUT.
+
+  SET PF-STATUS 'VALORACIO' .
+
+*>> Ini  SPEC-54695  - ETMAE
+
+  IF g_valor_action = 'S'.  " Solvència
+    SET TITLEBAR 'SOLVENCIA' .
+  ELSE.
+    SET TITLEBAR 'VALORACIO' .
+  ENDIF.
+
+*<< Fi  SPEC-54695  - ETMAE
+
+
+ENDMODULE.                 " pbo_0100  OUTPUT
+*
+*----------------------------------------------------------------------*
+*
+MODULE status_0200 OUTPUT.
+
+  SET PF-STATUS 'STATUS_0200'.
+  SET TITLEBAR  'TITLE_0200'.
+
+ENDMODULE.
+*
+*----------------------------------------------------------------------*
+*
+MODULE screen_0200 OUTPUT.
+*  IF gs_dyn_0200-gv_evento EQ abap_false.
+  IF gr_docking IS INITIAL.
+    PERFORM create_split_screen.
+
+*    >> INI ETLJS SPEC-47173
+    CLEAR gv_no_ap.
+    IF lv_dyn IS NOT INITIAL.
+      PERFORM is_no_applicacio  CHANGING gv_no_ap.
+    ENDIF.
+*    << FIN ETLJS SPEC-47173
+
+    "INI ECDRB SPEC-64889
+    IF gv_mode = zrm_cl_valoracio_ofertes=>co_mode_punt_formulari.
+      PERFORM cargar_datos_form       CHANGING  gs_dyn_0200-gt_tree
+                                                gs_dyn_0200-gt_tree_header
+                                                gs_dyn_0200-gt_tree_data.
+
+    ELSE.
+      "FI ECDRB SPEC-64889
+      PERFORM cargar_datos            CHANGING   gs_dyn_0200-gt_tree
+                                                 gs_dyn_0200-gt_tree_header
+                                                 gs_dyn_0200-gt_tree_data.
+    ENDIF.
+
+    gs_dyn_0200-gt_tree_aux = gs_dyn_0200-gt_tree.
+    PERFORM instanciar_alv          CHANGING   gs_dyn_0200-gv_alv_tree.
+
+
+    PERFORM crear_catalogo          CHANGING   gs_dyn_0200-gt_fcat_tree.
+
+
+    PERFORM construir_jerarquia_cab CHANGING   gs_dyn_0200-gv_jerarquia.
+
+
+    PERFORM mostar_tree             CHANGING   gs_dyn_0200-gv_alv_tree
+                                               gs_dyn_0200-gt_tree
+                                               gs_dyn_0200-gv_jerarquia
+                                               gs_dyn_0200-gt_fcat_tree.
+
+    PERFORM construir_jerarquia     CHANGING   gs_dyn_0200-gt_tree_header
+                                               gs_dyn_0200-gt_tree_data
+                                               gs_dyn_0200-gt_tree_aux
+                                               gs_dyn_0200-gv_alv_tree.
+
+    PERFORM crear_catalogo_sub      USING      gs_dyn_0200-gt_subapartats
+                                    CHANGING   gs_dyn_0200-gt_fcat.
+
+    PERFORM crear_layout_sub        USING      gs_dyn_0200-gt_tree_sel
+                                    CHANGING   gs_dyn_0200-gv_layout.
+
+    PERFORM instanciar_objectes_sub CHANGING   gs_dyn_0200-gv_alv_subapart.
+
+    PERFORM mostrar_alv             USING      gs_dyn_0200-gt_subapartats
+                                               gs_dyn_0200-gv_alv_subapart
+                                               gs_dyn_0200-gt_fcat
+                                               gs_dyn_0200-gv_layout.
+    PERFORM carregar_tots_subapartats CHANGING gs_dyn_0200-gt_subapartats_ori
+                                               gs_dyn_0200-gt_dades_equip
+                                               gs_dyn_0200-gt_dades_equip_ori.
+
+    CLEAR: gs_dyn_0200-gt_fcat_tree.
+
+  ENDIF.
+**>> INI MODIF ETODR SPEC-61754
+  "Validem si s'ha de mostrar el camp ZRM_DT_EXP_CONT-Z_IREF o no
+  PERFORM check_iref_apli USING gv_formulari_generat
+                                gv_mode
+                                gs_dyn_0200-gt_dm_crit_punt
+
+">>>SPEC:67070, Inici modificació - ECJMS
+                                gs_dyn_0200-gs_node_sel.
+  "<<<SPEC:67070, Final modificació - ECJMS
+
+**<< FI MODIF ETODR SPEC-61754
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_0300  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_0300 OUTPUT.
+  SET PF-STATUS 'STATUS_0300'.
+*  SET TITLEBAR  'TITLE_300'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  SCREEN_0300  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE screen_0300 OUTPUT.
+
+  DATA: lv_carrega_inicial TYPE boolean.
+
+  IF gr_container_tree_pbim IS INITIAL.
+
+    "Crear container, alv tree i events
+    PERFORM create_screen_alv_0300.
+
+    "Carregar dades alv tree
+    PERFORM cargar_datos_pbim CHANGING gs_dyn_0300-gt_tree
+                                       gs_dyn_0300-gt_tree_header
+                                       gs_dyn_0300-gt_tree_data
+                                       lv_carrega_inicial.
+
+    "Crear catàleg alv tree
+    PERFORM crear_catalogo_pbim CHANGING gs_dyn_0300-gt_fcat_tree.
+
+    "Crear la capçalera alv tree
+    PERFORM construir_jerarquia_cab_pbim CHANGING gs_dyn_0300-gv_jerarquia.
+
+    "Mostrar alv tree
+    PERFORM mostrar_tree_pbim CHANGING gs_dyn_0300-gv_alv_tree
+                                       gs_dyn_0300-gt_tree
+                                       gs_dyn_0300-gv_jerarquia
+                                       gs_dyn_0300-gt_fcat_tree.
+
+    "Afegir nodes de la jerarquia alv tree
+    PERFORM construir_jerarquia_pbim USING lv_carrega_inicial
+                                     CHANGING gs_dyn_0300-gt_tree_header
+                                              gs_dyn_0300-gt_tree_data
+                                              gs_dyn_0300-gv_alv_tree.
+  ENDIF.
+
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Module  SCREEN_0400  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE screen_0400 OUTPUT.
+
+*  PERFORM crear_texto_coment     USING    gs_dyn_0400-gr_cont_coment
+*                                 CHANGING gs_dyn_0400-gr_text_coment.
+*
+*  PERFORM recuperar_texto_coment CHANGING gs_dyn_0400-gr_text_coment
+*                                          gs_dyn_0400-gt_tline_coment
+*                                          gs_dyn_0400-gt_text_coment.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Form  RECUPERAR_TEXTO_COMENT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_GS_DYN_0400_GR_TEXT_COMENT  text
+*      <--P_GS_DYN_0400_GT_TLINE_COMENT  text
+*      <--P_GS_DYN_0400_GT_TEXT_COMENT  text
+*----------------------------------------------------------------------*
+FORM recuperar_texto_coment  CHANGING pr_text_coment  TYPE REF TO cl_gui_textedit
+                                      pt_tline_coment TYPE tty_tline_coment
+                                      pt_text_coment  TYPE tty_text_coment.
+
+  DATA: lv_codi_text TYPE thead-tdname,
+        wa_tree      TYPE gty_tree,
+        wa_puntuacio TYPE gty_puntuacio,
+        wa_subapart  TYPE gty_subapartats,
+        lv_exception TYPE REF TO cx_root,
+        lv_error     TYPE string.
+
+  READ TABLE gs_dyn_0200-gt_subapartats_sel INTO wa_subapart INDEX 1.
+
+  READ TABLE gs_dyn_0500-gt_puntuacio_sel   INTO wa_puntuacio INDEX 1.
+
+  CONCATENATE  gs_dyn_0500-gv_crit_punt wa_puntuacio-z_codi_subapar_punt
+               wa_puntuacio-z_sec  INTO lv_codi_text.
+  TRY.
+*    lv_codi_text = "Z + ZRM_DT_PUNT_OFER-OBJECTID + ZRM_DT_PUNT_OFER-Z_NUM_OFER + ZRM_DT_PUNT_OFER-Z_CODI_CRIT_PUNT
+      CALL FUNCTION 'READ_TEXT' " Leemos el texto del script.
+        EXPORTING
+          id                      = 'ZCOM'
+          language                = sy-langu
+          name                    = lv_codi_text
+          object                  = 'Z_PUNT_DYN'
+        TABLES
+          lines                   = pt_tline_coment
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7
+          OTHERS                  = 8.
+
+      CHECK sy-subrc = 0.
+
+    CATCH cx_sy_dyn_call_illegal_type INTO lv_exception.
+
+      lv_error = lv_exception->get_text( ).
+      MESSAGE lv_error TYPE 'I'.
+
+  ENDTRY.
+
+* Escribimos el valor leído en el cuadro de texto de observaciones.
+  CALL FUNCTION 'CONVERT_ITF_TO_STREAM_TEXT'
+    TABLES
+      itf_text    = pt_tline_coment
+      text_stream = pt_text_coment.
+
+  IF pt_text_coment[] IS NOT INITIAL.
+
+    CALL METHOD pr_text_coment->set_text_as_stream
+      EXPORTING
+        text            = pt_text_coment
+      EXCEPTIONS
+        error_dp        = 1
+        error_dp_create = 2
+        OTHERS          = 3.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                 WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+    CLEAR: pt_tline_coment, pt_text_coment.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_SPLIT_SCREEN
+*&---------------------------------------------------------------------*
+* Mètode que crea les visulaitzacions de la ALV mitjançant l'objecte
+* splitter
+*----------------------------------------------------------------------*
+FORM create_split_screen .
+  CHECK gr_docking IS INITIAL.
+
+* Es crea el docking container
+  CREATE OBJECT gr_docking
+    EXPORTING
+      repid      = sy-repid
+      dynnr      = sy-dynnr
+      side       = cl_gui_docking_container=>dock_at_top
+      extension  = 300
+      ratio      = 90
+    EXCEPTIONS
+      cntl_error = 1
+      OTHERS     = 2.
+  CHECK sy-subrc = 0.
+
+* Es crea el splitter container
+  CREATE OBJECT gr_splitter
+    EXPORTING
+      link_dynnr = sy-dynnr
+      link_repid = sy-repid
+      parent     = gr_docking
+      rows       = 1
+      columns    = 2
+    EXCEPTIONS
+      OTHERS     = 1.
+  CHECK sy-subrc = 0.
+
+* Es creen els contenidors de cada divisió
+  CALL METHOD gr_splitter->get_container
+    EXPORTING
+      row       = 1
+      column    = 1
+    RECEIVING
+      container = gr_container_tree.
+  CALL METHOD gr_splitter->get_container
+    EXPORTING
+      row       = 1
+      column    = 2
+    RECEIVING
+      container = gr_container_alv.
+
+  "Es crea el arbre
+  CREATE OBJECT gs_dyn_0200-gv_alv_tree
+    EXPORTING
+      parent                      = gr_container_tree
+      node_selection_mode         = cl_gui_column_tree=>node_sel_mode_single
+      item_selection              = abap_true
+      no_html_header              = abap_true
+      no_toolbar                  = abap_false
+    EXCEPTIONS
+      cntl_error                  = 1
+      cntl_system_error           = 2
+      create_error                = 3
+      lifetime_error              = 4
+      illegal_node_selection_mode = 5
+      failed                      = 6
+      illegal_column_name         = 7.
+
+  "Es crea la ALV
+  CREATE OBJECT gs_dyn_0200-gv_alv_subapart
+    EXPORTING
+      i_parent = gr_container_alv
+    EXCEPTIONS
+      OTHERS   = 1.
+  CHECK sy-subrc = 0.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_SCREEN_0300
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM create_screen_alv_0300 .
+
+  DATA: lt_events TYPE cntl_simple_events,
+        wa_event  TYPE cntl_simple_event.
+
+  CHECK gr_container_tree_pbim IS INITIAL.
+
+  CREATE OBJECT gr_container_tree_pbim
+    EXPORTING
+      container_name = 'CC_TREE_PBIM'.
+
+
+  "Es crea el arbre
+  CREATE OBJECT gs_dyn_0300-gv_alv_tree
+    EXPORTING
+      parent                      = gr_container_tree_pbim
+      node_selection_mode         = cl_gui_column_tree=>node_sel_mode_single
+      item_selection              = abap_true
+      no_html_header              = abap_true
+      no_toolbar                  = abap_false
+    EXCEPTIONS
+      cntl_error                  = 1
+      cntl_system_error           = 2
+      create_error                = 3
+      lifetime_error              = 4
+      illegal_node_selection_mode = 5
+      failed                      = 6
+      illegal_column_name         = 7.
+
+
+  CALL METHOD gs_dyn_0300-gv_alv_tree->get_registered_events
+    IMPORTING
+      events = lt_events
+    EXCEPTIONS
+      OTHERS = 0.
+
+  SET HANDLER lcl_event_receiver=>handle_checkbox_change
+  FOR gs_dyn_0300-gv_alv_tree.
+
+  wa_event-eventid      = cl_gui_column_tree=>eventid_checkbox_change.
+  wa_event-appl_event   = abap_true.
+  APPEND wa_event TO lt_events.
+
+  gs_dyn_0300-gv_alv_tree->set_registered_events( lt_events ).
+
+
+ENDFORM.
+
+">>>SPEC:SPEC-69341, Inici modificació - ECJMS
+
+
+*&---------------------------------------------------------------------*
+*&      Module  PBO_0400  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE pbo_0400 OUTPUT.
+
+  SET PF-STATUS 'BAREM' .
+
+  SET TITLEBAR 'BAREM' .
+
+  "Si s'han confirmat les dades, mostrar alv mode no editable
+  IF gs_zrm_dt_exp_cont-z_pt_conf_dades = 'X'.
+    CALL METHOD gr_alv->set_ready_for_input
+      EXPORTING
+        i_ready_for_input = 0.
+  ELSE.
+    CALL METHOD gr_alv->set_ready_for_input
+      EXPORTING
+        i_ready_for_input = 1.
+  ENDIF.
+
+ENDMODULE.
+
+"<<<SPEC:SPEC-69341, Final modificació - ECJMS
+*&---------------------------------------------------------------------*
+*&      Module  PBO_0150  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE pbo_0150 OUTPUT.
+
+  SET PF-STATUS 'VERIFICACIO'.
+  SET TITLEBAR 'VERIFICACIO'.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  PAI_0150  INPUT
+*&---------------------------------------------------------------------*
+MODULE pai_0150 INPUT.
+
+  PERFORM pai_0150.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Form  PAI_0150
+*&---------------------------------------------------------------------*
+FORM pai_0150.
+  DATA: l_okcode TYPE sy-ucomm,
+        lob_cdoc TYPE REF TO zrm_cl_change_documents.
+
+  l_okcode = g_okcode .
+  CLEAR g_okcode .
+
+  CASE l_okcode .
+    WHEN 'BACK' .
+      IF gob_valoracio_fe->request_close( ) IS NOT INITIAL .
+        PERFORM liberar_objetos_punt USING gs_dyn_0500-gv_alv_puntuacio
+                                         gs_dyn_0500-gv_cont_puntuacio.
+*        LEAVE TO SCREEN 0 .
+        LEAVE PROGRAM.
+      ENDIF .
+    WHEN 'CANCEL' .
+      IF gob_valoracio_fe->request_close( ) IS NOT INITIAL .
+*        LEAVE TO SCREEN 0 .
+        LEAVE PROGRAM.
+      ENDIF .
+    WHEN 'CDOC' .
+      CREATE OBJECT lob_cdoc
+        EXPORTING
+          docclass = g_docclass
+          objectid = g_objectid
+          objclass = 'Z_RM_VALORACIO'.
+      lob_cdoc->show( 'Modificacions' ) .
+**  >> INI MODIF ETODR SPEC-45341
+    WHEN 'PUNTUACIO'.
+      TRY.
+          gob_valoracio_fe->request_close( ).
+
+          CALL SCREEN 200.
+
+          CREATE OBJECT gob_valoracio_fe
+            EXPORTING
+              docclass = g_docclass
+              objectid = g_objectid
+              action   = g_valor_action.
+          gob_valoracio_fe->start( gob_container ) .
+          CALL SCREEN 100.
+        CATCH zcx_rm_valoracio.
+
+      ENDTRY.
+**  << FI MODIF ETODR SPEC-45341
+    WHEN 'SAVE' . gob_valoracio_fe->save( ) .
+  ENDCASE .
+
+ENDFORM.

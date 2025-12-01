@@ -1,0 +1,247 @@
+class ZRM_CL_IMP_BADI_DADES_EXPED definition
+  public
+  inheriting from ZRM_CL_EXPD_BADI_DADES_EXPED
+  final
+  create public .
+
+public section.
+
+  interfaces IF_BADI_INTERFACE .
+  interfaces ZRM_IF_BADI_DADES_EXPEDIENT .
+protected section.
+
+  data GS_IMP_CAP type ZMM_DT_IMP_CAP .
+
+  methods GET_SOCIETAT
+    redefinition .
+private section.
+ENDCLASS.
+
+
+
+CLASS ZRM_CL_IMP_BADI_DADES_EXPED IMPLEMENTATION.
+
+
+  METHOD get_societat.
+    SELECT SINGLE societat
+       FROM zmm_dt_imp_cap
+       INTO p_societat
+       WHERE z_doc_impuls EQ p_docclass AND
+             z_obj_impuls EQ p_objectid.
+    IF sy-subrc NE 0.
+      CLEAR p_societat.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD zrm_if_badi_dades_expedient~get.
+    IF gs_imp_cap IS INITIAL.
+      SELECT SINGLE *
+        FROM zmm_dt_imp_cap
+        INTO gs_imp_cap
+        WHERE z_doc_impuls  = im_docid-class
+          AND z_obj_impuls  = im_docid-objid.
+      IF sy-subrc <> 0.
+        RAISE not_found.
+      ENDIF.
+    ENDIF.
+
+    CASE im_element.
+      WHEN 'ZERM_QDC_CLO_LIC'.
+        "delete metode i variables globals
+        CALL METHOD zrm_cl_qdc_util=>get_zerm_qdc_clo_lic
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZERM_QDC_DOCS'.
+        "delete metode i variables globals
+        CALL METHOD zrm_cl_qdc_util=>get_zerm_qdc_docs
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZERM_QUADRE_MATCO2'.
+        "delete metode i variables globals
+        CALL METHOD zrm_cl_qdc_util=>get_zerm_quadre_matco2
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZERM_QDC_RAPLI'.
+        "delete metode i variables globals
+        CALL METHOD zrm_cl_qdc_util=>get_zerm_qdc_rapli
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZERM_QUADRE_LOTS'.
+        "delete metode i variables globals
+        CALL METHOD zrm_cl_qdc_util=>get_zerm_quadre_lots
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'Z_HORA_PRES_OFER_MES_1'.
+        "delete metode i variables globals
+        CALL METHOD zrm_cl_qdc_util=>get_hora_pres_ofer_mes_1
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZTEXT_COND_IMPORT_LOTS'.
+        "delete metode i variables globals
+        CALL METHOD zrm_cl_qdc_util=>get_textid_import_lots
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'DESGLOS_IMPORT_IVA'.
+        CALL METHOD zrm_cl_qdc_util=>get_desglos_import_iva
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'PERC_IVA_QDC'.
+        CALL METHOD zrm_cl_qdc_util=>get_perc_iva_qdc
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZERM_QDC_TAB_PRESUP_LOTS'.
+        CALL METHOD zrm_cl_qdc_util=>get_tab_presup_lots
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZERM_QDC_TAB_QDC_VEC' .
+        CALL METHOD zrm_cl_qdc_util=>get_tab_qdc_vec
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'Z_FORMULA_QDC_REVISIO_PREUS' .
+        CALL METHOD zrm_cl_qdc_util=>get_formula_revisio_preus
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+            iv_lots     = 'N'
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'Z_FORMULA_QDC_REVISIO_PREUS_LOT' .
+        CALL METHOD zrm_cl_qdc_util=>get_formula_revisio_preus
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+            iv_lots     = 'S'
+          RECEIVING
+            ro_data     = ex_data.
+
+
+      WHEN 'Z_TEXT_QDC_REVISIO_PREUS' .
+        CALL METHOD zrm_cl_qdc_util=>get_text_revisio_preus
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZERM_QDC_TAB_LOT_VEC' .
+        CALL METHOD zrm_cl_qdc_util=>get_tab_qdc_vec
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+            iv_lot      = 'S'
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZERM_DM_CRIT_PUNT'.
+        CALL METHOD zrm_cl_qdc_util=>get_qdc_crit_punt
+          EXPORTING
+            iv_docclass = im_docid-class
+            iv_objectid = im_docid-objid
+          RECEIVING
+            ro_data     = ex_data.
+
+      WHEN 'ZDETALL_CRITERIS'.
+        CALL METHOD zrm_cl_qdc_util=>get_detall_crit
+          EXPORTING
+            iv_docclass        = im_docid-class
+            iv_objectid        = im_docid-objid
+            is_docid           = im_docid
+            iv_template_doc_id = im_template_doc_id
+          RECEIVING
+            ro_data            = ex_data.
+
+      WHEN 'ZCHECK_SINGULARITAT'.
+        CALL METHOD zrm_cl_qdc_util=>get_dades_singularitat
+          EXPORTING
+            iv_docclass        = im_docid-class
+            iv_objectid        = im_docid-objid
+            is_docid           = im_docid
+            iv_template_doc_id = im_template_doc_id
+          RECEIVING
+            ro_data            = ex_data.
+
+      WHEN 'ZMATCO2_INFJUST'.
+        CALL METHOD zrm_cl_qdc_util=>get_matco2_infjust
+          EXPORTING
+            iv_docclass        = im_docid-class
+            iv_objectid        = im_docid-objid
+            is_docid           = im_docid
+            iv_template_doc_id = im_template_doc_id
+          RECEIVING
+            ro_data            = ex_data.
+
+
+    ENDCASE.
+    IF im_element CS 'TEXT_SAPSCRIPT_ZQDC_'.
+      "MIRAR SI TÉ -LOT i recuperar el número de lot
+      SPLIT im_element AT zrm_cl_qdc_util=>gc_tag_sapscript_qdc INTO TABLE DATA(lt_tdid).
+      IF sy-subrc = 0.
+        READ TABLE lt_tdid INTO DATA(lv_tdid) INDEX 2.
+        IF sy-subrc = 0 AND lv_tdid IS NOT INITIAL.
+          SELECT SINGLE z_codi_qdc
+            FROM zvrm_qdc_cap_imp
+            INTO @DATA(lv_tdname)
+            WHERE docclass = @im_docid-class
+              AND objectid = @im_docid-objid.
+          IF sy-subrc = 0 AND lv_tdname IS NOT INITIAL.
+            CALL METHOD zrm_cl_qdc_util=>get_text_sapscript
+              EXPORTING
+                iv_docclass = im_docid-class
+                iv_objectid = im_docid-objid
+                iv_tdid     = CONV #( lv_tdid )
+                iv_tdobject = zrm_cl_sapscript_texts=>co_tdobject_zqdc
+                iv_tdname   = CONV #( lv_tdname )
+              RECEIVING
+                ro_data     = ex_data.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.

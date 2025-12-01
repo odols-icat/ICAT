@@ -1,0 +1,72 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZRM_VALORACIO_OFERTESF10.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_DYNPRO_MAT_CO2
+*&---------------------------------------------------------------------*
+* Verifica si aplica la pantalla de Materials pel CO2.
+* Si aplica i ja s'ha informat, es continua amb la selecció dels apartats.
+* Si aplica i encara està buida, es mostra dynpro 1006
+* Només es permet continuar amb la selecció dels apartats si aplica i s'ha informat
+* o si no aplica. Si es cancel·la la introducció dels Materials no es permet
+* continuar.
+*----------------------------------------------------------------------*
+FORM check_dynpro_mat_co2  USING    iv_docclass   TYPE zrm_dt_exp_cont-docclass
+                                    iv_objectid   TYPE zrm_dt_exp_cont-objectid
+                                    it_crit_punt  TYPE zrm_cl_valoracio_ofertes=>ty_t_crit_punt
+                           CHANGING cv_matco2_ok  TYPE xfeld.
+  DATA: ls_crit_punt TYPE zrm_cl_valoracio_ofertes=>ty_s_crit_punt,
+        lv_nlot      TYPE zrm_dt_exp_cont-z_exp_lot_num.
+  cv_matco2_ok = abap_true.
+
+  "Verifiquem si aplica mostrar dynpro de Materials
+  READ TABLE it_crit_punt INTO ls_crit_punt WITH KEY z_co2 = abap_on.
+  IF sy-subrc = 0.
+    "Busquem si és un Expedient amb lots
+    SELECT SINGLE z_exp_lot_num
+      FROM zrm_dt_exp_cont
+      INTO lv_nlot
+      WHERE docclass = iv_docclass
+        AND objectid = iv_objectid.
+    IF sy-subrc = 0.
+      IF lv_nlot IS INITIAL.
+        SELECT COUNT(*)
+          FROM zrm_dm_mat_co2
+          WHERE docclass        = iv_docclass
+            AND objectid        = iv_objectid
+            AND z_mod_crit_punt = ls_crit_punt-z_mod_crit_punt.
+      ELSE.
+        SELECT COUNT(*)
+          FROM zrm_dm_mat_co2
+          WHERE docclass        = iv_docclass
+            AND objectid        = iv_objectid
+            AND z_mod_crit_punt = ls_crit_punt-z_mod_crit_punt
+            AND znlot           = lv_nlot.
+      ENDIF.
+      "Si no hi ha dades de material les han d'introduir primer per continuar
+      IF sy-subrc <> 0.
+        IF gr_util_dm_mat_co2 IS BOUND.
+          FREE gr_util_dm_mat_co2.
+        ENDIF.
+        CREATE OBJECT gr_util_dm_mat_co2
+          EXPORTING
+            iv_docclass      = iv_docclass
+            iv_objectid      = iv_objectid
+            iv_mod_crit_punt = ls_crit_punt-z_mod_crit_punt
+            iv_znlot         = lv_nlot.
+
+        IF gr_util_dm_mat_co2 IS NOT BOUND.
+          cv_matco2_ok = abap_false.
+          EXIT.
+        ENDIF.
+        gr_util_dm_mat_co2->create_alv( ).
+
+        gr_util_dm_mat_co2->get_dades( IMPORTING et_mat_co2 = DATA(lt_mat_co2_bbdd) ).
+        IF lt_mat_co2_bbdd IS INITIAL.
+          cv_matco2_ok = abap_false.
+        ENDIF.
+        gr_util_dm_mat_co2->free_variables( ).
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.
